@@ -1,0 +1,13 @@
+python3.8 list_res+aa_code_conv.py trna_contact_5A_chainsAE.pdb
+
+python3.8 promals_hits.py promals_output.txt 37 6
+
+python3.8 promals_translate.py promals_output_allhits.txt trna_contact_5A_chainsAE_reslist.txt HDOCK
+
+python3.8 promals_translate.py promals_output_allhits.txt trna_contact_5A_chainsAE_reslist.txt 3dRPC --c_fac 0.4 --max_cfac 0.8 --s_flag 0
+
+python3.8 promals_translate.py promals_output_allhits.txt trna_contact_5A_chainsAE_reslist.txt 3dRPC  --max_cfac 0.9  --c_fac 0.25
+
+python3.8 promals_translate.py promals_output_allhits.txt trna_contact_5A_chainsAE_reslist.txt 3d --max_cfac 0.75
+
+python3.8 promals_translate_info.py promals_output_allhits.txt trna_contact_5A_chainsAE_reslist.txt
