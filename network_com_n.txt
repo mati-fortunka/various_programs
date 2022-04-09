@@ -1,0 +1,59 @@
+set 2pid [atomselect top protein] 	 
+$2pid writepdb 2pid_net.pdb
+
+
+
+#::NetworkView::getNodesFromSelection "chain A and resid 282 and name CA" -> 245
+#::NetworkView::getNodesFromSelection "chain B and resid 282 and name CA" ->  581
+
+
+::NetworkView::getNodesFromSelection "chain A and resid 185 and name CA" -> 148
+::NetworkView::getNodesFromSelection "chain C and resid 185 and name CA" -> 588 (485)
+::NetworkView::getNodesFromSelection "chain A and resid 264 and name CA" -> 227
+::NetworkView::getNodesFromSelection "chain A and resid 265 and name CA" -> 228
+::NetworkView::getNodesFromSelection "chain C and resid 264 and name CA" -> 667 (564)
+::NetworkView::getNodesFromSelection "chain A and resid 79 and name CA" ->  42
+::NetworkView::getNodesFromSelection "chain C and resid 79 and name CA" ->  482 (379)
+::NetworkView::getNodesFromSelection "chain A and resid 91 and name CA" ->  54
+::NetworkView::getNodesFromSelection "chain C and resid 91 and name CA" ->  494 (391)
+
+
+cd ~/Documents/MD/2pid/apo/native/2pid_l0
+
+networkSetup network.config
+
+
+./gncommunities contact.dat communities.out
+
+./subopt contact.dat A_L185-A_G79.out 20 148 42
+./subopt contact.dat A_L185-A_H91.out 20 148 54
+./subopt contact.dat B_F185-B_G79.out 20 485 379
+./subopt contact.dat B_F185-B_H91.out 20 485 391
+
+./subopt contact.dat A_D264-A_G79.out 20 227 42
+./subopt contact.dat A_D264-A_H91.out 20 227 54
+./subopt contact.dat B_D264-B_G79.out 20 564 379
+./subopt contact.dat B_D264-B_H91.out 20 564 391
+
+./subopt contact.dat B_F185-A_G79.out 20 485 42
+./subopt contact.dat B_F185-A_H91.out 20 485 54
+./subopt contact.dat A_L185-B_G79.out 20 148 379
+./subopt contact.dat A_L185-B_H91.out 20 148 391
+
+./subopt contact.dat B_D264-A_G79.out 20 564 42
+./subopt contact.dat B_D264-A_H91.out 20 564 54
+./subopt contact.dat A_D264-B_G79.out 20 227 379
+./subopt contact.dat A_D264-B_H91.out 20 227 391
+
+./subopt contact.dat A_L185-B_F185.out 20 148 485
+./subopt contact.dat A_D264-B_D264.out 20 227 564
+./subopt contact.dat A_L185-B_D264.out 20 148 564
+./subopt contact.dat A_D264-B_F185.out 20 227 485
+
+
+
+
+
+
+
+

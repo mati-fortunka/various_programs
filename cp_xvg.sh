@@ -8,13 +8,13 @@ for DIR in */ ; do
 	done
 done
 
-if [ ! -d ../../plots/ ]; then
-		mkdir ../../plots/
+if [ ! -d ../plots/ ]; then
+		mkdir ../plots/
 fi
 
 for DIR in */ ; do
-	mkdir ../../plots/$DIR/
-	cp -r ./$DIR/wykresy/ ../../plots/$DIR/
-	mv ../../plots/$DIR/wykresy/* ../../plots/$DIR/
-	rmdir ../../plots/$DIR/wykresy/
+	mkdir ../plots/$DIR/
+	cp -r ./$DIR/wykresy/ ../plots/$DIR/
+	mv ../plots/$DIR/wykresy/* ../plots/$DIR/
+	rmdir ../plots/$DIR/wykresy/
 done

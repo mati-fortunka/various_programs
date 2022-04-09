@@ -1,0 +1,3 @@
+vmd md_0_1_noPBC.pdb md_0_1_noPBC.xtc 
+networkSetup network.config
+networkSetup network2.config
