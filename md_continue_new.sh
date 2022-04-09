@@ -5,7 +5,7 @@
 #SBATCH --gres=gpu
 #SBATCH --mem 8gb
 #SBATCH --partition=troll
-#SBATCH --nodelist=troll-10
+#SBATCH --nodelist=troll-12
 #SBATCH --exclusive
 
 source /opt/gromacs-2018/bin/GMXRC 
