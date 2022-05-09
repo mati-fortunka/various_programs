@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Created on 29.06.2021
+Created on 9.04.2022
 @author: Mateusz Fortunka
 """
 
@@ -8,7 +8,7 @@ import sys
 
 if __name__ == "__main__":
 	if len(sys.argv)!=2:
-		sys.exit("Wrong number of arguments given. Correct syntax: his_conv.py file.pdb")
+		sys.exit("Wrong number of arguments given. Correct syntax: res_del_nums.py file.pdb")
 	else:
 		file_pdb=sys.argv[1]
 		if file_pdb[-4:] != '.pdb':
@@ -20,17 +20,16 @@ def str_replace(instr, start, end, substr):
 	return outstr
 
 infile = open(file_pdb, "r")
-conv_pdb = file_pdb[0:-4]+"_hisconv"+".pdb" 
+conv_pdb = file_pdb[0:-4]+"_delnum"+".pdb" 
 outfile = open(conv_pdb, "w")
-
+num = 264
 for line in infile:
-	if line[17:20] == 'HSD' or line[17:20] == 'HSE':
-		line=str_replace(line, 17, 20, 'HIS')
+	if line[21:22] == 'C' and int(line[23:26]) == num+1:
+		line=str_replace(line, 23, 26, str(num))
 	outfile.write(line)
         
 infile.close()
 outfile.close()
 sys.exit(f"Output succesfully written to the {conv_pdb} file.")
-
 
 

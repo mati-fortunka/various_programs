@@ -10,4 +10,5 @@
 
 source /opt/gromacs-2018/bin/GMXRC 
 
-gmx mdrun -deffnm md_0_1 -cpi md_0_1.cpt -append
+
+gmx mdrun -deffnm md_0_1 -cpi md_0_1.cpt -append -nt 10 -nb auto
