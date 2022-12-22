@@ -18,17 +18,32 @@ if __name__ == "__main__":
 def str_replace(instr, start, end, substr):
 	outstr = instr[:start] + instr[start:].replace(instr[start:end], substr, 1)
 	return outstr
+	
+#this function adds spaces in front of a number which is previously converted to string
+#it preserves proper layout of the columns in processed pdb file
+def add_spaces(integer, entire_len):
+    no_of_spaces=entire_len-len(str(integer))
+    newstring= ' ' * no_of_spaces + str(integer)
+    return newstring
 
 infile = open(file_pdb, "r")
 conv_pdb = file_pdb[0:-4]+"_n"+".gro" 
 outfile = open(conv_pdb, "w")
-atm_no = 2472
+
+atm_no = 2474
+start_no = 1
+
+flag = 0
 idx = 0
 for line in infile:
 	try:
 		atm = line[16:20]
-		if int(atm) == atm_no:
-			line=str_replace(line, 16, 20, str(atm_no+idx))
+		if flag == 0 and int(atm) == atm_no:
+			line=str_replace(line, 16, 20, add_spaces(start_no+idx, 4))
+			flag = 1
+			idx += 1
+		else:
+			line=str_replace(line, 16, 20, add_spaces(start_no+idx, 4))
 			idx += 1
 	except:
 		pass
