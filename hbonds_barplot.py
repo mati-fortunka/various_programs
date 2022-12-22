@@ -6,25 +6,37 @@ Created on Fri Nov 25 01:12:28 2022
 @author: mfortunka
 """
 
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 
-chains = "CG"
-fname1 = f'../ab72/hbonds_{chains}_list.dat'     
-fname2 = f'../mut_ab72/hbonds_{chains}_list.dat'     
+
+if __name__ == "__main__":
+    if len(sys.argv)!=2:
+        sys.exit("Wrong number of arguments given. Correct syntax: vmd_hbonds.py contacting_chains (e.g. AB)")
+    else:
+        chains = sys.argv[1]
+
+#chains = "CG"
+fname1 = f'../ab72/bonds/hbonds_{chains}_list.dat'     
+fname2 = f'../mut_ab72/bonds/hbonds_{chains}_list.dat'     
 
 data = pd.read_csv(fname1, names=('contact', 'occurence', 'st. dev.'), delimiter=('\t'))
 data_mut = pd.read_csv(fname2, names=('contact', 'occurence', 'st. dev.'), delimiter=('\t'))
 
-for i in data['contact']:
-    if i not in list(data_mut['contact']):
-        df = pd.DataFrame({'contact': [i], 'occurence': [0], 'st. dev.': [0]})
+for i, v in enumerate(data['contact']):
+    if data['occurence'][i] < data['st. dev.'][i]:
+        data.loc[i,'occurence'] = data.loc[i,'st. dev.'] 
+    if v not in list(data_mut['contact']):
+        df = pd.DataFrame({'contact': [v], 'occurence': [0], 'st. dev.': [0]})
         data_mut = data_mut.append(df, ignore_index=True)
         
-for j in data_mut['contact']:
-    if j not in list(data['contact']):
-        df = pd.DataFrame({'contact': [j], 'occurence': [0], 'st. dev.': [0]})
+for j, v in enumerate(data_mut['contact']):
+    if data_mut['occurence'][j] < data_mut['st. dev.'][j]:
+        data_mut.loc[j, 'occurence'] = data_mut.loc[j, 'st. dev.'] 
+    if v not in list(data['contact']):
+        df = pd.DataFrame({'contact': [v], 'occurence': [0], 'st. dev.': [0]})
         data = data.append(df, ignore_index=True)
 
 data=data.sort_values('contact')
