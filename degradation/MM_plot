@@ -1,0 +1,38 @@
+set datafile separator ','
+
+# Style linii
+set style line 1 lc rgb "#000000" lw 2 pt 7
+set style line 2 lc rgb "#0000EE" lw 2 pt 7
+set style line 3 lc rgb "#E61C66" lw 1.5 pt 7 dt 3
+
+# Definicja fitowanej funkcji i początkowe parametry
+f(x) = V * x / (x + Km)
+V = 0.9
+Km = 4.1
+Vmax = 0.99
+
+# Ustawienia osi i tytułu
+set title 'Degradation'
+set xlabel '[TrmD-ssra] (uM)'
+set ylabel 'Degradation rate (uM/min)'
+set xrange [0:60]
+set yrange [0:1.2]
+
+# Kreski dla Km, Vmax/2
+set arrow from 4.12,0 to 4.12,0.495 nohead ls 3 
+set arrow from 0,0.495 to 4.12,0.495 nohead ls 3 
+
+# Dopasowanie danych
+fit f(x) "dane_GFP.csv" u 1:2:3 via V, Km
+
+# Pozycja legendy
+set key right top
+#unset key  # Jeśli ma być bez legendy, odkomentuj to
+
+# Rysowanie
+plot "dane_GFP.csv" u 1:2:3 with yerrorbars title "Data" ls 2, \
+     f(x) title "Fit" ls 1, \
+     Vmax ls 3 notitle
+
+pause -1
+
