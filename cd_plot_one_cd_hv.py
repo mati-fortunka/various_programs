@@ -2,8 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Path to your input folder and CSV file
-input_folder = "/home/matifortunka/Documents/JS/data_Cambridge/MateuszF/Yibk_CD/"  # Replace with your folder path
-file_path = input_folder + "Yibk_300011.csv"
+input_folder = "/home/matifortunka/Documents/JS/data_Cambridge/MateuszF/Yibk_CD/backgrounds/"  # Replace with your folder path
+file_path = input_folder + "00010" + ".csv"
 
 # Read the file
 with open(file_path, 'r') as f:

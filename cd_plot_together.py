@@ -6,10 +6,10 @@ import matplotlib.pyplot as plt
 HV_THRESHOLD = 800  # Change this value as needed
 
 # Path to your input folder and output folder
-input_folder = "/home/matifortunka/Documents/JS/data_Cambridge/MateuszF/Yibk_CD/"  # Replace with your folder path
+input_folder = "/home/matifortunka/Documents/JS/data_Cambridge/MateuszF/Yibk_CD/lower_conc/"  # Replace with your folder path
 output_folder = os.path.join(input_folder, "combined")
-range = "_farUV"
-
+#range = "_farUV"
+range = ""
 # Create the output folder if it doesn't exist
 os.makedirs(output_folder, exist_ok=True)
 
