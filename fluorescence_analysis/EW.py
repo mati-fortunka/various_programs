@@ -5,7 +5,7 @@ from scipy.interpolate import UnivariateSpline
 from scipy.signal import savgol_filter
 
 def extract_fluorescence_and_plot(folder_path, concentration_file, smoothing_method=None, window_size=15, spline_smoothing_factor=0.5, poly_order=3):
-    # Read the concentration file
+    # Read the concentration file .
     concentration_data = pd.read_csv(concentration_file, sep="\t")
     concentration_mapping = concentration_data.set_index('Sample_number')['Urea_concentration']
 
