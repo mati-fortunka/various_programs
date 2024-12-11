@@ -4,13 +4,13 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import UnivariateSpline
 from scipy.signal import savgol_filter
 
-def extract_fluorescence_ratio_and_plot(folder_path, wavelength1, wavelength2, concentration_file, smoothing_method=None, window_size=15, spline_smoothing_factor=0.5, poly_order=3):
+def extract_fluorescence_and_plot(folder_path, concentration_file, smoothing_method=None, window_size=15, spline_smoothing_factor=0.5, poly_order=3):
     # Read the concentration file
     concentration_data = pd.read_csv(concentration_file, sep="\t")
     concentration_mapping = concentration_data.set_index('Sample_number')['Urea_concentration']
 
     # Prepare a list to hold data for plotting
-    fluorescence_ratio_vs_concentration = []
+    ew_vs_concentration = []
 
     # Loop through all CSV files in the folder
     for file_name in os.listdir(folder_path):
@@ -43,50 +43,39 @@ def extract_fluorescence_ratio_and_plot(folder_path, wavelength1, wavelength2, c
                 else:
                     data["Smoothed Intensity"] = data["Intensity (a.u.)"]  # No smoothing
 
-                # Find the closest wavelengths to the specified ones
-                closest_wavelength1 = data.iloc[(data["Wavelength (nm)"].sub(wavelength1).abs().argsort().iloc[0])]["Wavelength (nm)"]
-                closest_wavelength2 = data.iloc[(data["Wavelength (nm)"].sub(wavelength2).abs().argsort().iloc[0])]["Wavelength (nm)"]
+                # Calculate the equivalent width (EW)
+                ew = (data["Smoothed Intensity"] * data["Wavelength (nm)"].values).sum()
+                # Map sample number to urea concentration
+                urea_concentration = concentration_mapping.get(sample_number, None)
+                if urea_concentration is not None:
+                    ew_vs_concentration.append((urea_concentration, ew))
 
-                intensity1 = data.loc[data["Wavelength (nm)"] == closest_wavelength1, "Smoothed Intensity"].values
-                intensity2 = data.loc[data["Wavelength (nm)"] == closest_wavelength2, "Smoothed Intensity"].values
-
-                if intensity1.size > 0 and intensity2.size > 0:
-                    # Map sample number to urea concentration
-                    urea_concentration = concentration_mapping.get(sample_number, None)
-                    if urea_concentration is not None:
-                        fluorescence_ratio = intensity1[0] / intensity2[0]
-                        fluorescence_ratio_vs_concentration.append((urea_concentration, fluorescence_ratio))
-
-                    print(f"Using wavelengths {closest_wavelength1} nm and {closest_wavelength2} nm for file {file_name}.")
-                else:
-                    print(f"No valid intensity data found for file {file_name}.")
+                print(f"Processed file {file_name}, EW={ew:.2f}.")
 
             except Exception as e:
                 print(f"Error processing {file_name}: {e}")
 
     # Convert list to DataFrame for easier handling
-    plot_data = pd.DataFrame(fluorescence_ratio_vs_concentration, columns=['Urea_concentration', 'Fluorescence Ratio'])
+    plot_data = pd.DataFrame(ew_vs_concentration, columns=['Urea_concentration', 'EW'])
     plot_data.sort_values(by='Urea_concentration', inplace=True)
 
     # Plot the data
     plt.figure(figsize=(8, 6))
-    plt.plot(plot_data['Urea_concentration'], plot_data['Fluorescence Ratio'], marker='o', linestyle='-', color='b')
-    plt.title(f'Fluorescence Ratio ({wavelength1} nm / {wavelength2} nm) vs Urea Concentration')
+    plt.plot(plot_data['Urea_concentration'], plot_data['EW'], marker='o', linestyle='-', color='b')
+    plt.title('Equivalent Width (EW) vs Urea Concentration')
     plt.xlabel('Urea Concentration (M)')
-    plt.ylabel('Fluorescence Ratio')
+    plt.ylabel('Equivalent Width (a.u.)')
     plt.grid(True)
-    output_file = folder_path + f"/FL_Ratio_{wavelength1}nm_{wavelength2}nm.png"
+    output_file = folder_path + f"/EW_vs_urea_{smoothing_method}.png"
     plt.savefig(output_file)
     plt.show()
 
 # Example usage
 folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/MateuszF/Yibk_flourimetry/YibK_unfolding"  # Replace with the path to your folder containing CSV files
 concentration_file = folder_path + "/concentrations.txt"  # Replace with the correct path to the concentrations.txt file
-wavelength1 = 320  # Specify the first wavelength of interest (e.g., 320 nm)
-wavelength2 = 355  # Specify the second wavelength of interest (e.g., 350 nm)
-smoothing_method = "None"  # Options: None, "moving_average", "spline", "savitzky_golay"
+smoothing_method = "spline"  # Options: None, "moving_average", "spline", "savitzky_golay"
 window_size = 15  # Used for moving average and Savitzky-Golay filter
 spline_smoothing_factor = 0.5  # Used for spline smoothing
 poly_order = 3  # Used for Savitzky-Golay filter
 
-extract_fluorescence_ratio_and_plot(folder_path, wavelength1, wavelength2, concentration_file, smoothing_method, window_size, spline_smoothing_factor, poly_order)
+extract_fluorescence_and_plot(folder_path, concentration_file, smoothing_method, window_size, spline_smoothing_factor, poly_order)
