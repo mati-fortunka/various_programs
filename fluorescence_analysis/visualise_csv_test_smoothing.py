@@ -45,4 +45,4 @@ def visualize_smoothing_methods(file_path, window_size=15, spline_smoothing_fact
 
 # Example usage
 file_path = "/home/matifortunka/Documents/JS/data_Cambridge/MateuszF/Yibk_flourimetry/YibK_unfolding/YibK_unfolding_1.csv"  # Replace with the path to your specific file
-visualize_smoothing_methods(file_path, window_size=15, spline_smoothing_factor=0.5, poly_order=5)
+visualize_smoothing_methods(file_path, window_size=15, spline_smoothing_factor=0.5, poly_order=3)
