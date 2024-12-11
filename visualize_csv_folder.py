@@ -2,10 +2,10 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.interpolate import UnivariateSpline
-
+from scipy.signal import savgol_filter
 
 def process_and_visualize_csv_with_smoothing(folder_path, output_folder, smoothing_method="moving_average",
-                                             window_size=15, spline_smoothing_factor=0.5):
+                                             window_size=15, spline_smoothing_factor=0.5, poly_order=3):
     # Ensure the output folder exists
     os.makedirs(output_folder, exist_ok=True)
 
@@ -30,12 +30,15 @@ def process_and_visualize_csv_with_smoothing(folder_path, output_folder, smoothi
 
                 # Apply smoothing based on the chosen method
                 if smoothing_method == "moving_average":
-                    data["Smoothed Intensity"] = data["Intensity (a.u.)"].rolling(window=window_size,
-                                                                                  center=True).mean()
+                    data["Smoothed Intensity"] = data["Intensity (a.u.)"].rolling(window=window_size, center=True).mean()
                 elif smoothing_method == "spline":
                     spline = UnivariateSpline(data["Wavelength (nm)"], data["Intensity (a.u.)"],
                                               s=spline_smoothing_factor)
                     data["Smoothed Intensity"] = spline(data["Wavelength (nm)"])
+                elif smoothing_method == "savitzky_golay":
+                    if window_size % 2 == 0:
+                        raise ValueError("Window size for Savitzky-Golay filter must be odd.")
+                    data["Smoothed Intensity"] = savgol_filter(data["Intensity (a.u.)"], window_length=window_size, polyorder=poly_order)
 
                 # Plot the data
                 plt.figure(figsize=(10, 6))
@@ -56,8 +59,7 @@ def process_and_visualize_csv_with_smoothing(folder_path, output_folder, smoothi
             except Exception as e:
                 print(f"Error processing {file_name}: {e}")
 
-
 # Example usage
-folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/MateuszF/Yibk_flourimetry"  # Replace with the path to your folder containing CSV files
+folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/MateuszF/Yibk_flourimetry/YibK_unfolding"  # Replace with the path to your folder containing CSV files
 output_folder = folder_path + "/output"  # Replace with the desired output folder
-process_and_visualize_csv_with_smoothing(folder_path, output_folder, smoothing_method="moving_average")
+process_and_visualize_csv_with_smoothing(folder_path, output_folder, smoothing_method="savitzky_golay", window_size=15, poly_order=5)
