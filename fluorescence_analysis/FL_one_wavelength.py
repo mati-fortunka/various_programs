@@ -1,8 +1,20 @@
 import os
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
+from scipy.optimize import curve_fit
 from scipy.interpolate import UnivariateSpline
 from scipy.signal import savgol_filter
+
+# Constants
+RT = 0.592  # RT constant kcal
+
+# Define the function to fit
+def F(x, a_n, a_u, m, g):
+    return (a_n + a_u * np.exp((m * x - g) / RT)) / (1 + np.exp((m * x - g) / RT))
+
+def G(x, a_n, a_u, m, d):
+    return (a_n + a_u * np.exp((m*(x - d)) / RT)) / (1 + np.exp((m*(x - d)) / RT))
 
 def extract_fluorescence_and_plot(folder_path, wavelength, concentration_file, smoothing_method=None, window_size=15, spline_smoothing_factor=0.5, poly_order=3):
     # Read the concentration file
@@ -64,21 +76,50 @@ def extract_fluorescence_and_plot(folder_path, wavelength, concentration_file, s
     plot_data = pd.DataFrame(fluorescence_vs_concentration, columns=['Urea_concentration', 'Intensity'])
     plot_data.sort_values(by='Urea_concentration', inplace=True)
 
+    # Fit the data to the function F(x)
+    x_data = plot_data['Urea_concentration'].values
+    y_data = plot_data['Intensity'].values
+
+    # Initial guess for the parameters
+    initial_guess = [2, 0.25, 2.5, 4.5]
+
+    try:
+        # Perform curve fitting
+        #popt, pcov = curve_fit(F, x_data, y_data, p0=initial_guess)
+        popt, pcov = curve_fit(G, x_data, y_data, p0=initial_guess)
+
+        # Extract the standard deviation (errors) of the parameters
+        perr = np.sqrt(np.diag(pcov))
+
+        print("Fitted parameters and their errors:")
+        print(f"a_n = {popt[0]} ± {perr[0]}")
+        #print(f"b_n = {popt[1]} ± {perr[1]}")
+        print(f"a_u = {popt[1]} ± {perr[1]}")
+        print(f"m   = {popt[2]} ± {perr[2]}")
+        print(f"g (or d)   = {popt[3]} ± {perr[3]}")
+    except RuntimeError as e:
+        print(f"Could not fit the data: {e}")
+        popt, perr = None, None
+
     # Plot the data
     plt.figure(figsize=(8, 6))
-    plt.plot(plot_data['Urea_concentration'], plot_data['Intensity'], marker='o', linestyle='-', color='b')
+    plt.scatter(plot_data['Urea_concentration'], plot_data['Intensity'], label='Data', color='b', marker='o')
+    if popt is not None:
+        fitted_y = F(x_data, *popt)
+        plt.plot(x_data, fitted_y, label='Fit', color='r', linestyle='--')
     plt.title(f'Fluorescence Intensity at {wavelength} nm vs Urea Concentration')
     plt.xlabel('Urea Concentration (M)')
     plt.ylabel('Fluorescence Intensity (a.u.)')
+    plt.legend()
     plt.grid(True)
-    output_file = folder_path + f"/FL_{wavelength}nm_{smoothing_method}.png"
+    output_file = folder_path + f"/FL_{wavelength}nm_{smoothing_method}_fit.png"
     plt.savefig(output_file)
     plt.show()
 
 # Example usage
 folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/MateuszF/Yibk_flourimetry/YibK_unfolding"  # Replace with the path to your folder containing CSV files
 concentration_file = folder_path + "/concentrations.txt"  # Replace with the correct path to the concentrations.txt file
-wavelength = 355  # Specify the wavelength of interest (e.g., 320 nm)
+wavelength = 320  # Specify the wavelength of interest (e.g., 320 nm)
 smoothing_method = "moving_average"  # Options: None, "moving_average", "spline", "savitzky_golay"
 window_size = 15  # Used for moving average and Savitzky-Golay filter
 spline_smoothing_factor = 0.5  # Used for spline smoothing
