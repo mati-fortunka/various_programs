@@ -16,7 +16,7 @@ def F(x, a_n, a_u, m, g):
 def G(x, a_n, a_u, m, d):
     return (a_n + a_u * np.exp((m*(x - d)) / RT)) / (1 + np.exp((m*(x - d)) / RT))
 
-def extract_fluorescence_and_plot(folder_path, concentration_file, smoothing_method=None, window_size=15, spline_smoothing_factor=0.5, poly_order=3):
+def extract_fluorescence_and_plot(folder_path, concentration_file, smoothing_method=None, window_size=15, spline_smoothing_factor=0.5, poly_order=3, baseline_wavelength=None):
     # Read the concentration file
     concentration_data = pd.read_csv(concentration_file, sep="\t")
     concentration_mapping = concentration_data.set_index('Sample_number')['Urea_concentration']
@@ -31,7 +31,6 @@ def extract_fluorescence_and_plot(folder_path, concentration_file, smoothing_met
 
             try:
                 # Extract the sample number from the file name
-                #sample_number = int(file_name[:-4].split('_')[2])  # Adjust split logic as per your file naming
                 sample_number = int(file_name[:-4])  # Adjust split logic as per your file naming
 
                 # Read the CSV file, assuming it has wavelength and intensity columns
@@ -54,16 +53,29 @@ def extract_fluorescence_and_plot(folder_path, concentration_file, smoothing_met
                         raise ValueError("Window size for Savitzky-Golay filter must be odd.")
                     data["Smoothed Intensity"] = savgol_filter(data["Intensity (a.u.)"], window_length=window_size, polyorder=poly_order)
                 else:
-                    data["Smoothed Intensity"] = data["Intensity (a.u.)"]  # No smoothing
+                    data["Smoothed Intensity"] = data["Intensity (a.u.)"]
+
+                # Dynamically determine baseline correction value
+                if baseline_wavelength is not None:
+                    if baseline_wavelength in data["Wavelength (nm)"].values:
+                        baseline_value = data.loc[data["Wavelength (nm)"] == baseline_wavelength, "Smoothed Intensity"].values[0]
+                    else:
+                        # Interpolate if the exact wavelength is not available
+                        baseline_value = np.interp(baseline_wavelength, data["Wavelength (nm)"], data["Smoothed Intensity"])
+                else:
+                    baseline_value = 0  # No baseline correction if not specified
+
+                # Apply baseline correction
+                data["Baseline Corrected Intensity"] = data["Smoothed Intensity"] - baseline_value
 
                 # Calculate the equivalent width (EW)
-                ew = (data["Smoothed Intensity"] * data["Wavelength (nm)"].values).sum()
+                ew = (data["Baseline Corrected Intensity"] * data["Wavelength (nm)"].values).sum()
                 # Map sample number to urea concentration
                 urea_concentration = concentration_mapping.get(sample_number, None)
                 if urea_concentration is not None:
                     ew_vs_concentration.append((urea_concentration, ew))
 
-                print(f"Processed file {file_name}, EW={ew:.2f}.")
+                print(f"Processed file {file_name}, EW={ew:.2f}, Baseline={baseline_value:.2f}.")
 
             except Exception as e:
                 print(f"Error processing {file_name}: {e}")
@@ -81,7 +93,6 @@ def extract_fluorescence_and_plot(folder_path, concentration_file, smoothing_met
 
     try:
         # Perform curve fitting
-        #popt, pcov = curve_fit(F, x_data, y_data, p0=initial_guess)
         popt, pcov = curve_fit(G, x_data, y_data, p0=initial_guess)
 
         # Extract the standard deviation (errors) of the parameters
@@ -119,5 +130,6 @@ smoothing_method = "moving_average"  # Options: None, "moving_average", "spline"
 window_size = 20  # Used for moving average and Savitzky-Golay filter
 spline_smoothing_factor = 0.5  # Used for spline smoothing
 poly_order = 3  # Used for Savitzky-Golay filter
+baseline_value = 390  # Example baseline value to subtract
 
-extract_fluorescence_and_plot(folder_path, concentration_file, smoothing_method, window_size, spline_smoothing_factor, poly_order)
+extract_fluorescence_and_plot(folder_path, concentration_file, smoothing_method, window_size, spline_smoothing_factor, poly_order, baseline_value)

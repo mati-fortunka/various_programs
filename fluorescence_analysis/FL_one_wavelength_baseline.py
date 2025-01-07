@@ -16,13 +16,13 @@ def F(x, a_n, a_u, m, g):
 def G(x, a_n, a_u, m, d):
     return (a_n + a_u * np.exp((m*(x - d)) / RT)) / (1 + np.exp((m*(x - d)) / RT))
 
-def extract_fluorescence_and_plot(folder_path, concentration_file, smoothing_method=None, window_size=15, spline_smoothing_factor=0.5, poly_order=3):
+def extract_fluorescence_and_plot(folder_path, wavelength, concentration_file, smoothing_method=None, window_size=15, spline_smoothing_factor=0.5, poly_order=3, baseline_wavelength=None):
     # Read the concentration file
     concentration_data = pd.read_csv(concentration_file, sep="\t")
     concentration_mapping = concentration_data.set_index('Sample_number')['Urea_concentration']
 
     # Prepare a list to hold data for plotting
-    ew_vs_concentration = []
+    fluorescence_vs_concentration = []
 
     # Loop through all CSV files in the folder
     for file_name in os.listdir(folder_path):
@@ -56,32 +56,48 @@ def extract_fluorescence_and_plot(folder_path, concentration_file, smoothing_met
                 else:
                     data["Smoothed Intensity"] = data["Intensity (a.u.)"]  # No smoothing
 
-                # Calculate the equivalent width (EW)
-                ew = (data["Smoothed Intensity"] * data["Wavelength (nm)"].values).sum()
-                # Map sample number to urea concentration
-                urea_concentration = concentration_mapping.get(sample_number, None)
-                if urea_concentration is not None:
-                    ew_vs_concentration.append((urea_concentration, ew))
+                # Dynamically determine baseline correction value
+                if baseline_wavelength is not None:
+                    if baseline_wavelength in data["Wavelength (nm)"].values:
+                        baseline_value = data.loc[data["Wavelength (nm)"] == baseline_wavelength, "Smoothed Intensity"].values[0]
+                    else:
+                        # Interpolate if the exact wavelength is not available
+                        baseline_value = np.interp(baseline_wavelength, data["Wavelength (nm)"], data["Smoothed Intensity"])
+                else:
+                    baseline_value = 0  # No baseline correction if not specified
 
-                print(f"Processed file {file_name}, EW={ew:.2f}.")
+                # Find the closest wavelength to the specified one
+                closest_wavelength = data.iloc[(data["Wavelength (nm)"].sub(wavelength).abs().argsort().iloc[0])]["Wavelength (nm)"]
+                target_intensity = data.loc[data["Wavelength (nm)"] == closest_wavelength, "Smoothed Intensity"].values
+
+                if target_intensity.size > 0:
+                    corrected_intensity = target_intensity[0] - baseline_value
+
+                    # Map sample number to urea concentration
+                    urea_concentration = concentration_mapping.get(sample_number, None)
+                    if urea_concentration is not None:
+                        fluorescence_vs_concentration.append((urea_concentration, corrected_intensity))
+
+                    print(f"Using wavelength {closest_wavelength} nm for file {file_name}. Baseline value: {baseline_value:.2f}")
+                else:
+                    print(f"No valid intensity data found for file {file_name}.")
 
             except Exception as e:
                 print(f"Error processing {file_name}: {e}")
 
     # Convert list to DataFrame for easier handling
-    plot_data = pd.DataFrame(ew_vs_concentration, columns=['Urea_concentration', 'EW'])
+    plot_data = pd.DataFrame(fluorescence_vs_concentration, columns=['Urea_concentration', 'Intensity'])
     plot_data.sort_values(by='Urea_concentration', inplace=True)
 
     # Fit the data to the function F(x)
     x_data = plot_data['Urea_concentration'].values
-    y_data = plot_data['EW'].values
+    y_data = plot_data['Intensity'].values
 
     # Initial guess for the parameters
-    initial_guess = [35000, 15000, 3.5, 4.5]
+    initial_guess = [2, 0.25, 2.5, 4.5]
 
     try:
         # Perform curve fitting
-        #popt, pcov = curve_fit(F, x_data, y_data, p0=initial_guess)
         popt, pcov = curve_fit(G, x_data, y_data, p0=initial_guess)
 
         # Extract the standard deviation (errors) of the parameters
@@ -98,26 +114,27 @@ def extract_fluorescence_and_plot(folder_path, concentration_file, smoothing_met
 
     # Plot the data
     plt.figure(figsize=(8, 6))
-    plt.scatter(plot_data['Urea_concentration'], plot_data['EW'], label='Data', color='b', marker='o')
+    plt.scatter(plot_data['Urea_concentration'], plot_data['Intensity'], label='Data', color='b', marker='o')
     if popt is not None:
         fitted_y = G(x_data, *popt)
         plt.plot(x_data, fitted_y, label='Fit', color='r', linestyle='--')
-    plt.title('Equivalent Width (EW) vs Urea Concentration')
+    plt.title(f'Fluorescence Intensity at {wavelength} nm vs Urea Concentration')
     plt.xlabel('Urea Concentration (M)')
-    plt.ylabel('Equivalent Width (a.u.)')
+    plt.ylabel('Fluorescence Intensity (a.u.)')
     plt.legend()
     plt.grid(True)
-    output_file = folder_path + f"/EW_vs_urea_{smoothing_method}_fit.png"
+    output_file = folder_path + f"/FL_{wavelength}nm_{smoothing_method}_fit.png"
     plt.savefig(output_file)
     plt.show()
-
 
 # Example usage
 folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/MateuszF/Tm1570_unfolding"  # Replace with the path to your folder containing CSV files
 concentration_file = folder_path + "/concentrations.txt"  # Replace with the correct path to the concentrations.txt file
+wavelength = 360  # Specify the wavelength of interest (e.g., 320 nm)
 smoothing_method = "moving_average"  # Options: None, "moving_average", "spline", "savitzky_golay"
 window_size = 20  # Used for moving average and Savitzky-Golay filter
 spline_smoothing_factor = 0.5  # Used for spline smoothing
 poly_order = 3  # Used for Savitzky-Golay filter
+baseline_wavelength = 390  # Example baseline wavelength
 
-extract_fluorescence_and_plot(folder_path, concentration_file, smoothing_method, window_size, spline_smoothing_factor, poly_order)
+extract_fluorescence_and_plot(folder_path, wavelength, concentration_file, smoothing_method, window_size, spline_smoothing_factor, poly_order, baseline_wavelength)

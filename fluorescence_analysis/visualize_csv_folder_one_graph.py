@@ -51,7 +51,7 @@ def process_and_visualize_combined_with_smoothing(folder_path, smoothing_method=
     plt.title("Combined Spectral Data with Smoothing")
     plt.xlabel("Wavelength (nm)")
     plt.ylabel("Intensity (a.u.)")
-    #plt.legend()  # Add a legend for each file
+    plt.legend()  # Add a legend for each file
     plt.grid(True)
 
     # Save the plot if required
@@ -66,5 +66,5 @@ def process_and_visualize_combined_with_smoothing(folder_path, smoothing_method=
     plt.show()
 
 # Example usage
-folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/MateuszF/Yibk_flourimetry/YibK_unfolding"  # Replace with the path to your folder containing CSV files
-process_and_visualize_combined_with_smoothing(folder_path, smoothing_method="spline", window_size=15, poly_order=3, save_plot=True, output="output_plot.png")
+folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/MateuszF/reversibility/final/fluorimetry/fusion"  # Replace with the path to your folder containing CSV files
+process_and_visualize_combined_with_smoothing(folder_path, smoothing_method="moving_average", window_size=15, poly_order=3, save_plot=True, output="output_plot.png")

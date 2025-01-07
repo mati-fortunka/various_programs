@@ -2,11 +2,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Path to your input folder and CSV file
-input_folder = "/home/matifortunka/Documents/JS/data_Cambridge/MateuszF/Yibk_CD/backgrounds/"  # Replace with your folder path
-file_path = input_folder + "00010" + ".csv"
+path = "/home/matifortunka/Documents/JS/data_Cambridge/MateuszF/reversibility/final/cd/solenoid/solenoid 2µM native.csv"
+input_folder = path.rstrip(path.split("/")[-1])  # Replace with your folder path
+print(input_folder)
 
 # Read the file
-with open(file_path, 'r') as f:
+with open(path, 'r') as f:
     lines = f.readlines()
 lines = lines[15:]
 # Function to find the second occurrence of a keyword and return the start index
