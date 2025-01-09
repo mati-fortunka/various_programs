@@ -9,6 +9,7 @@ import numpy as np
 def process_and_visualize_combined_with_smoothing(folder_path, smoothing_method="moving_average",
                                                   range_interval=10,  # Interval in nanometers for smoothing
                                                   spline_smoothing_factor=0.5, poly_order=3,
+                                                  baseline_wavelength=390,  # Baseline wavelength for subtraction
                                                   save_plot=False, output="output_plot.png"):
     plt.figure(figsize=(12, 8))  # Create a figure for the combined plot
 
@@ -54,17 +55,24 @@ def process_and_visualize_combined_with_smoothing(folder_path, smoothing_method=
                 else:
                     data["Smoothed Ellipticity"] = data["Ellipticity (mdeg)"]
 
-                # Add the smoothed line to the combined plot
-                plt.plot(data["Wavelength (nm)"], data["Smoothed Ellipticity"],
+                # Determine the baseline value at the specified wavelength
+                closest_index = (data["Wavelength (nm)"] - baseline_wavelength).abs().idxmin()
+                baseline_value = data.loc[closest_index, "Smoothed Ellipticity"]
+
+                # Subtract the baseline from the smoothed data
+                data["Baseline Corrected"] = data["Smoothed Ellipticity"] - baseline_value
+
+                # Add the baseline-corrected line to the combined plot
+                plt.plot(data["Wavelength (nm)"], data["Baseline Corrected"],
                          label=f"{file_name} ({smoothing_method})")
 
             except Exception as e:
                 print(f"Error processing {file_name}: {e}")
 
     # Customize the combined plot
-    plt.title("Combined Spectral Data with Smoothing")
+    plt.title("Combined Spectral Data with Dynamic Baseline Correction")
     plt.xlabel("Wavelength (nm)")
-    plt.ylabel("Ellipticity (mdeg)")
+    plt.ylabel("Baseline-Corrected Ellipticity (mdeg)")
     plt.legend()  # Add a legend for each file
     plt.grid(True)
 
@@ -82,6 +90,7 @@ def process_and_visualize_combined_with_smoothing(folder_path, smoothing_method=
 
 
 # Example usage
-folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/MateuszF/Tm1570_unfolding"  # Replace with the path to your folder containing CSV files
+folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/MateuszF/Tm1570_unfolding/start"  # Replace with the path to your folder containing CSV files
 process_and_visualize_combined_with_smoothing(folder_path, smoothing_method="moving_average", range_interval=15,
-                                              poly_order=3, save_plot=True, output="output_plot.png")
+                                              poly_order=3, baseline_wavelength=390, save_plot=True,
+                                              output="output_plot.png")
