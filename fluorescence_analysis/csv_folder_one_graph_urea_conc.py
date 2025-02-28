@@ -104,6 +104,6 @@ def process_and_visualize_combined_with_smoothing(folder_path, smoothing_method=
 
 
 # Example usage
-folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/MateuszF/Tm1570_unfolding/part"  # Replace with the path to your folder containing CSV files
+folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/MateuszF/6_3/ex10"  # Replace with the path to your folder containing CSV files
 process_and_visualize_combined_with_smoothing(folder_path, smoothing_method="moving_average", range_interval=15,
                                               poly_order=3, save_plot=True, output="output_plot.png")

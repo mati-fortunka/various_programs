@@ -63,8 +63,8 @@ def process_and_visualize_combined_with_smoothing(folder_path, smoothing_method=
         print(f"Plot saved to {output}")
 
     # Display the plot
-    plt.show()
+    #plt.show()
 
 # Example usage
-folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/MateuszF/reversibility/final/fluorimetry/fusion"  # Replace with the path to your folder containing CSV files
+folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/MateuszF/solenoidy/solJ/ex10"  # Replace with the path to your folder containing CSV files
 process_and_visualize_combined_with_smoothing(folder_path, smoothing_method="moving_average", window_size=15, poly_order=3, save_plot=True, output="output_plot.png")
