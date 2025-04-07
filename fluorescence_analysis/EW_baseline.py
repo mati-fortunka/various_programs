@@ -124,7 +124,7 @@ def extract_fluorescence_and_plot(folder_path, concentration_file, smoothing_met
 
 
 # Example usage
-folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/MateuszF/Tm1570_unfolding"  # Replace with the path to your folder containing CSV files
+folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/6_3/fluorimetry unf/2025_04_04 fluorimetry unf"  # Replace with the path to your folder containing CSV files
 concentration_file = folder_path + "/concentrations.txt"  # Replace with the correct path to the concentrations.txt file
 smoothing_method = "moving_average"  # Options: None, "moving_average", "spline", "savitzky_golay"
 window_size = 20  # Used for moving average and Savitzky-Golay filter

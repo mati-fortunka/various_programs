@@ -128,9 +128,9 @@ def extract_fluorescence_and_plot(folder_path, wavelength, concentration_file, s
     plt.show()
 
 # Example usage
-folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/MateuszF/Tm1570_unfolding"  # Replace with the path to your folder containing CSV files
+folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/6_3/fluorimetry unf/2025_04_04 fluorimetry unf"  # Replace with the path to your folder containing CSV files
 concentration_file = folder_path + "/concentrations.txt"  # Replace with the correct path to the concentrations.txt file
-wavelength = 360  # Specify the wavelength of interest (e.g., 320 nm)
+wavelength = 335  # Specify the wavelength of interest (e.g., 320 nm)
 smoothing_method = "moving_average"  # Options: None, "moving_average", "spline", "savitzky_golay"
 window_size = 20  # Used for moving average and Savitzky-Golay filter
 spline_smoothing_factor = 0.5  # Used for spline smoothing

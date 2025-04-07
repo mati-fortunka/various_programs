@@ -75,8 +75,8 @@ def load_and_process_data(filenames, column_to_average=2, output_plot='combined_
 
 
 filenames = [
-    "/home/matifortunka/Documents/JS/data_Cambridge/MateuszF/Tm1570_fit_ref.txt",
-    "/home/matifortunka/Documents/JS/data_Cambridge/MateuszF/Tm1570_fit_unf.txt"
+    "/home/matifortunka/Documents/JS/data_Cambridge/Tm1570/SF/Tm1570_fit_ref.txt",
+    "/home/matifortunka/Documents/JS/data_Cambridge/Tm1570/SF/Tm1570_fit_unf.txt"
 ]
 
 load_and_process_data(filenames, column_to_average=7, output_plot="combined_double_fast_o.png")

@@ -90,7 +90,7 @@ def process_and_visualize_combined_with_smoothing(folder_path, smoothing_method=
 
 
 # Example usage
-folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/MateuszF/slow_phase_test/to_compare/2"  # Replace with the path to your folder containing CSV files
+folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/6_3/fluorimetry unf/2025_04_04 fluorimetry unf"  # Replace with the path to your folder containing CSV files
 process_and_visualize_combined_with_smoothing(folder_path, smoothing_method="moving_average", range_interval=15,
                                               poly_order=3, baseline_wavelength=390, save_plot=True,
                                               output="output_plot.png")
