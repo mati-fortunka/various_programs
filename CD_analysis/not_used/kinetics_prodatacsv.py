@@ -6,11 +6,45 @@ from scipy.optimize import curve_fit
 
 
 def read_data(filename):
-    """Reads the kinetic data from a CSV file."""
-    df = pd.read_csv(filename, skiprows=1,sep=",")  # Skip the title row
-    df = df.dropna(how='all', axis=1)  # Remove empty columns
-    return df
+    """Reads the kinetic Circular Dichroism data from the CSV file."""
+    with open(filename, 'r') as f:
+        lines = f.readlines()
+        lines = lines[30:]
 
+    # Find start of CD data
+    cd_index = None
+    for i, line in enumerate(lines):
+        if line.strip() == "CircularDichroism":
+            cd_index = i
+            break
+
+    if cd_index is None:
+        raise ValueError("CircularDichroism section not found in file.")
+
+    # CD data starts 3 lines below the header
+    data_start = cd_index + 3
+
+    # Read data until empty line or end
+    data_lines = []
+    for line in lines[data_start:]:
+        if not line.strip():
+            break
+        data_lines.append(line.strip())
+
+    # Convert to DataFrame
+    from io import StringIO
+    data_str = "\n".join(data_lines)
+    df = pd.read_csv(StringIO(data_str), sep=",", engine='python', names=["Time", "CD"])
+    print(df)
+
+    # Convert Time column to numeric
+    df["Time"] = pd.to_numeric(df["Time"], errors='coerce')
+    df["CD"] = pd.to_numeric(df["CD"], errors='coerce')
+
+    # Drop any rows where Time or CD is missing
+    df = df.dropna(subset=["Time", "CD"])
+
+    return df
 
 def moving_average(data, window_size):
     """Applies a moving average filter."""
@@ -77,7 +111,7 @@ def plot_data(df, smooth_method=None, window_size=5, polyorder=2, output_plot="o
 
     plt.xlabel('Time (s)')
     plt.ylabel('Intensity (a.u.)')
-    plt.title('Kinetic Data from Fluorimeter')
+    plt.title('Kinetic Data from CD')
     plt.legend()
     plt.grid()
     plt.savefig(output_plot)
@@ -87,13 +121,13 @@ def plot_data(df, smooth_method=None, window_size=5, polyorder=2, output_plot="o
     print(f"Fitted parameters: A={params[0]:.5f}, k={params[1]:.5f}, c={params[2]:.5f}'")
 
 if __name__ == "__main__":
-    filename = "/home/matifortunka/Documents/JS/data_Cambridge/MateuszF/CD_kin2.csv"  # Set the path to your CSV file here
+    filename = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/A/kinetics/CD/8_3_5uM_222nm_2000s00002.csv"  # Set the path to your CSV file here
     df = read_data(filename)
 
     smooth_method = 'savitzky_golay'  # Change to 'moving_average' or None for different options
-    window_size = 25  # Adjust smoothing window size
+    window_size = 5  # Adjust smoothing window size
     polyorder = 3  # Adjust polynomial order for Savitzky-Golay
-    dead_time = 30  # Shift time by 20 seconds (or any user-specified value)
+    dead_time = 25  # Shift time by 20 seconds (or any user-specified value)
     out = filename[:-4] + "_fit.png"
 
     plot_data(df, smooth_method=smooth_method, window_size=window_size, polyorder=polyorder, output_plot=out,

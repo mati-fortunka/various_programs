@@ -1,6 +1,5 @@
-# File: ml5_program_robot.py
-
 import xml.etree.ElementTree as ET
+import os
 
 MAX_VOLUME = 1000
 
@@ -48,7 +47,6 @@ def create_side_node(parent, side_tag, valve_pos, volume, aspirate):
     v = ET.SubElement(valv, 'VALVE')
     ET.SubElement(v, 'Name').text = valve_pos
     ET.SubElement(v, 'Position').text = valve_pos
-
     ET.SubElement(side, 'ValveDirection').text = '2'
     create_variable_node(side, 'VOLUME', volume)
     ET.SubElement(side, 'Aspirate').text = '1' if aspirate else '0'
@@ -58,8 +56,7 @@ def create_side_node(parent, side_tag, valve_pos, volume, aspirate):
     return side
 
 def create_method_xml(steps, filename):
-    left_total = sum(step[0] for step in steps)
-    right_total = sum(step[1] for step in steps)
+    groups = group_by_syringe_volume(steps)
 
     root = ET.Element('MethodDoc')
     com_ports = ET.SubElement(root, 'ComPorts')
@@ -124,43 +121,47 @@ def create_method_xml(steps, filename):
     ET.SubElement(smart_step, 'Comment').text = 'Performs a serial dispense procedure.'
     ET.SubElement(smart_step, 'Reserved').text = '0'
 
-    # Priming Step - Load full volume before dispense
-    priming = ET.SubElement(smart_step, 'Step')
-    ET.SubElement(priming, 'ComPort').text = '1'
-    ET.SubElement(priming, 'InstAddr').text = '97'
-    ET.SubElement(priming, 'InstType').text = '16'
-    create_variable_node(priming, 'DELAY', 0)
-    ET.SubElement(priming, 'Trigger').text = '0'
-    ET.SubElement(priming, 'TTL').text = '0'
-    ET.SubElement(priming, 'TTLDirection').text = '2'
-    create_side_node(priming, 'Left', 'Position 1', left_total, True)
-    create_side_node(priming, 'Right', 'Position 1', right_total, True)
+    step_counter = 1
+    for group in groups:
+        group_left = sum(s[0] for s in group)
+        group_right = sum(s[1] for s in group)
 
-    # Actual Dispense Steps
-    for left, right in steps:
-        step = ET.SubElement(smart_step, 'Step')
-        ET.SubElement(step, 'ComPort').text = '1'
-        ET.SubElement(step, 'InstAddr').text = '97'
-        ET.SubElement(step, 'InstType').text = '16'
-        create_variable_node(step, 'DELAY', 0)
-        ET.SubElement(step, 'Trigger').text = '1'
-        ET.SubElement(step, 'TTL').text = '0'
-        ET.SubElement(step, 'TTLDirection').text = '2'
-        create_side_node(step, 'Left', 'Position 2', left, False)
-        create_side_node(step, 'Right', 'Position 2', right, False)
+        # Aspiration step
+        asp = ET.SubElement(smart_step, 'Step')
+        ET.SubElement(asp, 'ComPort').text = '1'
+        ET.SubElement(asp, 'InstAddr').text = '97'
+        ET.SubElement(asp, 'InstType').text = '16'
+        create_variable_node(asp, 'DELAY', 0)
+        ET.SubElement(asp, 'Trigger').text = '0'
+        ET.SubElement(asp, 'TTL').text = '0'
+        ET.SubElement(asp, 'TTLDirection').text = '2'
+        create_side_node(asp, 'Left', 'Position 1', group_left, True)
+        create_side_node(asp, 'Right', 'Position 1', group_right, True)
+
+        for left, right in group:
+            step = ET.SubElement(smart_step, 'Step')
+            ET.SubElement(step, 'ComPort').text = '1'
+            ET.SubElement(step, 'InstAddr').text = '97'
+            ET.SubElement(step, 'InstType').text = '16'
+            create_variable_node(step, 'DELAY', 0)
+            ET.SubElement(step, 'Trigger').text = '1'
+            ET.SubElement(step, 'TTL').text = '0'
+            ET.SubElement(step, 'TTLDirection').text = '2'
+            create_side_node(step, 'Left', 'Position 2', left, False)
+            create_side_node(step, 'Right', 'Position 2', right, False)
+            step_counter += 1
 
     ET.SubElement(method, 'EmbeddedSmartSteps')
     ET.ElementTree(root).write(filename, encoding='utf-8', xml_declaration=True)
 
-def process_volumes(file_path):
-    a=file_path[:-4].split('_')[1]
-    b=file_path[:-4].split('_')[2]
+def process_and_merge(file_path):
+    a = file_path[:-4].split('_')[1]
+    b = file_path[:-4].split('_')[2]
     volumes = read_volumes(file_path)
-    groups = group_by_syringe_volume(volumes)
-    for i, group in enumerate(groups, start=1):
-        filename = f'{a}_{b}{i}.ml5'
-        create_method_xml(group, filename)
-        print(f"Wrote {filename} with {len(group)} steps.")
+    final_filename = f'merged_{a}_{b}.ml5'
+    create_method_xml(volumes, final_filename)
+    print(f"Merged steps into: {final_filename}")
 
-process_volumes('vol_buf_0.txt')
-#process_volumes('vol_buf_den.txt')
+# Example usage
+process_and_merge('vol_buf_den.txt')
+#process_and_merge('vol_0_den.txt')

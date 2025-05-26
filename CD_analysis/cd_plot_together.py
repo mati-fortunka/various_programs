@@ -1,85 +1,122 @@
 import os
+import re
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.signal import savgol_filter
 
-# User-defined HV threshold
-HV_THRESHOLD = 700  # Change this value as needed
+# User-defined settings
+HV_THRESHOLD = 1000
+SMOOTHING_METHOD = "savgol"  # Options: "savgol", "moving_average", None
+SMOOTHING_WINDOW = 11        # Must be odd
+SMOOTHING_POLYORDER = 3      # Only used for Savitzky-Golay
+BASELINE_WAVELENGTH = 250    # Set to None to disable baseline correction
 
-# Path to your input folder and output folder
-input_folder = "/home/matifortunka/Documents/JS/data_Cambridge/MateuszF/design13/CD"  # Replace with your folder path
-output_folder = os.path.join(input_folder, "combined")
-#range = "_farUV"
-range = ""
-# Create the output folder if it doesn't exist
+# Paths
+input_folder = os.path.expanduser("/home/matifortunka/Documents/JS/data_Cambridge/8_3/G/native")      # Change this to your input directory
+output_folder = os.path.expanduser(input_folder+"/combined")    # Change this to your output directory
+range_type = ""
+
+# Create output folder if it doesn't exist
 os.makedirs(output_folder, exist_ok=True)
 
-# Function to find the second occurrence of a keyword and return the start index
 def find_start_index(lines, keyword, offset=3):
     count = 0
     for i, line in enumerate(lines):
         if keyword in line:
             count += 1
             if count == 2:
-                return i + offset  # Start index is `offset` lines after the second occurrence
+                return i + offset
     raise ValueError(f"The second occurrence of '{keyword}' was not found in the file.")
 
-# Function to process a single CSV file and return filtered data
+def smooth_data(y):
+    if SMOOTHING_METHOD == "savgol":
+        if len(y) >= SMOOTHING_WINDOW:
+            return savgol_filter(y, window_length=SMOOTHING_WINDOW, polyorder=SMOOTHING_POLYORDER)
+    elif SMOOTHING_METHOD == "moving_average":
+        if len(y) >= SMOOTHING_WINDOW:
+            return np.convolve(y, np.ones(SMOOTHING_WINDOW)/SMOOTHING_WINDOW, mode='same')
+    return y
+
 def process_csv(file_path, hv_threshold):
-    # Read the file
     with open(file_path, 'r') as f:
         lines = f.readlines()
     lines = lines[15:]
 
-    # Find the start and end indices for Circular Dichroism data
     circular_start_index = find_start_index(lines, "CircularDichroism", offset=3)
-    circular_end_index = next((i for i, line in enumerate(lines[circular_start_index:], start=circular_start_index) if not line.strip()), len(lines))
+    circular_end_index = next((i for i, line in enumerate(lines[circular_start_index:], start=circular_start_index)
+                               if not line.strip()), len(lines))
 
-    # Find the start and end indices for HV data
     hv_start_index = find_start_index(lines, "HV", offset=3)
-    hv_end_index = next((i for i, line in enumerate(lines[hv_start_index:], start=hv_start_index) if not line.strip()), len(lines))
+    hv_end_index = next((i for i, line in enumerate(lines[hv_start_index:], start=hv_start_index)
+                         if not line.strip()), len(lines))
 
-    # Extract Circular Dichroism data
     circular_lines = lines[circular_start_index:circular_end_index]
     circular_data = np.array([list(map(float, line.replace(',', ' ').split())) for line in circular_lines])
-    circular_wavelength = circular_data[:, 0]  # First column is wavelength
-    circular_ellipticity_avg = circular_data[:, -3:].mean(axis=1)  # Average of the last three columns
+    circular_wavelength = circular_data[:, 0]
+    if circular_data.shape[1] == 2:
+        circular_ellipticity_avg = circular_data[:, 1]
+    elif circular_data.shape[1] > 2:
+        circular_ellipticity_avg = circular_data[:, 1:].mean(axis=1)  # Average all but the first (wavelength) column
+    else:
+        raise ValueError(f"Unexpected number of columns in Circular Dichroism data.")
 
-    # Extract HV data
     hv_lines = lines[hv_start_index:hv_end_index]
     hv_data = np.array([list(map(float, line.replace(',', ' ').split())) for line in hv_lines])
-    hv_wavelength = hv_data[:, 0]  # First column is wavelength
-    hv_values = hv_data[:, -3:].mean(axis=1)  # Average of the last three columns
+    if hv_data.shape[1] == 2:
+        hv_values = hv_data[:, 1]
+    elif hv_data.shape[1] > 2:
+        hv_values = hv_data[:, 1:].mean(axis=1)  # Average all but the first (wavelength) column
+    else:
+        raise ValueError(f"Unexpected number of columns in HV data.")
 
-    # Filter data where HV is below the threshold
     valid_indices = hv_values <= hv_threshold
     filtered_wavelength = circular_wavelength[valid_indices]
     filtered_ellipticity_avg = circular_ellipticity_avg[valid_indices]
 
+    sort_idx = np.argsort(filtered_wavelength)
+    filtered_wavelength = filtered_wavelength[sort_idx]
+    filtered_ellipticity_avg = filtered_ellipticity_avg[sort_idx]
+
+    filtered_ellipticity_avg = smooth_data(filtered_ellipticity_avg)
+    print(f"\n--- {os.path.basename(file_path)} ---")
+    print(f"  Available wavelengths: {filtered_wavelength.min()}–{filtered_wavelength.max()}")
+    print(f"  Ellipticity at 250nm (smoothed): {np.interp(250, filtered_wavelength, filtered_ellipticity_avg)}")
+    print(f"  Ellipticity range (smoothed): {filtered_ellipticity_avg.min()} to {filtered_ellipticity_avg.max()}")
+
+    if BASELINE_WAVELENGTH is not None:
+        baseline_value = np.interp(BASELINE_WAVELENGTH, filtered_wavelength, filtered_ellipticity_avg)
+        filtered_ellipticity_avg = filtered_ellipticity_avg - baseline_value
+    print(f"  Ellipticity at 250nm (corrected): {np.interp(250, filtered_wavelength, filtered_ellipticity_avg)}")
+    print(f"  Post-baseline range: {filtered_ellipticity_avg.min()} to {filtered_ellipticity_avg.max()}")
+
     return filtered_wavelength, filtered_ellipticity_avg
 
-# Initialize the combined plot
+# Initialize plot
 plt.figure(figsize=(12, 8))
+plot_lines = []
 
-# Process all CSV files and add them to the combined plot
 csv_files = [f for f in os.listdir(input_folder) if f.endswith('.csv')]
-for csv_file in csv_files:
+for idx, csv_file in enumerate(csv_files):
     file_path = os.path.join(input_folder, csv_file)
-    filtered_wavelength, filtered_ellipticity_avg = process_csv(file_path, HV_THRESHOLD)
-    base_filename = os.path.basename(csv_file).replace(".csv", "")
-    plt.plot(filtered_wavelength, filtered_ellipticity_avg, label=base_filename)
-if "near" in csv_file:
-    range = "_nearUV"
+    label = os.path.splitext(csv_file)[0]
+    color = f"C{idx % 10}"  # Use default matplotlib color cycle
 
-# Customize and save the combined plot
+    filtered_wavelength, filtered_ellipticity_avg = process_csv(file_path, HV_THRESHOLD)
+    line, = plt.plot(filtered_wavelength, filtered_ellipticity_avg, label=label, color=color)
+    plot_lines.append(line)
+
+    if "near" in csv_file.lower():
+        range_type = "_nearUV"
+
+# Finalize legend and plot
+plt.legend(title="Sample Name")
 plt.xlabel('Wavelength [nm]')
 plt.ylabel('Ellipticity [mdeg]')
-plt.title(f'Combined Circular Dichroism Data (HV ≤ {HV_THRESHOLD} V)')
-plt.legend()
+plt.title(f'Combined Circular Dichroism Data (HV ≤ {HV_THRESHOLD} V)\nSmoothing: {SMOOTHING_METHOD or "None"}')
 plt.grid(True)
 plt.tight_layout()
 
-# Save the combined plot
-combined_plot_path = os.path.join(output_folder, f"Combined_CD{range}.png")
+combined_plot_path = os.path.join(output_folder, f"Combined_CD{range_type}.png")
 plt.savefig(combined_plot_path)
 plt.show()
 

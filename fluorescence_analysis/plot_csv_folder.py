@@ -3,9 +3,11 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.interpolate import UnivariateSpline
 from scipy.signal import savgol_filter
+import numpy as np
 
 def process_and_visualize_csv_with_smoothing(folder_path, output_folder, smoothing_method="moving_average",
-                                             window_size=15, spline_smoothing_factor=0.5, poly_order=3):
+                                             range_interval=10,  # Interval in nanometers for smoothing
+                                             spline_smoothing_factor=0.5, poly_order=3):
     # Ensure the output folder exists
     os.makedirs(output_folder, exist_ok=True)
 
@@ -28,6 +30,14 @@ def process_and_visualize_csv_with_smoothing(folder_path, output_folder, smoothi
                     print(f"No valid data in {file_name}, skipping.")
                     continue
 
+                # Determine the dynamic window size based on the range of wavelength values
+                step_size = data["Wavelength (nm)"].diff().median()  # Approximate step size in the dataset
+                window_size = max(3, int(np.ceil(range_interval / step_size)))  # Calculate window size in points
+
+                # Ensure window size is odd for Savitzky-Golay filtering
+                if smoothing_method == "savitzky_golay" and window_size % 2 == 0:
+                    window_size += 1
+
                 # Apply smoothing based on the chosen method
                 if smoothing_method == "moving_average":
                     data["Smoothed Intensity"] = data["Intensity (a.u.)"].rolling(window=window_size, center=True).mean()
@@ -36,8 +46,6 @@ def process_and_visualize_csv_with_smoothing(folder_path, output_folder, smoothi
                                               s=spline_smoothing_factor)
                     data["Smoothed Intensity"] = spline(data["Wavelength (nm)"])
                 elif smoothing_method == "savitzky_golay":
-                    if window_size % 2 == 0:
-                        raise ValueError("Window size for Savitzky-Golay filter must be odd.")
                     data["Smoothed Intensity"] = savgol_filter(data["Intensity (a.u.)"], window_length=window_size, polyorder=poly_order)
 
                 # Plot the data
@@ -60,6 +68,6 @@ def process_and_visualize_csv_with_smoothing(folder_path, output_folder, smoothi
                 print(f"Error processing {file_name}: {e}")
 
 # Example usage
-folder_path = ("/home/matifortunka/Documents/JS/data_Cambridge/MateuszF/reversibility/final/fluorimetry/Tm1570")  # Replace with the path to your folder containing CSV files
+folder_path = ("/home/matifortunka/Documents/JS/data_Cambridge/fusions/F8E4N/equilibrium/unfolding/1st_set/fluo/bad")  # Replace with the path to your folder containing CSV files
 output_folder = folder_path + "/output"  # Replace with the desired output folder
-process_and_visualize_csv_with_smoothing(folder_path, output_folder, smoothing_method="moving_average", window_size=20, poly_order=5)
+process_and_visualize_csv_with_smoothing(folder_path, output_folder, smoothing_method="moving_average", range_interval=20, poly_order=5)

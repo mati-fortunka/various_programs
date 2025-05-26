@@ -70,5 +70,5 @@ def process_and_visualize_combined_with_3d_smoothing(folder_path, smoothing_meth
 
 # Example usage
 # Replace the path below with the path to your folder containing CSV files
-folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/6_3/fluorimetry unf/2025_04_04 fluorimetry unf"
+folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/fusions/F8E4N/equilibrium/unfolding/1st_set/fluo"  # Replace with the path to your folder containing CSV files
 process_and_visualize_combined_with_3d_smoothing(folder_path, smoothing_method="moving_average", window_size=20, poly_order=3)
