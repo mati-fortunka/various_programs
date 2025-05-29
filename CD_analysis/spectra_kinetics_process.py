@@ -11,7 +11,7 @@ from io import StringIO
 from scipy.optimize import curve_fit
 
 # === User Settings ===
-input_csv = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/A/spectra_kinetics/2h/8_3_alpha_140ul_2h_2min00006.csv"
+input_csv = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/Z/spectra_kinetics/2h/2/8_3_zeta_10ul_new_2h00002.csv"
 native_spectrum_path = None#"/home/matifortunka/Documents/JS/data_Cambridge/8_3/A/spectra_kinetics/8_3_A_5uM_nat00043_raw.txt"
 dead_time = 120  # seconds
 nm_per_sec = 0.5

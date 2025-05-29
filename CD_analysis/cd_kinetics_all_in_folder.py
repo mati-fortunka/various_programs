@@ -229,14 +229,14 @@ def plot_data(df, smooth_method=None, window_size=5, polyorder=2,
 
 # BATCH PROCESSING SCRIPT
 if __name__ == "__main__":
-    folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/Z/kinetics/CD/2000s"
+    folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/G/kinetics/CD/2000s"
     smooth_method = 'savitzky_golay'
     window_size = 25
     polyorder = 3
     default_dead_time = 30
     dead_time_file = os.path.join(folder_path, "dead_times.txt")
     dead_times_dict = read_dead_times(dead_time_file)
-    fit_type = 'double_exponential'
+    fit_type = 'exponential'
     fit_start = 0
     fit_end = 2000
 
