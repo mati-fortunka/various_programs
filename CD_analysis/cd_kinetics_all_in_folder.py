@@ -229,7 +229,7 @@ def plot_data(df, smooth_method=None, window_size=5, polyorder=2,
 
 # BATCH PROCESSING SCRIPT
 if __name__ == "__main__":
-    folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/G/kinetics/CD/2000s"
+    folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/A/kinetics/CD/new_fitting/down"
     smooth_method = 'savitzky_golay'
     window_size = 25
     polyorder = 3

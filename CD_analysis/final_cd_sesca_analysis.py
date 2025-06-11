@@ -24,8 +24,8 @@ smoothing_window = 11
 smoothing_polyorder = 3
 baseline_wavelength = 250.0
 dead_time = 120
-nm_per_sec = 0.5
-fit_model = None
+nm_per_sec = 0.1
+fit_model = "single"
 transpose_data = False  # Set to True if data is transposed
 verbose = False
 
@@ -204,10 +204,19 @@ for label in ["alpha", "beta", "coil"]:
     try:
         if fit_model == "double":
             popt, pcov = curve_fit(double_exp, t_fit, y_fit, p0=(y_fit[0], 0.001, y_fit[0]/2, 0.0001, y_fit[-1]), maxfev=5000)
-            if fit_model:
-                print(f"\nFit for {label}:")
-                print_fit_params(popt, pcov, ['a', 'k1', 'c', 'k2', 'e'])
-                plt.plot(df_struct["Time_hr"], double_exp(t_fit, *popt), linestyle='--', label=f"{label} Fit")
+            print(f"\nFit for {label} (double exp):")
+            print_fit_params(popt, pcov, ['a', 'k1', 'c', 'k2', 'e'])
+            y_model = double_exp(t_fit, *popt)
+        elif fit_model == "single":
+            popt, pcov = curve_fit(single_exp, t_fit, y_fit,p0=(y_fit[0], 0.001, y_fit[-1]), maxfev=5000)
+            print(f"\nFit for {label} (single exp):")
+            print_fit_params(popt, pcov, ['a', 'k', 'c'])
+            y_model = single_exp(t_fit, *popt)
+        else:
+            raise ValueError(f"Unsupported fit_model: {fit_model}")
+
+        plt.plot(df_struct["Time_hr"], y_model, linestyle='--', label=f"{label} Fit")
+
     except Exception as e:
         print(f"⚠️ Fit failed for {label}: {e}")
     plt.plot(df_struct["Time_hr"], df_struct[label], marker='o', label=label.capitalize())

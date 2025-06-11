@@ -19,7 +19,7 @@ def double_exponential_model(t, a1, k1, a2, k2, c):
     return a1 * np.exp(-k1 * t) + a2 * np.exp(-k2 * t) + c
 
 def exponential_with_linear_model(t, a, k, k2, c):
-    exponent = np.clip(-k * t, -700, 700)  # np.exp() safe range
+    exponent = np.clip(-k * t, -700, 700)
     return a * np.exp(exponent) + k2 * t + c
 
 # --- Model Registry ---
@@ -37,25 +37,24 @@ model_registry = {
     },
     'linear': {
         'func': linear_model,
-        'initial_guess': lambda t, v: [ (v[-1] - v[0]) / (t[-1] - t[0]), v[0] ],
+        'initial_guess': lambda t, v: [(v[-1] - v[0]) / (t[-1] - t[0]), v[0]],
         'param_names': ['k', 'b']
     },
     'double_exponential': {
         'func': double_exponential_model,
-        'initial_guess': lambda t, v: [ (v[0] - v[-1]) / 2, 1.0, (v[0] - v[-1]) / 2, 0.1, v[-1]],
+        'initial_guess': lambda t, v: [(v[0] - v[-1]) / 2, 1.0, (v[0] - v[-1]) / 2, 0.1, v[-1]],
         'param_names': ['a1', 'k1', 'a2', 'k2', 'c']
     },
     'exponential_with_linear': {
         'func': exponential_with_linear_model,
-        'initial_guess': lambda t, v: [(v[0] - v[-1]), 0.01, 0.001, v[-1]],  # Smaller k and k2
+        'initial_guess': lambda t, v: [(v[0] - v[-1]), 0.01, 0.001, v[-1]],
         'param_names': ['a', 'k', 'k2', 'c']
     },
 }
 
 # --- Main Function ---
 
-def plot_all_csvs_on_one_plot_with_fit(folder_path, fit_start=0.5, fit_end=10.0, model='exponential', init_guess = None):
-    # Handle None or string 'none'
+def plot_all_csvs_on_one_plot_with_fit(folder_path, fit_start=0.5, fit_end=10.0, model='exponential', init_guess=None):
     fit_enabled = model is not None and str(model).lower() != 'none'
 
     if fit_enabled and model not in model_registry:
@@ -87,7 +86,6 @@ def plot_all_csvs_on_one_plot_with_fit(folder_path, fit_start=0.5, fit_end=10.0,
                 df_full = pd.read_csv(file_path, header=None, usecols=[0, 1])
                 df_full.columns = ['time', 'voltage']
 
-                # --- Wrap detection ---
                 wrap_index = None
                 time_col = df_full['time'].values
                 for i in range(1, len(time_col)):
@@ -101,7 +99,6 @@ def plot_all_csvs_on_one_plot_with_fit(folder_path, fit_start=0.5, fit_end=10.0,
                 else:
                     df = df_full
 
-                # --- Clean data ---
                 df = df.drop_duplicates(subset='time', keep='first')
                 df = df[df['voltage'] < 20].reset_index(drop=True)
 
@@ -109,15 +106,12 @@ def plot_all_csvs_on_one_plot_with_fit(folder_path, fit_start=0.5, fit_end=10.0,
                     print(f"[{filename}] Not enough data to plot.")
                     continue
 
-                # --- Plot raw data ---
                 plt.plot(df['time'], df['voltage'], label=filename)
                 has_data = True
 
-                # --- Skip fitting if not enabled ---
                 if not fit_enabled:
                     continue
 
-                # --- Fit selected range ---
                 fit_df = df[(df['time'] >= fit_start) & (df['time'] <= fit_end)]
                 if len(fit_df) < len(param_names):
                     print(f"[{filename}] Not enough points in fitting range ({fit_start}s–{fit_end}s).")
@@ -136,12 +130,30 @@ def plot_all_csvs_on_one_plot_with_fit(folder_path, fit_start=0.5, fit_end=10.0,
                 print(f"\n{filename} ({model} fit):")
                 result = {'filename': filename}
                 for name, val, err in zip(param_names, params, errors):
-                    print(f"  {name} = {val:.6f} ± {err:.6f}")
+                    print(f"  {name} = {val:.7f} ± {err:.7f}")
                     result[name] = val
                     result[f"{name}_err"] = err
+
+                # Compute t_half for exponential
+                if model == 'exponential':
+                    k = result.get('k')
+                    t_half = np.log(2) / k if k else np.nan
+                    result['t_half'] = t_half
+                    print(f"  t_half = {t_half:.7f}")
+
+                # Compute t_half1 and t_half2 for double_exponential
+                if model == 'double_exponential':
+                    k1 = result.get('k1')
+                    k2 = result.get('k2')
+                    t_half1 = np.log(2) / k1 if k1 else np.nan
+                    t_half2 = np.log(2) / k2 if k2 else np.nan
+                    result['t_half1'] = t_half1
+                    result['t_half2'] = t_half2
+                    print(f"  t_half1 = {t_half1:.7f}")
+                    print(f"  t_half2 = {t_half2:.7f}")
+
                 fit_results.append(result)
 
-                # --- Plot fit ---
                 t_smooth = np.linspace(t_fit[0], t_fit[-1], 10000)
                 v_smooth = fit_func(t_smooth, *params)
                 plt.plot(t_smooth, v_smooth, linestyle='--', label=f"{filename} ({model} fit)")
@@ -173,36 +185,48 @@ def plot_all_csvs_on_one_plot_with_fit(folder_path, fit_start=0.5, fit_end=10.0,
         df_params.to_csv(csv_path, index=False)
         print(f"Saved fit parameters to: {csv_path}")
 
-        for param in ['k', 't_half']:
-            if param in param_names:
-                vals = [res[param] for res in fit_results if param in res]
-                if vals:
-                    mean = np.mean(vals)
-                    std = np.std(vals, ddof=1)
-                    print(f"\nParameter '{param}' across all fits:")
-                    print(f"  Mean {param} = {mean:.5f}")
-                    print(f"  Std. Dev. = {std:.5f}")
-        # --- Compute mean, std, and half-life for kinetic params ---
-        for kinetic_param in ['k', 'k1', 'k2']:
-            if kinetic_param in param_names:
-                values = [res[kinetic_param] for res in fit_results if kinetic_param in res]
-                if values:
-                    mean_val = np.mean(values)
-                    std_val = np.std(values, ddof=1)
-                    t_half = np.log(2) / mean_val if mean_val != 0 else np.nan
+        if model == 'exponential':
+            t_half_vals = [res['t_half'] for res in fit_results if 't_half' in res]
+            if t_half_vals:
+                mean_t = np.mean(t_half_vals)
+                std_t = np.std(t_half_vals, ddof=1)
+                print(f"\nt_half across all fits:")
+                print(f"  Mean t_half = {mean_t:.7f}")
+                print(f"  Std. Dev. = {std_t:.7f}")
 
-                    print(f"\nParameter '{kinetic_param}' across all fits:")
-                    print(f"  Mean {kinetic_param} = {mean_val:.5f}")
-                    print(f"  Std. Dev. = {std_val:.5f}")
-                    print(f"  t_half (from mean {kinetic_param}) = {t_half:.5f}")
+        if model == 'double_exponential':
+            t_half1_vals = [res['t_half1'] for res in fit_results if 't_half1' in res]
+            t_half2_vals = [res['t_half2'] for res in fit_results if 't_half2' in res]
 
+            if t_half1_vals:
+                mean1 = np.mean(t_half1_vals)
+                std1 = np.std(t_half1_vals, ddof=1)
+                print(f"\nt_half1 across all fits:")
+                print(f"  Mean t_half1 = {mean1:.7f}")
+                print(f"  Std. Dev. = {std1:.7f}")
+
+            if t_half2_vals:
+                mean2 = np.mean(t_half2_vals)
+                std2 = np.std(t_half2_vals, ddof=1)
+                print(f"\nt_half2 across all fits:")
+                print(f"  Mean t_half2 = {mean2:.7f}")
+                print(f"  Std. Dev. = {std2:.7f}")
+
+        if model == 'sigmoid':
+            t_half_vals = [res['t_half'] for res in fit_results if 't_half' in res]
+            if t_half_vals:
+                mean_t = np.mean(t_half_vals)
+                std_t = np.std(t_half_vals, ddof=1)
+                print(f"\nt_half across all sigmoid fits:")
+                print(f"  Mean t_half = {mean_t:.7f}")
+                print(f"  Std. Dev. = {std_t:.7f}")
 
 # --- Example Usage ---
 
 plot_all_csvs_on_one_plot_with_fit(
-    "/home/matifortunka/Documents/JS/data_Cambridge/8_3/A/kinetics/SF/6M/1000s",
-    fit_start=0.08,
-    fit_end=50,
+    "/home/matifortunka/Documents/JS/data_Cambridge/8_3/plots_paper/panel A/best",
+    fit_start=1100,
+    fit_end=2000,
 #    init_guess = [1, 8,1,0.1, 7],
-    model= "double_exponential" # Options: "sigmoid", "linear", "exponential", "double_exponential", "exponential_with_linear"
+    model= None # Options: "sigmoid", "linear", "exponential", "double_exponential", "exponential_with_linear"
 )

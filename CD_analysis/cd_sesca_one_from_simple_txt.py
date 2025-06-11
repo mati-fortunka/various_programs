@@ -10,7 +10,7 @@ import shutil
 # === Configuration ===
 sesca_script = "/home/matifortunka/Programs/SESCA/scripts/SESCA_deconv.py"
 basis_set_code = "/home/matifortunka/Programs/SESCA/libs/Map_DS-dT.dat"
-input_csv = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/G/equilibrum/native/output/8_3_gamma_new00002_raw.txt"  # CHANGE THIS
+input_csv = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/Maciek_CD/sav-golay3m.bka"  # CHANGE THIS
 smoothing_window = 11
 smoothing_polyorder = 3
 baseline_wavelength = 250.0
@@ -68,6 +68,7 @@ try:
 
     sesca_out = os.path.join(output_dir, "BS_deconv.out")
     final_output = input_csv.replace(".txt", "_deconv.out")
+    final_output = input_csv.replace(".bka", "_deconv.out")
 
     alpha = beta = coil = None
     if os.path.exists(sesca_out):

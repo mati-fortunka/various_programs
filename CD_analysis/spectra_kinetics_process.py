@@ -11,10 +11,10 @@ from io import StringIO
 from scipy.optimize import curve_fit
 
 # === User Settings ===
-input_csv = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/Z/spectra_kinetics/2h/2/8_3_zeta_10ul_new_2h00002.csv"
+input_csv = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/Z/spectra_kinetics/60h/8_3_zeta_spectra_kin_60h00000.csv"
 native_spectrum_path = None#"/home/matifortunka/Documents/JS/data_Cambridge/8_3/A/spectra_kinetics/8_3_A_5uM_nat00043_raw.txt"
 dead_time = 120  # seconds
-nm_per_sec = 0.5
+nm_per_sec = 0.1
 
 path = "/".join(input_csv.split('/')[:-1])
 output_plot = f"{path}/Combined_CD_HHMM.png"
@@ -207,7 +207,7 @@ plt.xlabel("Wavelength [nm]")
 plt.ylabel("Ellipticity [mdeg]")
 plt.title(f"CD Kinetics (HV ≤ {hv_threshold} V, Savitzky-Golay)")
 plt.colorbar(sm, label="Time [h]", ax=plt.gca(), format="%.1f")
-plt.grid(True)
+#plt.grid(True)
 plt.tight_layout()
 plt.savefig(output_plot)
 plt.show()
@@ -268,12 +268,12 @@ for cd_time in cd_times:
         valid_times_s.append(adjusted_time)
         valid_times_hr.append(adjusted_time / 3600)
 
-plt.figure(figsize=(10, 5))
+plt.figure(figsize=(6, 5))
 plt.plot(valid_times_hr, cd_values_at_wl, marker='o', color='darkred', label="Data")
-plt.xlabel("Time [h]")
-plt.ylabel("CD Intensity [mdeg]")
-plt.title(f"CD at {actual_wavelength:.1f} nm vs Time")
-plt.grid(True)
+plt.xlabel("Time [h]", fontsize=16)
+plt.ylabel(f"Ellipticity at {target_wavelength} [mdeg]", fontsize=16)
+#plt.title(f"CD at {actual_wavelength:.1f} nm vs Time")
+#plt.grid(True)
 
 # === Fit in seconds ===
 def linear(t, k, b): return k * t + b
@@ -310,7 +310,9 @@ try:
 except Exception as e:
     print(f"❌ Fit failed: {repr(e)}")
 
-plt.legend()
+plt.xticks(fontsize=15)
+plt.yticks(fontsize=15)
+#plt.legend(fontsize=14, frameon=False)
 plt.tight_layout()
 try:
     plt.savefig(f"{path}/CD_at_{int(actual_wavelength)}_nm_vs_time.png")
@@ -392,10 +394,10 @@ for cd_time in cd_times:
 # === Plot + Fit ===
 plt.figure(figsize=(10, 5))
 plt.plot(integration_times_hr, integrated_cd_values, marker='o', color='blue', label="Data")
-plt.xlabel("Time [h]")
-plt.ylabel("Integrated CD [mdeg·nm]")
+plt.xlabel("Time [h]", fontsize=16)
+plt.ylabel("Integrated CD [mdeg·nm]", fontsize=16)
 plt.title(f"Integrated {sign} CD ({lambda_min}-{lambda_max} nm) vs Time")
-plt.grid(True)
+#plt.grid(True)
 
 t_fit = np.array(integration_times_s)  # seconds
 y_fit = np.array(integrated_cd_values)

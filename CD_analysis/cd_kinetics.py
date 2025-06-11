@@ -9,30 +9,38 @@ wavelength_label = "Wavelength 222 nm"
 
 def read_data(filename):
     global wavelength_label
+
     with open(filename, 'r') as file:
         first_line = file.readline().strip()
-        if not re.match(r'^[\d\.\-]', first_line.split(',')[0]):
-            print(f"Header detected: '{first_line}'")
+        first_item = first_line.split(',')[0]
+
+        try:
+            float(first_item)
+            # It's numeric, so no header
+            print("✅ No header detected.")
+            skiprows = 0
+        except ValueError:
+            # It's not numeric: treat as header
+            print(f"📝 Header detected: '{first_line}'")
             match = re.search(r'(\d+(?:\.\d+)?)', first_line)
             if match:
                 wavelength_label = f"Wavelength: {match.group(1)} nm"
             else:
                 wavelength_label = first_line
             skiprows = 1
-        else:
-            print("\u26a0\ufe0f No header detected or malformed header. Assuming data starts immediately.")
-            #wavelength_label = "Unknown Wavelength"
-            skiprows = 0
 
-    df_full = pd.read_csv(filename, skiprows=skiprows, sep=",")
+    df_full = pd.read_csv(filename, skiprows=skiprows, sep=",", header=None)
     df_full = df_full.dropna(how='all', axis=1)
 
-    time_col = df_full.iloc[:, 0].values
+    print(f"Parsed columns: {df_full.columns}")
+    df_full.columns = ['Time', 'Signal']
 
-    # Detect wrap: when time suddenly decreases
+
+    time_col = df_full['Time'].values
     wrap_index = None
     for i in range(1, len(time_col)):
-        if time_col[i] <= time_col[i - 1]:
+        if time_col[i] < time_col[i - 1] - 0.5:
+            print(f"⚠️ Time wrap detected at row {i} (from {time_col[i - 1]} to {time_col[i]})")
             wrap_index = i
             break
 
@@ -41,10 +49,9 @@ def read_data(filename):
         df = df_full.iloc[:wrap_index]
     else:
         df = df_full
-
     # Remove duplicate timepoints (if any)
     df = df.drop_duplicates(subset=df.columns[0], keep='first')
-
+    print(df)
     return df
 
 def moving_average(data, window_size):
@@ -69,12 +76,23 @@ def estimate_initial_k(time, intensity):
     return k_init
 
 def plot_data(df, smooth_method=None, window_size=5, polyorder=2,
-              output_plot="out.png", dead_time=20,
+              output_plot="out.png", dead_time=0,
               fit_type=None, fit_start=None, fit_end=None):
     global wavelength_label
 
-    time = df.iloc[:, 0] + dead_time
     cd_signal = df.iloc[:, 1]
+    raw_time = df.iloc[:, 0]
+    abs_time = raw_time + dead_time  # absolute time including dead time
+
+    if fit_start is not None and fit_end is not None:
+        mask = (abs_time >= fit_start) & (abs_time <= fit_end)
+        fit_time = abs_time[mask]  # fitting happens on absolute time scale
+        fit_cd = cd_signal[mask]
+    else:
+        fit_time = abs_time
+        fit_cd = cd_signal
+
+    time = abs_time  # plotting also uses absolute time
 
     plt.figure(figsize=(8, 5))
     plt.plot(time, cd_signal, label='Raw CD Data', color='gray', alpha=0.6)
@@ -87,14 +105,6 @@ def plot_data(df, smooth_method=None, window_size=5, polyorder=2,
         smoothed = savgol_filter(cd_signal, window_size, polyorder)
         plt.plot(time, smoothed, label=f'Savitzky-Golay (window={window_size}, poly={polyorder})', color='red')
 
-    if fit_start is not None and fit_end is not None:
-        mask = (time >= fit_start) & (time <= fit_end)
-        fit_time = time[mask]
-        fit_cd = cd_signal[mask]
-    else:
-        fit_time = time
-        fit_cd = cd_signal
-
     if fit_type is None:
         fit_type = ['exponential', 'double_exponential']
     elif isinstance(fit_type, str):
@@ -106,37 +116,52 @@ def plot_data(df, smooth_method=None, window_size=5, polyorder=2,
             if params is not None:
                 plt.plot(fit_time, exponential(fit_time, *params), label='Exponential Fit', color='green')
                 print("Exponential fit parameters:")
-                print(f"  A = {params[0]:.5f} ± {errors[0]:.5f}")
-                print(f"  k = {params[1]:.5f} ± {errors[1]:.5f}")
-                print(f"  c = {params[2]:.5f} ± {errors[2]:.5f}")
+                print(f"  A = {params[0]:.7f} ± {errors[0]:.7f}")
+                print(f"  k = {params[1]:.7f} ± {errors[1]:.7f}")
+                print(f"  c = {params[2]:.7f} ± {errors[2]:.7f}")
+                perc_error = (errors[1] / params[1]) * 100
+                print(f"  % error in k = {perc_error:.2f}%")
+                t_half = np.log(2) / params[1]
+                print(f"  t₁/₂ = {t_half:.2f} s")
+
 
         elif fit == 'exponential_drift':
             params, errors = fit_exponential_with_drift(fit_time, fit_cd)
             if params is not None:
                 plt.plot(fit_time, single_exponential_with_drift(fit_time, *params), label='Exp + Drift Fit', color='orange')
                 print("Exponential + drift fit parameters:")
-                print(f"  A = {params[0]:.5f} ± {errors[0]:.5f}")
-                print(f"  k = {params[1]:.5f} ± {errors[1]:.5f}")
-                print(f"  c = {params[2]:.5f} ± {errors[2]:.5f}")
-                print(f"  m = {params[3]:.5f} ± {errors[3]:.5f}")
+                print(f"  A = {params[0]:.7f} ± {errors[0]:.7f}")
+                print(f"  k = {params[1]:.7f} ± {errors[1]:.7f}")
+                print(f"  c = {params[2]:.7f} ± {errors[2]:.7f}")
+                print(f"  m = {params[3]:.7f} ± {errors[3]:.7f}")
+                t_half = np.log(2) / params[1]
+                perc_error = (errors[1] / params[1]) * 100
+                print(f"  % error in k = {perc_error:.2f}%")
+                print(f"  t₁/₂ = {t_half:.2f} s")
 
         elif fit == 'double_exponential':
             params, errors = fit_double_exponential(fit_time, fit_cd)
             if params is not None:
                 plt.plot(fit_time, double_exponential(fit_time, *params), label='Double Exp Fit', color='brown')
                 print("Double exponential fit parameters:")
-                print(f"  A1 = {params[0]:.5f} ± {errors[0]:.5f}")
-                print(f"  k1 = {params[1]:.5f} ± {errors[1]:.5f}")
-                print(f"  A2 = {params[2]:.5f} ± {errors[2]:.5f}")
-                print(f"  k2 = {params[3]:.5f} ± {errors[3]:.5f}")
-                print(f"   c = {params[4]:.5f} ± {errors[4]:.5f}")
+                print(f"  A1 = {params[0]:.7f} ± {errors[0]:.7f}")
+                print(f"  k1 = {params[1]:.7f} ± {errors[1]:.7f}")
+                print(f"  A2 = {params[2]:.7f} ± {errors[2]:.7f}")
+                print(f"  k2 = {params[3]:.7f} ± {errors[3]:.7f}")
+                print(f"   c = {params[4]:.7f} ± {errors[4]:.7f}")
+                t_half_k1 = np.log(2) / params[1]
+                t_half_k2 = np.log(2) / params[3]
+                perc_error_k1 = (errors[1] / params[1]) * 100
+                perc_error_k2 = (errors[3] / params[3]) * 100
+                print(f"  t₁/₂ (k1) = {t_half_k1:.2f} s | % error = {perc_error_k1:.2f}%")
+                print(f"  t₁/₂ (k2) = {t_half_k2:.2f} s | % error = {perc_error_k2:.2f}%")
 
         elif fit == 'linear':
             slope, intercept = fit_linear(fit_time, fit_cd)
             plt.plot(fit_time, slope * fit_time + intercept, label=f'Linear Fit: y = {slope:.2f}x + {intercept:.2f}', color='purple')
             print("Linear fit parameters:")
-            print(f"  slope = {slope:.5f}")
-            print(f"  intercept = {intercept:.5f}")
+            print(f"  slope = {slope:.7f}")
+            print(f"  intercept = {intercept:.7f}")
 
     plt.xlabel('Time (s)')
     plt.ylabel('Ellipticity (mdeg)')
@@ -193,15 +218,15 @@ def fit_linear(time, intensity):
     return coeffs
 
 if __name__ == "__main__":
-    filename = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/Z/kinetics/CD/2000s/part1/8_3_zeta_10ul_2000s_00009.csv"
+    filename = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/A/kinetics/CD/new_fitting/up/8_3_alpha_5uM_2000s_nat_filt100028.csv"
     df = read_data(filename)
 
-    smooth_method = 'savitzky_golay'
+    smooth_method = None
     window_size = 25
     polyorder = 3
-    dead_time = 30
+    dead_time = 0
     out = filename[:-4] + "_fit.png"
-
+    print (filename.split('/')[-1])
     plot_data(df,
               smooth_method=smooth_method,
               window_size=window_size,

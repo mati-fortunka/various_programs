@@ -19,12 +19,13 @@ smoothing_window = 11
 smoothing_polyorder = 3
 baseline_wavelength = 250.0
 dead_time = 120
-nm_per_sec = 0.5
+nm_per_sec = 0.1
 fit_model = None
 transpose_data = False  # Set to True if data is transposed
 
 # === Fit functions ===
 def double_exp(t, a, k1, c, k2, e): return a * np.exp(-k1 * t) + c * np.exp(-k2 * t) + e
+def single_exp(t, a, k, c): return a * np.exp(-k * t) + c
 
 def print_fit_params(popt, pcov, param_names):
     print("Fitted parameters:")
@@ -137,31 +138,39 @@ structure_content = {
     "Time_hr": [t / 3600 for t in cd_times],
     "alpha": fractions[1],
     "beta": fractions[2],
-    "other": fractions[0]
+    "coil": fractions[0]
 }
 
 # === Plot and Fit Structure Content ===
 df_struct = pd.DataFrame(structure_content)
 
-plt.figure(figsize=(10, 6))
-for label in ["alpha", "beta", "other"]:
+plt.figure(figsize=(6, 5))
+for label in ["alpha", "beta", "coil"]:
     t_fit = np.array(df_struct["Time_hr"]) * 3600
     y_fit = np.array(df_struct[label])
     try:
         if fit_model == "double":
-            popt, pcov = curve_fit(double_exp, t_fit, y_fit, p0=(y_fit[0], 0.001, y_fit[0]/2, 0.0001, y_fit[-1]), maxfev=5000)
-            print(f"\nFit for {label}:")
+            popt, pcov = curve_fit(double_exp, t_fit, y_fit, p0=(y_fit[0], 0.001, y_fit[0] / 2, 0.0001, y_fit[-1]), maxfev=5000)
+            print(f"\nDouble Exponential Fit for {label}:")
             print_fit_params(popt, pcov, ['a', 'k1', 'c', 'k2', 'e'])
-            plt.plot(df_struct["Time_hr"], double_exp(t_fit, *popt), linestyle='--', label=f"{label} Fit")
+            plt.plot(df_struct["Time_hr"], double_exp(t_fit, *popt), linestyle='--', label=f"{label} Double Fit")
+        elif fit_model == "single":
+            popt, pcov = curve_fit(single_exp, t_fit, y_fit, p0=(y_fit[0], 0.001, y_fit[-1]), maxfev=5000)
+            print(f"\nSingle Exponential Fit for {label}:")
+            print_fit_params(popt, pcov, ['a', 'k', 'c'])
+            plt.plot(df_struct["Time_hr"], single_exp(t_fit, *popt), linestyle='--', label=f"{label} Single Fit")
+
     except Exception as e:
         print(f"⚠️ Fit failed for {label}: {e}")
     plt.plot(df_struct["Time_hr"], df_struct[label], marker='o', label=label.capitalize())
 
-plt.xlabel("Time [h]")
-plt.ylabel("Fractional Content")
-plt.title("Secondary Structure Content Over Time (SVD Deconv)")
-plt.grid(True)
-plt.legend()
+plt.xlabel("Time [h]", fontsize=16)
+plt.ylabel("Secondary structure content", fontsize=16)
+plt.xticks(fontsize=15)
+plt.yticks(fontsize=15)
+plt.legend(fontsize=14, frameon=False)
+#plt.title("Secondary Structure Content Over Time (SVD Deconv)")
+#plt.grid(True)
 plt.tight_layout()
-plt.savefig(f"{output_path}/SVD_structure_content_vs_time.png")
+plt.savefig(f"{output_path}/SVD_structure_content_vs_time.png", dpi = 600)
 plt.show()
