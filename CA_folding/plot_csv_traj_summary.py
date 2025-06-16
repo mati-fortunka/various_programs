@@ -6,11 +6,12 @@ import os
 
 path = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/simulations/u2/ss_summary.csv"
 dir = os.path.dirname(path)
+
 # Load your CSV file
 df = pd.read_csv(path)
 
 # Apply Savitzky-Golay smoothing (window size must be odd and < len(data))
-smoothing = False
+smoothing = True
 window = 41  # adjust if needed
 poly = 3     # polynomial order
 
@@ -70,5 +71,5 @@ ax.set_ylabel('Fraction')
 ax.set_title('Smoothed Secondary Structure Elements and Topology Changes')
 
 plt.tight_layout()
-plt.savefig(dir+"pulchra_dssp.png")
+plt.savefig(dir+"/pulchra_dssp.png")
 plt.show()

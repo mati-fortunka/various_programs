@@ -65,8 +65,9 @@ def plot_three_traces_with_optional_fit_and_smoothing(
     polyorders=None,
     default_polyorder=3,
     x_limits=None,
+    y_limits=None,
 ):
-    labels = ["Alpha", "Gamma", "Zeta"]
+    labels = ["alpha", "gamma", "zeta"]
     colors = ["#75053b", "#136308", "#0721a6"]
 
     if window_lengths is None:
@@ -133,6 +134,8 @@ def plot_three_traces_with_optional_fit_and_smoothing(
 
     if x_limits:
         plt.xlim(*x_limits)
+    if y_limits:
+        plt.ylim(*y_limits)
     plt.xlabel("Time (s)", fontsize=16)
     plt.ylabel("Voltage (V)", fontsize=16)
     plt.xticks(fontsize=15)
@@ -142,22 +145,22 @@ def plot_three_traces_with_optional_fit_and_smoothing(
     # plt.savefig("/home/matifortunka/Documents/JS/data_Cambridge/8_3/plots_paper/panel_A/protein_traces.svg", format='svg', dpi=600, bbox_inches='tight')
     # plt.savefig("/home/matifortunka/Documents/JS/data_Cambridge/8_3/plots_paper/panel_A/protein_traces.png", format='png', dpi=600, bbox_inches='tight')
 
-    plt.savefig("/home/matifortunka/Documents/JS/data_Cambridge/8_3/plots_paper/panel_B/protein_traces.svg", format='svg', dpi=600, bbox_inches='tight')
-    plt.savefig("/home/matifortunka/Documents/JS/data_Cambridge/8_3/plots_paper/panel_B/protein_traces.png", format='png', dpi=600, bbox_inches='tight')
+    plt.savefig("/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/plots_paper/panel_B/protein_traces.svg", format='svg', dpi=600, bbox_inches='tight')
+    plt.savefig("/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/plots_paper/panel_B/protein_traces.png", format='png', dpi=600, bbox_inches='tight')
     plt.show()
 
 
 
 plot_three_traces_with_optional_fit_and_smoothing(
     file_paths=[
-       "/home/matifortunka/Documents/JS/data_Cambridge/8_3/plots_paper/panel_B/8_3_alpha00056.csv",
-       "/home/matifortunka/Documents/JS/data_Cambridge/8_3/plots_paper/panel_B/8_3_gamma_2000s00031.csv",
-       "/home/matifortunka/Documents/JS/data_Cambridge/8_3/plots_paper/panel_B/8_3_dzeta_2000s00042.csv"
+       "/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/plots_paper/panel_B/8_3_alpha00056.csv",
+       "/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/plots_paper/panel_B/8_3_gamma_2000s00031.csv",
+       "/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/plots_paper/panel_B/8_3_dzeta_2000s00042.csv"
     ],
     # file_paths=[
-    #     "/home/matifortunka/Documents/JS/data_Cambridge/8_3/plots_paper/panel_A/alpha/8_3_alpha00053.csv",
-    #     "/home/matifortunka/Documents/JS/data_Cambridge/8_3/plots_paper/panel_A/gamma/8_3_gamma_50_100s00033.csv",
-    #     "/home/matifortunka/Documents/JS/data_Cambridge/8_3/plots_paper/panel_A/dzeta/8_3_dzeta_fastest.csv"
+    #     "/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/plots_paper/panel_A/alpha/8_3_alpha00053.csv",
+    #     "/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/plots_paper/panel_A/gamma/8_3_gamma_50_100s00033.csv",
+    #     "/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/plots_paper/panel_A/dzeta/8_3_dzeta_fastest.csv"
     # ],
     model=None,          # or None to disable fitting
     fit_start=1100,
@@ -165,7 +168,8 @@ plot_three_traces_with_optional_fit_and_smoothing(
     smooth=False,              # Toggle smoothing on/off
     window_lengths=[5, 5, 5],   # Different for each trace
     polyorders=[3, 3, 3],
-    x_limits=(-2, 2000)
+    x_limits=(-15, 2000),
+    y_limits=None
 )
 
 

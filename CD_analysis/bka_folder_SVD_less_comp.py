@@ -5,19 +5,19 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 from matplotlib.colors import Normalize
 from scipy.signal import savgol_filter
-from numpy.linalg import svd
+from sklearn.decomposition import TruncatedSVD
 
 # === Settings ===
-input_folder = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/Maciek_CD"  # Change to your actual folder path
+input_folder = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/Maciek_CD/unfolding_SAV"  # Change to your actual folder path
 output_plot = os.path.join(input_folder, "CD_spectra_comparison.png")
 svd_plot = os.path.join(input_folder, "SVD_structure_content_vs_concentration.png")
 svd_components_plot = os.path.join(input_folder, "SVD_first_6_components.png")
-n_svd_components = 2  # Change to 2, 3, 4, 5, etc. depending on what you want to analyze
-smoothing_window = 11
+n_svd_components = 3  # Change to 2, 3, 4, 5, etc. depending on what you want to analyze
+smoothing_window = 5
 smoothing_polyorder = 3
 baseline_wavelength = 250.0
 normalize_svd = False  # Set to True to enable normalization for SVD only
-normalize_structure_fractions = True  # Set to False to disable structure fraction normalization
+normalize_structure_fractions = False  # Set to False to disable structure fraction normalization
 show_components_4_to_6=False
 
 # === Load .bka Files with Different Denaturant Concentrations ===
@@ -73,7 +73,7 @@ def plot_cd_spectra(spectra_dict):
 
     sm = cm.ScalarMappable(cmap=cmap, norm=norm)
     sm.set_array([])
-    fig.colorbar(sm, ax=ax, label="Denaturant Concentration [m]")
+    fig.colorbar(sm, ax=ax, label="Denaturant Concentration [M]")
     ax.set_xlabel("Wavelength [nm]")
     ax.set_ylabel("Ellipticity [mdeg]")
     ax.set_title("CD Spectra for Various Denaturant Concentrations")
@@ -83,7 +83,7 @@ def plot_cd_spectra(spectra_dict):
     plt.show()
 
 # === Perform SVD and Plot Structure Content ===
-def perform_svd_analysis(spectra_dict, show_components_4_to_6=True):
+def perform_svd_analysis(spectra_dict, show_components_4_to_6=False):
     concentrations = list(spectra_dict.keys())
     wavelengths = spectra_dict[concentrations[0]]['Wavelength'].values
     spectra_matrix = []
@@ -97,30 +97,31 @@ def perform_svd_analysis(spectra_dict, show_components_4_to_6=True):
             y /= np.linalg.norm(y)
         spectra_matrix.append(y)
 
-    spectra_matrix = np.array(spectra_matrix).T
-    U, S, VT = svd(spectra_matrix, full_matrices=False)
-    components = U.T @ spectra_matrix
+    spectra_matrix = np.array(spectra_matrix).T  # shape: (wavelengths, samples)
 
-    max_components_available = components.shape[0]
-    components_to_use = min(n_svd_components, max_components_available)
-    selected_components = components[:components_to_use]
+    # === Truncated SVD ===
+    svd_model = TruncatedSVD(n_components=n_svd_components)
+    components = svd_model.fit_transform(spectra_matrix)  # shape: (wavelengths, n_components)
+    VT = svd_model.components_  # shape: (n_components, samples)
+    U = components  # Already truncated
+    structure_contributions = VT  # Already n_components x n_samples
 
     df_struct = pd.DataFrame({"Concentration": concentrations})
 
     if show_components_4_to_6:
-        for i in range(components_to_use):
-            df_struct[f"comp{i+1}"] = selected_components[i]
+        for i in range(n_svd_components):
+            df_struct[f"comp{i+1}"] = structure_contributions[i]
     else:
-        fractions = np.maximum(selected_components, 0)
+        fractions = np.maximum(structure_contributions[:3], 0)
         if normalize_structure_fractions:
             fractions = fractions / np.sum(fractions, axis=0, keepdims=True)
-        for i, label in enumerate(["coil", "alpha", "beta", "struct4", "struct5", "struct6"][:components_to_use]):
+        for i, label in enumerate(["coil", "alpha", "beta"][:n_svd_components]):
             df_struct[label] = fractions[i]
 
-    # === Plot Structure/Components vs Concentration ===
+    # === Plot Structure vs Concentration ===
     fig, ax = plt.subplots(figsize=(7, 5))
     if show_components_4_to_6:
-        for i in range(components_to_use):
+        for i in range(n_svd_components):
             ax.plot(df_struct["Concentration"], df_struct[f"comp{i+1}"],
                     marker='o', label=f"Component {i+1}")
         ax.set_ylabel("Component Weight", fontsize=14)
@@ -130,7 +131,7 @@ def perform_svd_analysis(spectra_dict, show_components_4_to_6=True):
                     marker='o', label=label.capitalize())
         ax.set_ylabel("Secondary structure content", fontsize=14)
 
-    ax.set_xlabel("Denaturant Concentration [m]", fontsize=14)
+    ax.set_xlabel("Denaturant Concentration [M]", fontsize=14)
     ax.tick_params(labelsize=12)
     ax.legend(fontsize=12, frameon=False)
     ax.grid(True)
@@ -138,19 +139,20 @@ def perform_svd_analysis(spectra_dict, show_components_4_to_6=True):
     fig.savefig(svd_plot, dpi=600)
     plt.show()
 
-    # === Plot Selected SVD Components ===
-    fig_rows = (components_to_use + 1) // 2
+    # === Plot Truncated Components (U) ===
+    fig_rows = (n_svd_components + 1) // 2
     fig, axs = plt.subplots(fig_rows, 2, figsize=(10, 4 * fig_rows), sharex=True)
     axs = axs.flatten()
-    for i in range(components_to_use):
+    for i in range(n_svd_components):
         axs[i].plot(wavelengths, U[:, i], label=f"Component {i+1}")
         axs[i].legend()
         axs[i].grid(True)
 
-    fig.suptitle(f"First {components_to_use} SVD Components")
+    fig.suptitle(f"First {n_svd_components} SVD Components")
     fig.tight_layout(rect=[0, 0, 1, 0.97])
     fig.savefig(svd_components_plot, dpi=600)
     plt.show()
+
 
 # === Main Execution ===
 if __name__ == "__main__":

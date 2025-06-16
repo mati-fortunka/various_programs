@@ -23,12 +23,12 @@ smoothing_window = 11
 smoothing_polyorder = 3
 
 # Plot 2
-target_wavelength = 225.0
+target_wavelength = 195.0
 fit_model = "double"
 
 # Plot 3
 integration_range = (190, 250)
-integration_sign = "negative"
+integration_sign = "positive"
 
 # Baseline
 baseline_correction = True

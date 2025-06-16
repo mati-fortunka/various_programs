@@ -113,11 +113,11 @@ def fit_linear(time, intensity):
 def plot_combined_smoothed(alpha_path, gamma_path, zeta_path,
                             alpha_dead=30, gamma_dead=30, zeta_dead=30,
                             smooth_method='savitzky_golay',
-                            window_size=21, polyorder=3):
+                            window_size=21, polyorder=3, x_lim=None):
 
     file_paths = [alpha_path, gamma_path, zeta_path]
     dead_times = [alpha_dead, gamma_dead, zeta_dead]
-    labels = ["Alpha", "Gamma", "Zeta"]
+    labels = ["alpha", "gamma", "zeta"]
     colors = ["#75053b", "#136308", "#0721a6"]
 
     plt.figure(figsize=(6, 5))
@@ -139,13 +139,14 @@ def plot_combined_smoothed(alpha_path, gamma_path, zeta_path,
         plt.plot(smoothed_time, smoothed_signal, label=label, color=color)
 
     plt.xlabel('Time (s)', fontsize=16)
-    plt.ylabel('Ellipticity [mdeg]', fontsize=16)
+    plt.ylabel('Ellipticity at 222 nm [mdeg]', fontsize=16)
     #plt.title(f'Smoothed CD Kinetics Curves ({wavelength_label})')
     plt.xticks(fontsize=15)
     plt.yticks(fontsize=15)
     plt.legend(fontsize=14, frameon=False)
     plt.tight_layout()
-
+    if x_lim:
+        plt.xlim(*x_lim)
     output_folder = os.path.dirname(alpha_path)
     png_path = os.path.join(output_folder, "combined_smoothed_only.png")
     svg_path = os.path.join(output_folder, "combined_smoothed_only.svg")
@@ -157,10 +158,11 @@ def plot_combined_smoothed(alpha_path, gamma_path, zeta_path,
 
 # Example usage:
 plot_combined_smoothed(
-    "/home/matifortunka/Documents/JS/data_Cambridge/8_3/plots_paper/panel_C/alfa/8_3_alpha_5uM_2000s_nat_filt100026.csv",
-    "/home/matifortunka/Documents/JS/data_Cambridge/8_3/plots_paper/panel_C/gamma/8_3_gamma_10ul_2000s_00006.csv",
-    "/home/matifortunka/Documents/JS/data_Cambridge/8_3/plots_paper/panel_C/zeta/8_3_zeta_10ul_2000s_00001.csv",
+    "/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/plots_paper/panel_C/alfa/8_3_alpha_5uM_2000s_nat_filt100026.csv",
+    "/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/plots_paper/panel_C/gamma/8_3_gamma_10ul_2000s_00006.csv",
+    "/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/plots_paper/panel_C/zeta/8_3_zeta_10ul_2000s_00001.csv",
     alpha_dead=20,
     gamma_dead=40,
-    zeta_dead=35
+    zeta_dead=35,
+    x_lim=(0, 2100)
 )
