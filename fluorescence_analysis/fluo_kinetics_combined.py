@@ -233,7 +233,7 @@ def plot_multiple_csvs_with_logging(folder_path,
     print(f"Fit results and t_half values saved to: {output_log}")
 
 if __name__ == "__main__":
-    folder = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/A/kinetics/fluo"
+    folder = "/home/matifortunka/Documents/JS/data_Cambridge/29_04/fluo/TrmD-Tm1570/kinetics/2h"
 
     plot_multiple_csvs_with_logging(
         folder_path=folder,

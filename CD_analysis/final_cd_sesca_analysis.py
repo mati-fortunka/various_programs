@@ -11,23 +11,35 @@ from scipy.optimize import curve_fit
 import subprocess
 from tempfile import NamedTemporaryFile
 from io import StringIO
-import shutil
+import json
 
 # === Settings ===
 sesca_script = "/home/matifortunka/Programs/SESCA/scripts/SESCA_deconv.py"
 basis_set_code = "/home/matifortunka/Programs/SESCA/libs/Map_DS-dT.dat"
-input_csv = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/Z/spectra_kinetics/60h/8_3_zeta_spectra_kin_60h00000.csv"
+input_csv = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/A/spectra_kinetics/36h/8_3 alfa urea_unf_5 uM_time00003.csv"
 output_path = os.path.dirname(input_csv)
 output_plot = os.path.join(output_path, "Combined_CD_HHMM.png")
 hv_threshold = 1000
 smoothing_window = 11
 smoothing_polyorder = 3
 baseline_wavelength = 250.0
-dead_time = 120
+dead_time = 420
 nm_per_sec = 0.1
-fit_model = "single"
+fit_model = None
 transpose_data = False  # Set to True if data is transposed
 verbose = False
+
+# === CD unit conversion parameters ===
+protein_conc = 5      # µmol/L (µM)
+path_length_mm = 1          # mm
+residue_count = 479         # number of residues per molecule -1
+
+MRW = 113.4811273
+conc = 0.8153619
+
+# Convert from mdeg to mean residue ellipticity (deg·cm²·dmol⁻¹)
+conversion_factor = 1000000 / (protein_conc * path_length_mm * residue_count)
+# conversion_factor = 0.1 * MRW / (path_length_cm * conc)
 
 # === Fit functions ===
 def linear(t, k, b): return k * t + b
@@ -136,59 +148,67 @@ plt.savefig(output_plot)
 plt.show()
 
 # === SESCA Deconvolution ===
-structure_content = {"Time_hr": [], "alpha": [], "beta": [], "coil": []}
+checkpoint_file = os.path.join(output_path, "SESCA_structure_content.json")
 
-for cd_time in cd_times:
-    colname = cd_col_map[cd_time]
-    y = cd_df[colname].values
-    y = savgol_filter(y, smoothing_window, smoothing_polyorder)
-    y -= y[np.argmin(np.abs(wavelengths - baseline_wavelength))]
+if os.path.exists(checkpoint_file):
+    print("✅ Loading SESCA checkpoint...")
+    with open(checkpoint_file, 'r') as f:
+        structure_content = json.load(f)
+else:
+    print("🔄 Running SESCA deconvolution...")
+    structure_content = {"Time_hr": [], "alpha": [], "beta": [], "coil": []}
 
-    with NamedTemporaryFile(delete=False, suffix=".txt", mode="w", dir=output_path) as f:
-        spectrum_path = f.name
-        for wl, val in zip(wavelengths, y):
-            f.write(f"{wl:.1f}\t{val:.6f}\n")
+    for cd_time in cd_times:
+        colname = cd_col_map[cd_time]
+        y = cd_df[colname].values
+        y = savgol_filter(y, smoothing_window, smoothing_polyorder)
+        y -= y[np.argmin(np.abs(wavelengths - baseline_wavelength))]
 
-    try:
-        result = subprocess.run(
-            ["python3", sesca_script, spectrum_path, basis_set_code],
-            capture_output=True,
-            text=True,
-            cwd=output_path
-        )
+        with NamedTemporaryFile(delete=False, suffix=".txt", mode="w", dir=output_path) as f:
+            spectrum_path = f.name
+            for wl, val in zip(wavelengths, y):
+                val = val * conversion_factor
+                f.write(f"{wl:.1f}\t{val:.6f}\n")
 
-        if verbose:
-            print(f"\nTesting spectrum for t={cd_time}s written to: {spectrum_path}")
-            print("=== SESCA STDOUT ===\n", result.stdout)
-            print("=== SESCA STDERR ===\n", result.stderr)
-
-        output_file = os.path.join(output_path, "BS_deconv.out")
-        alpha = beta = coil = None
         try:
-            with open(output_file, "r") as f_out:
-                for line in f_out:
-                    if "Alpha" in line:
-                        alpha = float(line.split(":")[-1].strip())
-                    elif "Beta" in line:
-                        beta = float(line.split(":")[-1].strip())
-                    elif "Coil" in line:
-                        coil = float(line.split(":")[-1].strip())
-        except FileNotFoundError:
-            print(f"❌ Output file not found: {output_file}")
-        else:
-            if None not in (alpha, beta, coil):
-                structure_content["Time_hr"].append(cd_time / 3600)
-                structure_content["alpha"].append(alpha)
-                structure_content["beta"].append(beta)
-                structure_content["coil"].append(coil)
-        finally:
-            if os.path.exists(output_file):
-                os.remove(output_file)
+            result = subprocess.run(
+                ["python3", sesca_script, spectrum_path, basis_set_code],
+                capture_output=True,
+                text=True,
+                cwd=output_path
+            )
 
-    except Exception as e:
-        print(f"❌ SESCA execution error for t={cd_time}s: {e}")
-    finally:
-        os.remove(spectrum_path)
+            output_file = os.path.join(output_path, "BS_deconv.out")
+            alpha = beta = coil = None
+            try:
+                with open(output_file, "r") as f_out:
+                    for line in f_out:
+                        if "Alpha" in line:
+                            alpha = float(line.split(":")[-1].strip())
+                        elif "Beta" in line:
+                            beta = float(line.split(":")[-1].strip())
+                        elif "Coil" in line:
+                            coil = float(line.split(":")[-1].strip())
+            except FileNotFoundError:
+                print(f"❌ Output file not found: {output_file}")
+            else:
+                if None not in (alpha, beta, coil):
+                    structure_content["Time_hr"].append(cd_time / 3600)
+                    structure_content["alpha"].append(alpha)
+                    structure_content["beta"].append(beta)
+                    structure_content["coil"].append(coil)
+            finally:
+                if os.path.exists(output_file):
+                    os.remove(output_file)
+
+        except Exception as e:
+            print(f"❌ SESCA execution error for t={cd_time}s: {e}")
+        finally:
+            os.remove(spectrum_path)
+
+    with open(checkpoint_file, 'w') as f:
+        json.dump(structure_content, f, indent=2)
+    print("✅ SESCA results saved to checkpoint.")
 
 # === Plot and Fit Structure Content ===
 df_struct = pd.DataFrame(structure_content)
@@ -196,7 +216,7 @@ if df_struct.empty:
     print("❌ No structure data collected from SESCA.")
     exit(1)
 
-plt.figure(figsize=(10, 6))
+plt.figure(figsize=(6, 5))
 
 for label in ["alpha", "beta", "coil"]:
     t_fit = np.array(df_struct["Time_hr"]) * 3600
@@ -206,26 +226,35 @@ for label in ["alpha", "beta", "coil"]:
             popt, pcov = curve_fit(double_exp, t_fit, y_fit, p0=(y_fit[0], 0.001, y_fit[0]/2, 0.0001, y_fit[-1]), maxfev=5000)
             print(f"\nFit for {label} (double exp):")
             print_fit_params(popt, pcov, ['a', 'k1', 'c', 'k2', 'e'])
+            t_half_1 = np.log(2) / popt[1]
+            t_half_2 = np.log(2) / popt[3]
+            print(f"  t_half_1 = {t_half_1:.2f} s ({t_half_1/3600:.2f} h)")
+            print(f"  t_half_2 = {t_half_2:.2f} s ({t_half_2/3600:.2f} h)")
             y_model = double_exp(t_fit, *popt)
+            plt.plot(df_struct["Time_hr"], y_model, linestyle='--', label=f"{label} Fit")
         elif fit_model == "single":
-            popt, pcov = curve_fit(single_exp, t_fit, y_fit,p0=(y_fit[0], 0.001, y_fit[-1]), maxfev=5000)
+            popt, pcov = curve_fit(single_exp, t_fit, y_fit, p0=(y_fit[0], 0.001, y_fit[-1]), maxfev=5000)
             print(f"\nFit for {label} (single exp):")
             print_fit_params(popt, pcov, ['a', 'k', 'c'])
+            t_half = np.log(2) / popt[1]
+            print(f"  t_half = {t_half:.2f} s ({t_half/3600:.2f} h)")
             y_model = single_exp(t_fit, *popt)
+            plt.plot(df_struct["Time_hr"], y_model, linestyle='--', label=f"{label} Fit")
+        elif fit_model is None:
+            pass
         else:
             raise ValueError(f"Unsupported fit_model: {fit_model}")
 
-        plt.plot(df_struct["Time_hr"], y_model, linestyle='--', label=f"{label} Fit")
-
     except Exception as e:
         print(f"⚠️ Fit failed for {label}: {e}")
-    plt.plot(df_struct["Time_hr"], df_struct[label], marker='o', label=label.capitalize())
+    plt.scatter(df_struct["Time_hr"], df_struct[label], label=label)
 
-plt.xlabel("Time [h]")
-plt.ylabel("Fractional Content")
-plt.title("Secondary Structure Content Over Time (SESCA Deconv)")
-plt.grid(True)
-plt.legend()
+plt.xlabel("Time [h]", fontsize=16)
+plt.ylabel("Secondary structure content", fontsize=16)
+plt.xticks(fontsize=15)
+plt.yticks(fontsize=15)
+plt.legend(fontsize=14, frameon=False)
 plt.tight_layout()
-plt.savefig(f"{output_path}/SESCA_structure_content_vs_time.png")
+plt.savefig(f"{output_path}/SESCA_structure_content_vs_time.png", dpi=600)
+plt.savefig(f"{output_path}/SESCA_structure_content_vs_time.svg", dpi=600)
 plt.show()

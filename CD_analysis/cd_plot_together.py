@@ -5,14 +5,14 @@ import matplotlib.pyplot as plt
 from scipy.signal import savgol_filter
 
 # User-defined settings
-HV_THRESHOLD = 1000
+HV_THRESHOLD = 600
 SMOOTHING_METHOD = "savgol"  # Options: "savgol", "moving_average", None
-SMOOTHING_WINDOW = 11        # Must be odd
+SMOOTHING_WINDOW = 5        # Must be odd
 SMOOTHING_POLYORDER = 3      # Only used for Savitzky-Golay
 BASELINE_WAVELENGTH = 250    # Set to None to disable baseline correction
 
 # Paths
-input_folder = os.path.expanduser("/home/matifortunka/Documents/JS/data_Cambridge/8_3/G/native")      # Change this to your input directory
+input_folder = os.path.expanduser("/home/matifortunka/Documents/JS/data_Cambridge/fusions/F8E4N/equilibrium/unfolding/2nd_set/22h/CD/fuzja_F8_unfolding_spectra_widmo_JS_26_04")      # Change this to your input directory
 output_folder = os.path.expanduser(input_folder+"/combined")    # Change this to your output directory
 range_type = ""
 

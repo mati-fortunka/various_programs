@@ -173,13 +173,13 @@ def fit_and_plot(df, col, config, ylabel):
 
 def main():
     config = {
-        'folder': "/home/matifortunka/Documents/JS/data_Cambridge/fusions/F8E4N/equilibrium/unfolding/1st_set/fluo",  # <-- update this
+        'folder': "/home/matifortunka/Documents/JS/data_Cambridge/fusions/F8E4N/equilibrium/unfolding/2nd_set/22h/fluo/22h/spectra_83_F4N_JS_26_04",  # <-- update this
         'concentration_file': None,
         'smoothing': "savitzky_golay",
         'window': 15,
         'spline_s': 0.5,
         'poly': 3,
-        'baseline': 393,
+        'baseline': None,
         'fit_model': "two_state",  # Options: "two_state", "three_state", "None"
         'wl1': 330,
         'wl2': 355,

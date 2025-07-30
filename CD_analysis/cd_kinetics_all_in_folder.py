@@ -6,9 +6,6 @@ from scipy.optimize import curve_fit
 import re
 import os
 import glob
-import math
-import matplotlib.cm as cm
-import matplotlib.colors as mcolors
 
 wavelength_label = "Wavelength 222 nm"
 
@@ -229,7 +226,7 @@ def plot_data(df, smooth_method=None, window_size=5, polyorder=2,
 
 # BATCH PROCESSING SCRIPT
 if __name__ == "__main__":
-    folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/A/kinetics/CD/new_fitting/down"
+    folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/SI_plots/CD_kinetics/alpha"
     smooth_method = 'savitzky_golay'
     window_size = 25
     polyorder = 3
@@ -239,6 +236,7 @@ if __name__ == "__main__":
     fit_type = 'exponential'
     fit_start = 0
     fit_end = 2000
+    protein = "alpha"
 
     results = []
     all_fit_params = []
@@ -313,19 +311,25 @@ if __name__ == "__main__":
     color_map = plt.get_cmap('tab10')
     # Plot combined raw + fitted curves
     if raw_curves and fitted_curves:
-        plt.figure(figsize=(10, 6))
+        plt.figure(figsize=(6, 5))
+
         for idx, ((rtime, rsignal, label), (ftime, fsignal, _)) in enumerate(zip(raw_curves, fitted_curves)):
             color = color_map(idx % 10)  # Cycle through first 10 colors
             plt.plot(rtime, rsignal, label=f"{label} (Raw)", alpha=0.5, color=color)
             plt.plot(ftime, fsignal, label=f"{label} (Fit)", linestyle='--', linewidth=1.5, color=color)
-        plt.xlabel("Time (s)")
-        plt.ylabel("Ellipticity (mdeg)")
-        plt.title(f"Combined Raw and Fitted CD Kinetics Curves\n({wavelength_label})")
-        plt.legend(fontsize='small', loc='best')
-        plt.grid(True)
+        plt.xlabel('Time (s)', fontsize=16)
+        plt.ylabel('Ellipticity at 222 nm [mdeg]', fontsize=16)
+        # plt.title(f'Smoothed CD Kinetics Curves ({wavelength_label})')
+        plt.xticks(fontsize=15)
+        plt.yticks(fontsize=15)
+        # plt.legend(fontsize=14, frameon=False)
         plt.tight_layout()
-        combined_raw_fit_path = os.path.join(folder_path, "combined_raw_fitted_plot.png")
-        plt.savefig(combined_raw_fit_path)
+
+        png_path = os.path.join(folder_path, "combined_raw_fitted_plot.png")
+        svg_path = os.path.join(folder_path, "combined_raw_fitted_plot.svg")
+        plt.savefig(png_path, dpi=600)
+        plt.savefig(svg_path, dpi=600)
+
         plt.show()
         plt.close()
 

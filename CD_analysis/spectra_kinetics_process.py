@@ -11,31 +11,36 @@ from io import StringIO
 from scipy.optimize import curve_fit
 
 # === User Settings ===
-input_csv = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/Z/spectra_kinetics/60h/8_3_zeta_spectra_kin_60h00000.csv"
+input_csv = "/home/matifortunka/Documents/JS/data_Cambridge/29_04/CD/cd1/TrmD-Tm1570/kinetics/2h/Tm1570_2h_spectra_2min00004_fuzja.csv"
 native_spectrum_path = None#"/home/matifortunka/Documents/JS/data_Cambridge/8_3/A/spectra_kinetics/8_3_A_5uM_nat00043_raw.txt"
-dead_time = 120  # seconds
-nm_per_sec = 0.1
+dead_time = 30  # seconds
+nm_per_sec = 0.5
 
 path = "/".join(input_csv.split('/')[:-1])
 output_plot = f"{path}/Combined_CD_HHMM.png"
 hv_threshold = 1000
 smoothing_window = 11
 smoothing_polyorder = 3
+protein = "zeta"
+
+labels = ["alpha", "gamma", "zeta"]
+colors = ["#75053b", "#136308", "#0721a6"]
+label_color_map = dict(zip(labels, colors))
 
 # Plot 2
-target_wavelength = 195.0
+target_wavelength = 210
 fit_model = "double"
 
 # Plot 3
 integration_range = (190, 250)
-integration_sign = "positive"
+integration_sign = "negative"
 
 # Baseline
-baseline_correction = True
+baseline_correction = False
 baseline_wavelength = 250.0
 
 # Manual transpose
-transpose_data = False
+transpose_data = True
 
 print("\n🔧 Parameters:")
 print(f"  input_csv = {input_csv}")
@@ -98,7 +103,7 @@ hv_col_map = {
     if col != "Wavelength" and not col.startswith("Unnamed")
 }
 
-print("📋 CD usable columns:", list(cd_col_map.keys()))
+# print("📋 CD usable columns:", list(cd_col_map.keys()))
 
 if transpose_data:
     print("🔄 Transposing CD and HV dataframes (special reshaping)")
@@ -269,9 +274,10 @@ for cd_time in cd_times:
         valid_times_hr.append(adjusted_time / 3600)
 
 plt.figure(figsize=(6, 5))
-plt.plot(valid_times_hr, cd_values_at_wl, marker='o', color='darkred', label="Data")
+color = label_color_map.get(protein, 'darkred')
+plt.scatter(valid_times_hr, cd_values_at_wl, marker='o', label=f"{protein}", color=color)
 plt.xlabel("Time [h]", fontsize=16)
-plt.ylabel(f"Ellipticity at {target_wavelength} [mdeg]", fontsize=16)
+plt.ylabel(f"Ellipticity at {target_wavelength} nm [mdeg]", fontsize=16)
 #plt.title(f"CD at {actual_wavelength:.1f} nm vs Time")
 #plt.grid(True)
 
@@ -291,13 +297,13 @@ try:
     if fit_model == "linear":
         popt, pcov = curve_fit(linear, t_fit, y_fit)
         print_fit_params(popt, pcov, ['k', 'b'])
-        plt.plot(valid_times_hr, linear(t_fit, *popt), linestyle='--', label='Linear Fit')
+        plt.plot(valid_times_hr, linear(t_fit, *popt), linestyle='--', label='Linear Fit', color=color)
     elif fit_model == "single":
         popt, pcov = curve_fit(single_exp, t_fit, y_fit, p0=(y_fit[0], 0.001, y_fit[-1]), maxfev=5000)
         print_fit_params(popt, pcov, ['a', 'k', 'c'])
         t_half = log(2) / popt[1]
         print(f"🧮 Half-life (t₁/₂) = {t_half:.2f} s = {t_half / 3600:.2f} h")
-        plt.plot(valid_times_hr, single_exp(t_fit, *popt), linestyle='--', label='Single Exp Fit')
+        plt.plot(valid_times_hr, single_exp(t_fit, *popt), linestyle='--', label='Single Exp Fit', color=color)
     elif fit_model == "double":
         popt, pcov = curve_fit(double_exp, t_fit, y_fit, p0=(y_fit[0], 0.001, y_fit[0]/2, 0.0001, y_fit[-1]), maxfev=5000)
         print_fit_params(popt, pcov, ['a', 'k1', 'c', 'k2', 'e'])
@@ -306,16 +312,16 @@ try:
         print(f"🧮 Half-lives (t₁/₂):")
         print(f"   Fast phase (k1): {t_half1:.2f} s = {t_half1 / 3600:.2f} h")
         print(f"   Slow phase (k2): {t_half2:.2f} s = {t_half2 / 3600:.2f} h")
-        plt.plot(valid_times_hr, double_exp(t_fit, *popt), linestyle='--', label='Double Exp Fit')
+        plt.plot(valid_times_hr, double_exp(t_fit, *popt), linestyle='--', label='fit', color=color)
 except Exception as e:
     print(f"❌ Fit failed: {repr(e)}")
 
 plt.xticks(fontsize=15)
 plt.yticks(fontsize=15)
-#plt.legend(fontsize=14, frameon=False)
+# plt.legend(fontsize=14, frameon=False)
 plt.tight_layout()
 try:
-    plt.savefig(f"{path}/CD_at_{int(actual_wavelength)}_nm_vs_time.png")
+    plt.savefig(f"{path}/CD_at_{int(actual_wavelength)}_nm_vs_time.svg", dpi=600)
 except Exception as e:
     print(f"❌ Failed to save Plot 2: {e}")
 plt.show()

@@ -9,9 +9,10 @@ from matplotlib.colors import Normalize
 from scipy.signal import savgol_filter
 from scipy.optimize import curve_fit
 from io import StringIO
+from scipy.sparse.linalg import svds
 
 # === Settings ===
-input_csv = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/Z/spectra_kinetics/60h/8_3_zeta_spectra_kin_60h00000.csv"
+input_csv = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/G/spectra_kinetics/60h_2/8_3_gamma_spectra_kin_60h00000.csv"
 output_path = os.path.dirname(input_csv)
 output_plot = os.path.join(output_path, "Combined_CD_HHMM.png")
 hv_threshold = 1000
@@ -21,7 +22,8 @@ baseline_wavelength = 250.0
 dead_time = 420
 nm_per_sec = 0.1
 fit_model = "double"
-transpose_data = False  # Set to True if data is transposed
+transpose_data = True  # Set to True if data is transposed
+svd_components = 3  # Number of SVD components to use (default = 3)
 
 # === Fit functions ===
 def double_exp(t, a, k1, c, k2, e): return a * np.exp(-k1 * t) + c * np.exp(-k2 * t) + e
@@ -128,16 +130,30 @@ cd_matrix = np.column_stack([
     for _, col in sorted(cd_col_map.items())
 ])
 
-U, S, VT = np.linalg.svd(cd_matrix, full_matrices=False)
-components = U.T @ cd_matrix
-components = components[:3, :]  # top 3 components
+
+# === SVD-Based Structure Estimation ===
+print("\U0001F50D Performing SVD on CD spectra for structure estimation")
+
+cd_matrix = np.column_stack([
+    savgol_filter(cd_df[col].values - cd_df[col].values[np.argmin(np.abs(wavelengths - baseline_wavelength))],
+                  smoothing_window, smoothing_polyorder)
+    for _, col in sorted(cd_col_map.items())
+])
+
+# === Efficient Truncated SVD using SciPy ===
+U, S, VT = svds(cd_matrix, k=svd_components)
+# Sort components in descending order
+idx = np.argsort(S)[::-1]
+U, S, VT = U[:, idx], S[idx], VT[idx]
+
+components = U.T @ cd_matrix  # svd_components x n_samples
 fractions = np.maximum(components, 0)
 fractions = fractions / np.sum(fractions, axis=0, keepdims=True)
 
 structure_content = {
     "Time_hr": [t / 3600 for t in cd_times],
-    "alpha": fractions[1],
-    "beta": fractions[2],
+    "alpha": fractions[1] if svd_components > 1 else np.zeros_like(fractions[0]),
+    "beta": fractions[2] if svd_components > 2 else np.zeros_like(fractions[0]),
     "coil": fractions[0]
 }
 
@@ -153,16 +169,22 @@ for label in ["alpha", "beta", "coil"]:
             popt, pcov = curve_fit(double_exp, t_fit, y_fit, p0=(y_fit[0], 0.001, y_fit[0] / 2, 0.0001, y_fit[-1]), maxfev=5000)
             print(f"\nDouble Exponential Fit for {label}:")
             print_fit_params(popt, pcov, ['a', 'k1', 'c', 'k2', 'e'])
+            t_half_1 = np.log(2) / popt[1]
+            t_half_2 = np.log(2) / popt[3]
+            print(f"  t_half_1 = {t_half_1:.2f} s ({t_half_1 / 3600:.2f} h)")
+            print(f"  t_half_2 = {t_half_2:.2f} s ({t_half_2 / 3600:.2f} h)")
             plt.plot(df_struct["Time_hr"], double_exp(t_fit, *popt), linestyle='--', label=f"{label} Double Fit")
         elif fit_model == "single":
             popt, pcov = curve_fit(single_exp, t_fit, y_fit, p0=(y_fit[0], 0.001, y_fit[-1]), maxfev=5000)
             print(f"\nSingle Exponential Fit for {label}:")
             print_fit_params(popt, pcov, ['a', 'k', 'c'])
+            t_half = np.log(2) / popt[1]
+            print(f"  t_half = {t_half:.2f} s ({t_half/3600:.2f} h)")
             plt.plot(df_struct["Time_hr"], single_exp(t_fit, *popt), linestyle='--', label=f"{label} Single Fit")
 
     except Exception as e:
         print(f"⚠️ Fit failed for {label}: {e}")
-    plt.plot(df_struct["Time_hr"], df_struct[label], marker='o', label=label.capitalize())
+    plt.scatter(df_struct["Time_hr"], df_struct[label], marker='o', label=label)
 
 plt.xlabel("Time [h]", fontsize=16)
 plt.ylabel("Secondary structure content", fontsize=16)
@@ -173,4 +195,5 @@ plt.legend(fontsize=14, frameon=False)
 #plt.grid(True)
 plt.tight_layout()
 plt.savefig(f"{output_path}/SVD_structure_content_vs_time.png", dpi = 600)
+plt.savefig(f"{output_path}/SVD_structure_content_vs_time.svg", dpi = 600)
 plt.show()

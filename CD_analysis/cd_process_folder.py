@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 HV_THRESHOLD = 1000  # Change this value as needed
 
 # Path to your input folder and output folder
-input_folder = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/Z/equilibrium/CD"  # Replace with your folder path
+input_folder = "/home/matifortunka/Documents/JS/data_Cambridge/Tm1570/12h_CD2/Tm1570_12h_spectra_2min00000.csv"  # Replace with your folder path
 output_folder = os.path.join(input_folder, "output")
 
 # Create the output folder if it doesn't exist

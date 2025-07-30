@@ -70,10 +70,11 @@ def process_and_visualize_combined_with_smoothing(folder_path, smoothing_method=
             else:
                 data["Smoothed Ellipticity"] = data["Ellipticity (mdeg)"]
 
-            # Baseline correction at baseline_wavelength
-            baseline_index = (np.abs(data["Wavelength (nm)"] - baseline_wavelength)).idxmin()
-            baseline_value = data.loc[baseline_index, "Smoothed Ellipticity"]
-            data["Smoothed Ellipticity"] -= baseline_value
+            if baseline_wavelength:
+                # Baseline correction at baseline_wavelength
+                baseline_index = (np.abs(data["Wavelength (nm)"] - baseline_wavelength)).idxmin()
+                baseline_value = data.loc[baseline_index, "Smoothed Ellipticity"]
+                data["Smoothed Ellipticity"] -= baseline_value
 
             # Store for plotting
             plot_data.append((denaturant_concentration, data["Wavelength (nm)"], data["Smoothed Ellipticity"]))
@@ -114,6 +115,6 @@ def process_and_visualize_combined_with_smoothing(folder_path, smoothing_method=
 
 
 # Example usage
-folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/fusions/F8E4N/equilibrium/unfolding/1st_set/fluo"  # Replace with your path
+folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/fusions/F8E4N/equilibrium/unfolding/2nd_set/22h/fluo/22h/spectra_83_F4N_JS_26_04"  # Replace with your path
 process_and_visualize_combined_with_smoothing(folder_path, smoothing_method="moving_average", range_interval=15,
-                                              poly_order=3, save_plot=True, output="output_plot.png", baseline_wavelength = 393)
+                                              poly_order=3, save_plot=True, output="output_plot.png", baseline_wavelength = None)

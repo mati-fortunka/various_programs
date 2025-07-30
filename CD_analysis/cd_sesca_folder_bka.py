@@ -10,11 +10,24 @@ import shutil
 # === Configuration ===
 sesca_script = "/home/matifortunka/Programs/SESCA/scripts/SESCA_deconv.py"
 basis_set_code = "/home/matifortunka/Programs/SESCA/libs/Map_DS-dT.dat"
-input_folder = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/Maciek_CD/unfolding_SAV"  # Folder containing .bka files
+input_folder = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/Maciek_CD/old"
 smoothing_window = 11
 smoothing_polyorder = 3
 baseline_wavelength = 250.0
 verbose = False
+
+# === CD unit conversion parameters ===
+protein_conc = 15   # µmol/L
+path_length_mm = 0.1        # mm
+residue_count = 479          # number of residues per molecule - 1
+
+MRW = 113.4811273
+conc = 0.8153619
+
+# Convert from mdeg to mean residue ellipticity (deg·cm²·dmol⁻¹)
+conversion_factor = 1000000 / (protein_conc * path_length_mm * residue_count)
+# conversion_factor = 0.1 / (protein_conc_molar * path_length_cm * residue_count)
+# conversion_factor = 0.1 * MRW / (path_length_cm * conc)
 
 # === Data storage ===
 concentrations = []
@@ -37,7 +50,6 @@ for file in os.listdir(input_folder):
     if concentration is None:
         continue
 
-    # Load and process spectrum, skipping headers
     with open(input_path, "r") as f:
         lines = f.readlines()
     try:
@@ -46,7 +58,6 @@ for file in os.listdir(input_folder):
         print(f"⚠️ No _DATA section in {file}")
         continue
 
-    # Parse numeric data manually (robust to formatting issues)
     data = []
     for line in lines[data_start_idx:]:
         if line.strip() == "" or not any(c.isdigit() for c in line):
@@ -69,13 +80,15 @@ for file in os.listdir(input_folder):
     baseline_idx = np.argmin(np.abs(wavelengths - baseline_wavelength))
     ellipticity_corrected = ellipticity_smooth - ellipticity_smooth[baseline_idx]
 
-    # Write to temporary file
+    ellipticity_mre = ellipticity_corrected * conversion_factor
+
+    # Write to SESCA input file
     base = os.path.splitext(input_path)[0]
     spectrum_txt = base + "_temp_sesca.txt"
     final_output = base + "_deconv.out"
 
     with open(spectrum_txt, "w") as f:
-        for wl, val in zip(wavelengths, ellipticity_corrected):
+        for wl, val in zip(wavelengths, ellipticity_mre):
             f.write(f"{wl:.1f}\t{val:.6f}\n")
 
     # Run SESCA
@@ -103,22 +116,18 @@ for file in os.listdir(input_folder):
                 alpha_contents.append(alpha)
                 beta_contents.append(beta)
                 coil_contents.append(coil)
-
                 print(f"Processed {file}: Alpha={alpha:.4f}, Beta={beta:.4f}, Coil={coil:.4f}")
             else:
                 print(f"⚠️ Missing structure data in: {file}")
-
         else:
             print(f"❌ SESCA output missing for: {file}")
-
     except Exception as e:
         print(f"❌ Error processing {file}: {e}")
-
     finally:
         if os.path.exists(spectrum_txt):
             os.remove(spectrum_txt)
 
-# === Plotting ===
+# === Plotting results ===
 if concentrations:
     conc = np.array(concentrations)
     sort_idx = np.argsort(conc)

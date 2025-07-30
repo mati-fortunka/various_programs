@@ -36,6 +36,7 @@ def extract_cd_and_plot(folder_path, wavelength, concentration_file, smoothing_m
     concentration_mapping = concentration_data.set_index('Sample_number')['den_concentration']
 
     ellipticity_vs_concentration = []
+    all_spectra = []  # <<< ADDED: Store spectra for combined plot >>>
 
     for file_name in os.listdir(folder_path):
         if file_name.endswith(".csv"):
@@ -45,18 +46,15 @@ def extract_cd_and_plot(folder_path, wavelength, concentration_file, smoothing_m
                     lines = f.readlines()
                 lines = lines[15:]
 
-                # Extract CD data block
                 cd_start = find_start_index(lines, "CircularDichroism", offset=3)
                 cd_end = next((i for i, line in enumerate(lines[cd_start:], start=cd_start) if not line.strip()),
                               len(lines))
                 cd_lines = lines[cd_start:cd_end]
 
-                # Parse data
                 cd_data = np.array([list(map(float, line.replace(',', ' ').split())) for line in cd_lines])
                 wavelengths = cd_data[:, 0]
                 ellipticity = cd_data[:, -scans:].mean(axis=1)
 
-                # Apply smoothing
                 if smoothing_method == "moving_average":
                     smoothed = pd.Series(ellipticity).rolling(window=window_size, center=True).mean().to_numpy()
                 elif smoothing_method == "spline":
@@ -69,23 +67,19 @@ def extract_cd_and_plot(folder_path, wavelength, concentration_file, smoothing_m
                 else:
                     smoothed = ellipticity
 
-                # Ensure ascending order for interpolation
                 if wavelengths[0] > wavelengths[-1]:
                     wavelengths = wavelengths[::-1]
                     smoothed = smoothed[::-1]
 
-                # Baseline correction
                 if baseline_wavelength is not None:
                     baseline_value = np.interp(baseline_wavelength, wavelengths, smoothed)
                 else:
                     baseline_value = 0
 
-                # Extract ellipticity at specified wavelength
                 closest_wavelength = wavelengths[np.argmin(np.abs(wavelengths - wavelength))]
                 target_ellipticity = smoothed[np.argmin(np.abs(wavelengths - wavelength))]
                 corrected_ellipticity = target_ellipticity - baseline_value
 
-                # Extract sample number and map to concentration
                 file_pattern = re.compile(r"(\d{5})\.csv$")
                 match = file_pattern.search(file_name)
                 sample_number = int(match.group(1))
@@ -93,18 +87,18 @@ def extract_cd_and_plot(folder_path, wavelength, concentration_file, smoothing_m
                 den_conc = concentration_mapping.get(sample_number, None)
                 if den_conc is not None:
                     ellipticity_vs_concentration.append((den_conc, corrected_ellipticity))
+                    all_spectra.append((wavelengths, smoothed, f"{den_conc:.2f} M"))  # <<< ADDED
 
             except Exception as e:
                 print(f"Error processing {file_name}: {e}")
 
-    # Prepare data for fitting and plotting
+    # Plot ellipticity vs concentration
     plot_data = pd.DataFrame(ellipticity_vs_concentration, columns=['den_concentration', 'Ellipticity'])
     plot_data.sort_values(by='den_concentration', inplace=True)
 
     x_data = plot_data['den_concentration'].values
     y_data = plot_data['Ellipticity'].values
 
-    # Fit to 2-state model
     initial_guess = [min(y_data), max(y_data), 2, 2]
     try:
         popt, pcov = curve_fit(G, x_data, y_data, p0=initial_guess)
@@ -118,7 +112,7 @@ def extract_cd_and_plot(folder_path, wavelength, concentration_file, smoothing_m
         print(f"Curve fitting failed: {e}")
         popt = None
 
-    # Plotting
+    # Plotting fit
     plt.figure(figsize=(8, 6))
     plt.scatter(x_data, y_data, label='Data', color='blue', marker='o')
     if popt is not None:
@@ -128,16 +122,30 @@ def extract_cd_and_plot(folder_path, wavelength, concentration_file, smoothing_m
     plt.ylabel('Mean Ellipticity (mdeg)')
     plt.grid(True)
     plt.legend()
-
     output_file = folder_path + f"/CD_{wavelength}nm_{smoothing_method}_fit.png"
     plt.savefig(output_file)
+    plt.show()
+
+    # <<< ADDITION: Plot all spectra >>>
+    plt.figure(figsize=(10, 7))
+    for wls, sm, label in all_spectra:
+        plt.plot(wls, sm, label=label)
+    plt.title("Smoothed CD Spectra for All Samples")
+    plt.xlabel("Wavelength (nm)")
+    plt.ylabel("Ellipticity (mdeg)")
+    plt.grid(True)
+    plt.legend(title="Denaturant", bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+    combined_plot_file = os.path.join(folder_path, "combined_cd_spectra.png")
+    plt.savefig(combined_plot_file)
     plt.show()
 
     return plot_data, popt
 
 
+
 # Example usage
-path = "/home/matifortunka/Documents/JS/data_Cambridge/fusions/F8E4N/equilibrium/unfolding/1st_set/CD"
+path = "/home/matifortunka/Documents/JS/data_Cambridge/fusions/F8E4N/equilibrium/unfolding/2nd_set/22h/CD/fuzja_F8_unfolding_spectra_widmo_JS_26_04"
 concentrations = path + "/concentrations.txt"
 
 extract_cd_and_plot(path, 220, concentrations, smoothing_method="savitzky_golay",

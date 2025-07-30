@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 HV_THRESHOLD = 700  # Change this value as needed
 
 # Path to your input folder and output folder
-input_folder = "/home/matifortunka/Documents/JS/data_Cambridge/MateuszF/denaturants/cd/fusion"  # Replace with your folder path
+input_folder = "/home/matifortunka/Documents/JS/data_Cambridge/fusions/F8E4N/equilibrium/unfolding/2nd_set/22h/CD/fuzja_F8_unfolding_spectra_widmo_JS_26_04"  # Replace with your folder path
 output_folder = os.path.join(input_folder, "combined")
 # range = "_farUV"
 range = ""

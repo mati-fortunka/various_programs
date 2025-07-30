@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Path to your input folder and CSV file
-path = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/A/kinetics/CD/2000s/spectra/bad/8_3_alpha_6M_test00000.csv"
+path = "/home/matifortunka/Documents/JS/data_Cambridge/fusions/F8E4N/equilibrium/unfolding/1st_set/CD/F8E4N00001.csv"
 input_folder = path.rstrip(path.split("/")[-1])  # Replace with your folder path
 print(input_folder)
 
