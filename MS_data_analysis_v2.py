@@ -32,27 +32,43 @@ ENVELOPE_TOLERANCE_MZ = 0.1  # Tolerance in m/z to detect charge state peaks
 NEUTRAL_MASS_BIN_SIZE = 1.0  # Finer resolution
 mass_dict = defaultdict(float)
 
-for _, row in df.iterrows():
-    mz = row["m/z"]
-    intensity = row["Smoothed"]
+from bisect import bisect_left, bisect_right
+
+# Prepare sorted m/z and intensity arrays for fast searching
+mz_array = df["m/z"].to_numpy()
+intensity_array = df["Smoothed"].to_numpy()
+sorted_indices = np.argsort(mz_array)
+mz_sorted = mz_array[sorted_indices]
+intensity_sorted = intensity_array[sorted_indices]
+
+# Efficient lookup function
+def find_intensity_near(mz_target, tolerance):
+    left = bisect_left(mz_sorted, mz_target - tolerance)
+    right = bisect_right(mz_sorted, mz_target + tolerance)
+    return intensity_sorted[left:right].sum() if right > left else 0.0
+
+# --- Improved Deconvolution ---
+mass_dict = defaultdict(float)
+
+for i in range(len(mz_array)):
+    mz = mz_array[i]
     for z in CHARGE_RANGE:
         neutral_mass = mz * z - z * PROTON_MASS
         if 10000 < neutral_mass < 100000:
             envelope_score = 0.0
             contributing_charges = 0
-            for dz in [-1, 0, 1]:  # Check neighboring charge states
+            for dz in [-1, 0, 1]:
                 z_adj = z + dz
                 if z_adj in CHARGE_RANGE:
                     expected_mz = (neutral_mass + z_adj * PROTON_MASS) / z_adj
-                    matched = df.loc[np.abs(df["m/z"] - expected_mz) < ENVELOPE_TOLERANCE_MZ]
-                    if not matched.empty:
-                        envelope_score += matched["Smoothed"].sum()
+                    intensity = find_intensity_near(expected_mz, ENVELOPE_TOLERANCE_MZ)
+                    if intensity > 0:
+                        envelope_score += intensity
                         contributing_charges += 1
-
-            # Only accept if envelope has at least 2 charge state matches
             if contributing_charges >= 2:
                 binned_mass = round(neutral_mass / NEUTRAL_MASS_BIN_SIZE) * NEUTRAL_MASS_BIN_SIZE
-                mass_dict[binned_mass] += envelope_score / contributing_charges  # Weighted
+                mass_dict[binned_mass] += envelope_score / contributing_charges
+
 
 # Convert to DataFrame
 mass_df = pd.DataFrame(mass_dict.items(), columns=["Mass", "Intensity"])

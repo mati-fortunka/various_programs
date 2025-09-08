@@ -115,6 +115,6 @@ def process_and_visualize_combined_with_smoothing(folder_path, smoothing_method=
 
 
 # Example usage
-folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/fusions/F8E4N/equilibrium/unfolding/2nd_set/22h/fluo/22h/spectra_83_F4N_JS_26_04"  # Replace with your path
-process_and_visualize_combined_with_smoothing(folder_path, smoothing_method="moving_average", range_interval=15,
+folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/fusions/F8E4N/equilibrium/unfolding/2nd_set/22h/fluo/spectra_83_F4N_JS_26_04"  # Replace with your path
+process_and_visualize_combined_with_smoothing(folder_path, smoothing_method="savitzky_golay", range_interval=10,
                                               poly_order=3, save_plot=True, output="output_plot.png", baseline_wavelength = None)

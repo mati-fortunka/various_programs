@@ -11,15 +11,15 @@ from io import StringIO
 from scipy.optimize import curve_fit
 
 # === User Settings ===
-input_csv = "/home/matifortunka/Documents/JS/data_Cambridge/29_04/CD/cd1/TrmD-Tm1570/kinetics/2h/Tm1570_2h_spectra_2min00004_fuzja.csv"
+input_csv = "/home/matifortunka/Documents/JS/data_Cambridge/6_3/spectra_unfolding/CD/6_3 GdHCl time unf 2 uM/WI11_GdHCl_unf_2uM_time00001.csv"
 native_spectrum_path = None#"/home/matifortunka/Documents/JS/data_Cambridge/8_3/A/spectra_kinetics/8_3_A_5uM_nat00043_raw.txt"
 dead_time = 30  # seconds
-nm_per_sec = 0.5
+nm_per_sec = 0.1
 
 path = "/".join(input_csv.split('/')[:-1])
 output_plot = f"{path}/Combined_CD_HHMM.png"
-hv_threshold = 1000
-smoothing_window = 11
+hv_threshold = 800
+smoothing_window = 15
 smoothing_polyorder = 3
 protein = "zeta"
 
@@ -28,11 +28,11 @@ colors = ["#75053b", "#136308", "#0721a6"]
 label_color_map = dict(zip(labels, colors))
 
 # Plot 2
-target_wavelength = 210
+target_wavelength = 215
 fit_model = "double"
 
 # Plot 3
-integration_range = (190, 250)
+integration_range = (210, 250)
 integration_sign = "negative"
 
 # Baseline
@@ -40,7 +40,7 @@ baseline_correction = False
 baseline_wavelength = 250.0
 
 # Manual transpose
-transpose_data = True
+transpose_data = False
 
 print("\n🔧 Parameters:")
 print(f"  input_csv = {input_csv}")
@@ -321,7 +321,7 @@ plt.yticks(fontsize=15)
 # plt.legend(fontsize=14, frameon=False)
 plt.tight_layout()
 try:
-    plt.savefig(f"{path}/CD_at_{int(actual_wavelength)}_nm_vs_time.svg", dpi=600)
+    plt.savefig(f"{path}/CD_at_{int(actual_wavelength)}_nm_vs_time.png", dpi=600)
 except Exception as e:
     print(f"❌ Failed to save Plot 2: {e}")
 plt.show()

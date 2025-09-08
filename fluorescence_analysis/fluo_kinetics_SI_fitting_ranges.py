@@ -47,6 +47,10 @@ def read_data(filename):
 def moving_average(data, window_size):
     return np.convolve(data, np.ones(window_size) / window_size, mode='valid')
 
+def sigmoid_model(t, y0, a, k, t_half):
+    """Sigmoidal growth/decay model."""
+    return y0 + a / (1 + np.exp(-k * (t - t_half)))
+
 def exponential(t, A, k, c):
     return A * np.exp(-k * t) + c
 
@@ -63,6 +67,17 @@ def estimate_initial_k(time, intensity):
     half_max_index = np.abs(intensity - half_max).argmin()
     t_half = time.iloc[half_max_index]
     return 1 / t_half if t_half > 0 else 1
+
+def fit_sigmoid(time, intensity):
+    """Fit data to sigmoid_model."""
+    try:
+        initial_guess = [min(intensity), max(intensity) - min(intensity), 1.0, (time.iloc[0] + time.iloc[-1]) / 2]
+        popt, pcov = curve_fit(sigmoid_model, time, intensity, p0=initial_guess, maxfev=10000)
+        perr = np.sqrt(np.diag(pcov))
+        return popt, perr
+    except RuntimeError:
+        print("Sigmoid fit failed.")
+        return None, None
 
 def fit_exponential(time, intensity):
     A0 = max(intensity)
@@ -123,19 +138,27 @@ def read_dead_times(folder_path, default_dead_time):
                     print(f"⚠️ Invalid dead time format for '{key}': '{parts[1]}'")
     return dead_times
 
-def plot_multiple_csvs_with_logging(folder_path,
-                                    smooth_method='savitzky_golay',
-                                    window_size=25,
-                                    polyorder=3,
-                                    dead_time=30,
-                                    fit_type=None,
-                                    fit_start=None,
-                                    fit_end=None,
-                                    output_plot="combined_plot.png",
-                                    output_log="fitted_parameters.txt"):
-    plt.figure(figsize=(10, 6))
+def plot_multiple_csvs_with_logging(
+    folder_path,
+    smooth_method='savitzky_golay',
+    window_size=25,
+    polyorder=3,
+    dead_time=30,
+    fit_type=None,
+    fit_start=None,
+    fit_end=None,
+    fit_ranges=None,              # dict: {"filename.csv": (start, end), ...}
+    fit_files=None,               # optional list of filenames (for parallel lists mode)
+    fit_starts=None,              # list of start times
+    fit_ends=None,                # list of end times
+    output_plot="combined_plot.png",
+    output_log="fitted_parameters.txt",
+    x_limits=None,
+    y_limits=None
+):
+    plt.figure(figsize=(6, 5))
     files = sorted(glob.glob(os.path.join(folder_path, "*.csv")))
-    color_cycle = plt.cm.hsv(np.linspace(0, 1, len(files)))
+    color_map = plt.get_cmap('tab10')
 
     param_log = []
     t_half_values = defaultdict(list)
@@ -151,68 +174,73 @@ def plot_multiple_csvs_with_logging(folder_path,
         time = df.iloc[:, 0] + custom_dead_time
         intensity = df.iloc[:, 1]
 
+        # color = color_map(i % 10)
+        color = "#3D48A4"
+
+        # --- Plot smoothed data ---
         if smooth_method == 'moving_average':
             smoothed = moving_average(intensity, window_size)
             time_adjusted = time[:len(smoothed)]
-            plt.plot(time_adjusted, smoothed, label=f"{label_base}", color=color_cycle[i])
+            plt.plot(time_adjusted, smoothed, label=f"{label_base}", color=color)
         elif smooth_method == 'savitzky_golay':
             smoothed = savgol_filter(intensity, window_size, polyorder)
-            plt.plot(time, smoothed, label=f"{label_base}", color=color_cycle[i])
+            plt.plot(time, smoothed, label=f"{label_base}", color=color)
         else:
-            plt.plot(time, intensity, label=f"{label_base} (raw)", linestyle='--', alpha=0.5)
+            plt.plot(time, intensity, label=f"{label_base} (raw)", linestyle='--', alpha=0.5, color=color)
 
+        # --- Determine custom fit range ---
+        this_fit_start, this_fit_end = fit_start, fit_end  # default/global
+
+        # Option 1: dictionary
+        if fit_ranges and f"{label_base}.csv" in fit_ranges:
+            this_fit_start, this_fit_end = fit_ranges[f"{label_base}.csv"]
+
+        # Option 2: parallel lists
+        elif fit_files and fit_starts and fit_ends:
+            if label_base + ".csv" in fit_files:
+                idx = fit_files.index(label_base + ".csv")
+                this_fit_start, this_fit_end = fit_starts[idx], fit_ends[idx]
+
+        # Apply mask if valid range is set
+        fit_time, fit_intensity = time, intensity
+        if this_fit_start is not None and this_fit_end is not None:
+            fit_start_adj = this_fit_start + custom_dead_time
+            fit_end_adj = this_fit_end + custom_dead_time
+            mask = (time >= fit_start_adj) & (time <= fit_end_adj)
+            fit_time = time[mask]
+            fit_intensity = intensity[mask]
+
+        # --- Fits ---
         if fit_type:
-            fit_time = time
-            fit_intensity = intensity
-            if fit_start is not None and fit_end is not None:
-                fit_start_adj = fit_start + custom_dead_time
-                fit_end_adj = fit_end + custom_dead_time
-                mask = (time >= fit_start_adj) & (time <= fit_end_adj)
-                fit_time = time[mask]
-                fit_intensity = intensity[mask]
-
             line_log = f"{label_base} - "
+
             if fit_type == 'exponential':
                 params, errors = fit_exponential(fit_time, fit_intensity)
                 if params is not None:
                     A, k, c = params
                     eA, ek, ec = errors
-                    plt.plot(fit_time, exponential(fit_time, *params), label=f"{label_base} Fit", linestyle='dotted', color=color_cycle[i])
+                    plt.plot(fit_time, exponential(fit_time, *params),
+                             label=f"{label_base} Exp Fit", linestyle='--', linewidth=1.5, color=color)
                     t_half = np.log(2)/k if k > 0 else np.nan
                     line_log += f"Exp Fit: A={A:.4f}±{eA:.4f}, k={k:.6f}±{ek:.6f}, c={c:.4f}±{ec:.4f}, t_half={t_half:.2f} s"
-                    t_half_values['k'].append(t_half)
+                    t_half_values['exp'].append(t_half)
 
-            elif fit_type == 'exponential_with_drift':
-                params, errors = fit_exponential_with_drift(fit_time, fit_intensity)
+            elif fit_type == 'sigmoid':
+                params, errors = fit_sigmoid(fit_time, fit_intensity)
                 if params is not None:
-                    A, k, c, m = params
-                    eA, ek, ec, em = errors
-                    plt.plot(fit_time, single_exponential_with_drift(fit_time, *params), label=f"{label_base} Drift Fit", linestyle='dotted', color=color_cycle[i])
-                    t_half = np.log(2)/k if k > 0 else np.nan
-                    line_log += f"Exp+Drift Fit: A={A:.4f}±{eA:.4f}, k={k:.6f}±{ek:.6f}, c={c:.4f}±{ec:.4f}, m={m:.6f}±{em:.6f}, t_half={t_half:.2f} s"
-                    t_half_values['k'].append(t_half)
+                    y0, a, k, t_half = params
+                    ey0, ea, ek, eth = errors
+                    plt.plot(fit_time, sigmoid_model(fit_time, *params),
+                             label=f"{label_base} Sigmoid Fit", linestyle='--', linewidth=1.5, color=color)
+                    line_log += (f"Sigmoid Fit: y0={y0:.4f}±{ey0:.4f}, a={a:.4f}±{ea:.4f}, "
+                                 f"k={k:.6f}±{ek:.6f}, t_half={t_half:.2f}±{eth:.2f}")
+                    t_half_values['sigmoid'].append(t_half)
 
-            elif fit_type == 'double_exponential':
-                params, errors = fit_double_exponential(fit_time, fit_intensity)
-                if params is not None:
-                    A1, k1, A2, k2, c = params
-                    eA1, ek1, eA2, ek2, ec = errors
-                    plt.plot(fit_time, double_exponential(fit_time, *params), label=f"{label_base} Double Fit", linestyle='dotted', color=color_cycle[i])
-                    t_half1 = np.log(2)/k1 if k1 > 0 else np.nan
-                    t_half2 = np.log(2)/k2 if k2 > 0 else np.nan
-                    line_log += (f"Double Exp Fit: A1={A1:.4f}±{eA1:.4f}, k1={k1:.6f}±{ek1:.6f}, "
-                                 f"A2={A2:.4f}±{eA2:.4f}, k2={k2:.6f}±{ek2:.6f}, c={c:.4f}±{ec:.4f}, "
-                                 f"t_half1={t_half1:.2f} s, t_half2={t_half2:.2f} s")
-                    t_half_values['k1'].append(t_half1)
-                    t_half_values['k2'].append(t_half2)
-
-            elif fit_type == 'linear':
-                slope, intercept = fit_linear(fit_time, fit_intensity)
-                plt.plot(fit_time, slope * fit_time + intercept, label=f"{label_base} Linear Fit", linestyle='dashed', color=color_cycle[i])
-                line_log += f"Linear Fit: slope={slope:.4f}, intercept={intercept:.4f}"
+            # (keep your other fit models here...)
 
             param_log.append(line_log)
 
+    # --- Save log ---
     with open(os.path.join(folder_path, output_log), "w") as f:
         f.write("\n".join(param_log) + "\n\n")
         f.write("Summary Statistics:\n")
@@ -222,19 +250,25 @@ def plot_multiple_csvs_with_logging(folder_path,
             std = np.nanstd(t_array)
             f.write(f"{k} t_half: mean = {avg:.2f} s, std = {std:.2f} s\n")
 
-    plt.xlabel("Time (s)")
-    plt.ylabel("Fluorescence Intensity (a.u.)")
-    plt.title("Smoothed Fluorescence Curves")
-    plt.legend(loc='best', fontsize='small')
-    plt.grid(True)
+    if x_limits:
+        plt.xlim(*x_limits)
+    if y_limits:
+        plt.ylim(*y_limits)
+    plt.xlabel("Time (s)", fontsize=16)
+    plt.ylabel("Fluorescence Intensity (a.u.)", fontsize=16)
+    plt.xticks(fontsize=15)
+    plt.yticks(fontsize=15)
     plt.tight_layout()
-    plt.savefig(os.path.join(folder_path, output_plot))
+    plt.savefig(os.path.join(folder_path, output_plot), dpi=600)
     plt.show()
+    plt.close()
     print(f"\nCombined plot saved as: {output_plot}")
     print(f"Fit results and t_half values saved to: {output_log}")
 
+
+
 if __name__ == "__main__":
-    folder = "/home/matifortunka/Documents/JS/data_Cambridge/6_3/paper/additional_SI/FL_comparison/1"
+    folder = "/home/matifortunka/Documents/JS/data_Cambridge/6_3/paper/fluo/sigmoid"
 
     plot_multiple_csvs_with_logging(
         folder_path=folder,
@@ -242,9 +276,13 @@ if __name__ == "__main__":
         window_size=15,
         polyorder=3,
         dead_time=0,
-        fit_type=None,
-        fit_start=0,
-        fit_end=1500,
-        output_plot="combined_kinetics_plot.png",
-        output_log=f"{folder}/fitted_parameters.txt"
+        fit_type="sigmoid",
+        # fit_ranges=None,
+        fit_files=["63_2h_3.csv", "63_2h_6.csv", "63_2h_7.csv", "63_12h_1.csv"],
+        fit_starts = [1400, 1780, 2400, 1780],
+        fit_ends = [2000, 2400, 3200, 2600],
+        output_plot="SI_fluo_plot3.svg",
+        output_log=f"{folder}/fitted_parameters.txt",
+        x_limits=(1400, 3200),
+        y_limits=(5,12)
     )

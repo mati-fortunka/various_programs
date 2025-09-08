@@ -224,9 +224,9 @@ def plot_all_csvs_on_one_plot_with_fit(folder_path, fit_start=0.5, fit_end=10.0,
 # --- Example Usage ---
 
 plot_all_csvs_on_one_plot_with_fit(
-    "/home/matifortunka/Documents/JS/data_Cambridge/6_3/kinetics/SF/refolding/1.5M/20-50s",
-    fit_start=0,
-    fit_end=2000,
+    "/home/matifortunka/Documents/JS/data_Cambridge/6_3/kinetics/SF/unfolding/5M/2000s",
+    fit_start=1,
+    fit_end=1000,
 #    init_guess = [1, 8,1,0.1, 7],
-    model= None # Options: "sigmoid", "linear", "exponential", "double_exponential", "exponential_with_linear"
+    model= 'double_exponential' # Options: "sigmoid", "linear", "exponential", "double_exponential", "exponential_with_linear"
 )

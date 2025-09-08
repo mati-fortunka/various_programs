@@ -66,5 +66,5 @@ def process_and_visualize_combined_with_smoothing(folder_path, smoothing_method=
     #plt.show()
 
 # Example usage
-folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/6_3/equilibrium/GdmCl/unfolding/3_rd series/WI11 _ GdHCl unf 1st set"  # Replace with the path to your folder containing CSV files
-process_and_visualize_combined_with_smoothing(folder_path, smoothing_method="moving_average", window_size=15, poly_order=3, save_plot=True, output="output_plot.png")
+folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/fusions/8b1n/fluo/TrmD-Tm1570"  # Replace with the path to your folder containing CSV files
+process_and_visualize_combined_with_smoothing(folder_path, smoothing_method=None, window_size=15, poly_order=3, save_plot=True, output="output_plot.png")

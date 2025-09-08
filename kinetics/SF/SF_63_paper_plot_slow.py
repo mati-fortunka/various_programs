@@ -67,8 +67,13 @@ def plot_three_traces_with_optional_fit_and_smoothing(
     x_limits=None,
     y_limits=None,
 ):
-    labels = ["alpha", "gamma", "zeta"]
-    colors = ["#75053b", "#136308", "#0721a6"]
+
+    # labels = ["3.5 M", "4 M", "zeta"]
+    # colors = ["#FB7305", "#3D48A4"]
+    # colors = ["#75053b", "#136308", "#0721a6"]
+
+    labels = ["4 M", "4.5 M", "5 M"]
+    colors = ["#3D48A4", "#136308", '#FB7305']
 
     if window_lengths is None:
         window_lengths = [15, 15, 15]  # default same for all
@@ -92,6 +97,11 @@ def plot_three_traces_with_optional_fit_and_smoothing(
 
             df = df.drop_duplicates(subset='time')
             df = df[df['voltage'] < 20].reset_index(drop=True)
+
+            if path == "/home/matifortunka/Documents/JS/data_Cambridge/6_3/kinetics/SF/unfolding/4.5M/2000s/6_3_2uM_2000s00021.csv":
+                df['voltage'] -= 1.2
+            elif path == "/home/matifortunka/Documents/JS/data_Cambridge/6_3/kinetics/SF/unfolding/4M/6_3_2uM00011.csv":
+                df['voltage'] += 1
 
             time = df['time'].values
             voltage = df['voltage'].values
@@ -142,36 +152,39 @@ def plot_three_traces_with_optional_fit_and_smoothing(
     plt.yticks(fontsize=15)
     plt.legend(fontsize=14, frameon=False)
     plt.tight_layout()
-    # plt.savefig("/home/matifortunka/Documents/JS/data_Cambridge/8_3/plots_paper/panel_A/protein_traces.svg", format='svg', dpi=600, bbox_inches='tight')
-    # plt.savefig("/home/matifortunka/Documents/JS/data_Cambridge/8_3/plots_paper/panel_A/protein_traces.png", format='png', dpi=600, bbox_inches='tight')
 
-    plt.savefig("/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/plots_paper/panel_B/protein_traces.svg", format='svg', dpi=600, bbox_inches='tight')
-    plt.savefig("/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/plots_paper/panel_B/protein_traces.png", format='png', dpi=600, bbox_inches='tight')
+    """
+    fast
+    fin_folder = "/home/matifortunka/Documents/JS/data_Cambridge/6_3/paper/SF"
+    plt.savefig(f"{fin_folder}/fast.svg", format='svg', dpi=600, bbox_inches='tight')
+    plt.savefig(f"{fin_folder}/fast.png", format='png', dpi=600, bbox_inches='tight')
+    """
+
+    fin_folder = "/home/matifortunka/Documents/JS/data_Cambridge/6_3/paper/SF"
+    plt.savefig(f"{fin_folder}/slow_v3.svg", format='svg', dpi=600, bbox_inches='tight')
+    plt.savefig(f"{fin_folder}/slow_v3.png", format='png', dpi=600, bbox_inches='tight')
+
     plt.show()
-
 
 
 plot_three_traces_with_optional_fit_and_smoothing(
     file_paths=[
-       "/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/plots_paper/panel_B/8_3_alpha00056.csv",
-       "/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/plots_paper/panel_B/8_3_gamma_2000s00031.csv",
-       "/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/plots_paper/panel_B/8_3_dzeta_2000s00042.csv"
+       "/home/matifortunka/Documents/JS/data_Cambridge/6_3/kinetics/SF/unfolding/4M/6_3_2uM00011.csv",
+       "/home/matifortunka/Documents/JS/data_Cambridge/6_3/kinetics/SF/unfolding/4.5M/2000s/6_3_2uM_2000s00021.csv",
+       "/home/matifortunka/Documents/JS/data_Cambridge/6_3/kinetics/SF/unfolding/5M/2000s/6_3_2uM_2000s00012.csv"
     ],
+    # #2nd ver
     # file_paths=[
-    #     "/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/plots_paper/panel_A/alpha/8_3_alpha00053.csv",
-    #     "/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/plots_paper/panel_A/gamma/8_3_gamma_50_100s00033.csv",
-    #     "/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/plots_paper/panel_A/dzeta/8_3_dzeta_fastest.csv"
+    #    "/home/matifortunka/Documents/JS/data_Cambridge/6_3/kinetics/SF/unfolding/4M/6_3_2uM00011.csv",
+    #    "/home/matifortunka/Documents/JS/data_Cambridge/6_3/kinetics/SF/unfolding/4.5M/2000s/6_3_2uM_2000s00021.csv",
+    #    "/home/matifortunka/Documents/JS/data_Cambridge/6_3/kinetics/SF/unfolding/5M/2000s/6_3_2uM_2000s00012.csv"
     # ],
     model=None,          # or None to disable fitting
-    fit_start=1100,
-    fit_end=2000,
+    fit_start=0,
+    fit_end=1000,
     smooth=False,              # Toggle smoothing on/off
-    window_lengths=[5, 5, 5],   # Different for each trace
-    polyorders=[3, 3, 3],
-    x_limits=(-15, 2000),
+    window_lengths=[5, 5],   # Different for each trace
+    polyorders=[3, 3],
+    x_limits=(0, 2000),
     y_limits=None
 )
-
-
-
-

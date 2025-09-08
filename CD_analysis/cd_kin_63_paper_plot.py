@@ -182,15 +182,13 @@ def fit_linear(time, intensity):
     return coeffs
 
 def plot_data(df, smooth_method=None, window_size=5, polyorder=2,
-              output_plot="out.png", dead_time=20,
-              fit_type='exponential', fit_start=None, fit_end=None):
+              dead_time=20, fit_type='exponential',
+              fit_start=None, fit_end=None):
+    """Process a single dataset: smooth + fit, but do NOT generate individual plots."""
     global wavelength_label
 
     time = pd.to_numeric(df.iloc[:, 0], errors="coerce") + file_dead_time
     cd_signal = df.iloc[:, 1]
-
-    plt.figure(figsize=(8, 5))
-    plt.plot(time, cd_signal, label='Raw CD Data', color='gray', alpha=0.6)
 
     smoothed_time = None
     smoothed_signal = None
@@ -198,11 +196,9 @@ def plot_data(df, smooth_method=None, window_size=5, polyorder=2,
     if smooth_method == 'moving_average':
         smoothed_signal = moving_average(cd_signal, window_size)
         smoothed_time = time[:len(smoothed_signal)]
-        plt.plot(smoothed_time, smoothed_signal, label=f'Moving Avg (window={window_size})', color='blue')
     elif smooth_method == 'savitzky_golay':
         smoothed_signal = savgol_filter(cd_signal, window_size, polyorder)
         smoothed_time = time
-        plt.plot(smoothed_time, smoothed_signal, label=f'Savitzky-Golay (window={window_size}, poly={polyorder})', color='red')
 
     # Define fit range relative to dead time
     if fit_start is None:
@@ -220,14 +216,13 @@ def plot_data(df, smooth_method=None, window_size=5, polyorder=2,
     fit_cd = cd_signal[mask]
 
     fit_result = ""
-    fitted_values = None  # NEW
+    fitted_values = None
 
     if fit_type == 'exponential':
         params, errors = fit_exponential(fit_time, fit_cd)
         if params is not None:
             t_half = np.log(2) / params[1]
             fitted_values = exponential(fit_time, *params)
-            plt.plot(fit_time, fitted_values, label='Exponential Fit', color='green')
             fit_result = (
                 f"Exponential fit: A={params[0]:.7f}±{errors[0]:.7f}, "
                 f"k={params[1]:.7f}±{errors[1]:.7f}, c={params[2]:.7f}±{errors[2]:.7f}, "
@@ -239,7 +234,6 @@ def plot_data(df, smooth_method=None, window_size=5, polyorder=2,
         if params is not None:
             t_half = np.log(2) / params[1]
             fitted_values = single_exponential_with_drift(fit_time, *params)
-            plt.plot(fit_time, fitted_values, label='Exp + Drift Fit', color='orange')
             fit_result = (
                 f"Exp+Drift fit: A={params[0]:.7f}±{errors[0]:.7f}, "
                 f"k={params[1]:.7f}±{errors[1]:.7f}, c={params[2]:.7f}±{errors[2]:.7f}, "
@@ -252,7 +246,6 @@ def plot_data(df, smooth_method=None, window_size=5, polyorder=2,
             t_half_k1 = np.log(2) / params[1]
             t_half_k2 = np.log(2) / params[3]
             fitted_values = double_exponential(fit_time, *params)
-            plt.plot(fit_time, fitted_values, label='Double Exp Fit', color='brown')
             fit_result = (
                 f"Double exp fit: A1={params[0]:.7f}±{errors[0]:.7f}, "
                 f"k1={params[1]:.7f}±{errors[1]:.7f}, A2={params[2]:.7f}±{errors[2]:.7f}, "
@@ -263,38 +256,29 @@ def plot_data(df, smooth_method=None, window_size=5, polyorder=2,
     elif fit_type == 'linear':
         slope, intercept = fit_linear(fit_time, fit_cd)
         fitted_values = slope * fit_time + intercept
-        plt.plot(fit_time, fitted_values, label='Linear Fit', color='purple')
         fit_result = f"Linear fit: slope={slope:.7f}, intercept={intercept:.7f}"
-
-    plt.xlabel('Time (s)')
-    plt.ylabel('Ellipticity (mdeg)')
-    plt.title(f'CD Kinetics Over Time\n({wavelength_label})')
-    plt.legend()
-    plt.grid()
-    plt.savefig(output_plot)
-    plt.close()
 
     return fit_result, smoothed_time, smoothed_signal, fit_time, fitted_values
 
+
 # BATCH PROCESSING SCRIPT
 if __name__ == "__main__":
-    folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/6_3/paper/additional_SI/2x_concentration"
+    folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/6_3/paper/CD/all2"
     smooth_method = 'savitzky_golay'
-    window_size = 15
+    window_size = 5
     polyorder = 3
-    default_dead_time = 30
+    default_dead_time = 0
     dead_time_file = os.path.join(folder_path, "dead_times.txt")
     dead_times_dict = read_dead_times(dead_time_file)
-    fit_type = 'double_exponential'
+    fit_type = "double_exponential"   # choose fit type if needed
     fit_start = 0
     fit_end = 2000
-    protein = "alpha"
 
     results = []
     all_fit_params = []
     combined_curves = []
     fitted_curves = []
-    raw_curves = []  # To store raw (time, signal, label)
+    raw_curves = []  # optional raw curves storage
 
     for filepath in glob.glob(os.path.join(folder_path, "*.csv")):
         try:
@@ -307,15 +291,13 @@ if __name__ == "__main__":
             time = df.iloc[:, 0] + file_dead_time
             cd_signal = df.iloc[:, 1]
 
-            raw_curves.append((time, cd_signal, str(label)))
+            raw_curves.append((time, cd_signal, str(label)))  # stored but not plotted
 
-            out_path = filepath[:-4] + "_fit.png"
             fit_summary, smoothed_time, smoothed_signal, fit_time, fit_vals = plot_data(
                 df,
                 smooth_method=smooth_method,
                 window_size=window_size,
                 polyorder=polyorder,
-                output_plot=out_path,
                 dead_time=file_dead_time,
                 fit_type=fit_type,
                 fit_start=fit_start,
@@ -362,7 +344,52 @@ if __name__ == "__main__":
             for param_label, mean, std in zip(labels, means, stds):
                 f.write(f"{param_label}: mean={mean:.7f}, std={std:.7f}\n")
 
-    color_map = plt.get_cmap('tab10')
+        # --- Final combined plot of smoothed data (+ fits if requested) ---
+        if combined_curves:
+            plt.figure(figsize=(6, 5))
+            color_map = plt.get_cmap('tab10')
+
+            if fit_type:  # smoothed + fits
+                for idx, ((stime, ssignal, label), (ftime, fsignal, _)) in enumerate(
+                        zip(combined_curves, fitted_curves)):
+                    color = "#3D48A4"
+                    # color = color_map(idx % 10)
+                    # Uncomment to show raw traces:
+                    # rtime, rsignal, _ = raw_curves[idx]
+                    # plt.plot(rtime, rsignal, label=f"{label} (Raw)", alpha=0.3, color=color)
+
+                    plt.plot(stime, ssignal, label=f"{label} (Smoothed)", color=color)
+                    plt.plot(ftime, fsignal, label=f"{label} (Fit)", linestyle='--', linewidth=1.5, color=color)
+
+            else:  # smoothed only
+                for idx, (stime, ssignal, label) in enumerate(combined_curves):
+                    color = "#3D48A4"
+                    # color = color_map(idx % 10)
+                    # Uncomment to show raw traces:
+                    # rtime, rsignal, _ = raw_curves[idx]
+                    # plt.plot(rtime, rsignal, label=f"{label} (Raw)", alpha=0.3, color=color)
+                    plt.plot(stime, ssignal, label=f"{label} (Smoothed)", color=color)
+
+            plt.xlabel('Time (s)', fontsize=16)
+            plt.ylabel('Ellipticity at 218 nm [mdeg]', fontsize=16)
+            plt.xlim(0, 2000)
+            plt.xticks(fontsize=15)
+            plt.yticks(fontsize=15)
+            # plt.legend(fontsize=14, frameon=False)  # enable if needed
+            plt.tight_layout()
+
+            png_path = os.path.join(folder_path, "CD_SI_plot.png")
+            svg_path = os.path.join(folder_path, "CD_SI_plot.svg")
+            plt.savefig(png_path, dpi=600)
+            plt.savefig(svg_path, dpi=600)
+
+            plt.show()
+            plt.close()
+
+    # color_map = plt.get_cmap('tab10')
+
+    """
+    
     # Plot combined raw + fitted curves
     if raw_curves and fitted_curves:
         plt.figure(figsize=(6, 5))
@@ -372,36 +399,19 @@ if __name__ == "__main__":
             plt.plot(rtime, rsignal, label=f"{label} (Raw)", alpha=0.5, color=color)
             plt.plot(ftime, fsignal, label=f"{label} (Fit)", linestyle='--', linewidth=1.5, color=color)
         plt.xlabel('Time (s)', fontsize=16)
-        plt.ylabel('Ellipticity at 222 nm [mdeg]', fontsize=16)
+        plt.ylabel('Ellipticity at 218 nm [mdeg]', fontsize=16)
         # plt.title(f'Smoothed CD Kinetics Curves ({wavelength_label})')
         plt.xticks(fontsize=15)
         plt.yticks(fontsize=15)
         # plt.legend(fontsize=14, frameon=False)
         plt.tight_layout()
 
-        png_path = os.path.join(folder_path, "combined_raw_fitted_plot.png")
-        #svg_path = os.path.join(folder_path, "combined_raw_fitted_plot.svg")
+        png_path = os.path.join(folder_path, "CD_main_plot.png")
+        svg_path = os.path.join(folder_path, "CD_main_plot.svg")
         plt.savefig(png_path, dpi=600)
-        #plt.savefig(svg_path, dpi=600)
+        plt.savefig(svg_path, dpi=600)
 
         plt.show()
         plt.close()
 
     """
-    # Plot combined smoothed + fitted curves
-    if combined_curves and fitted_curves:
-        plt.figure(figsize=(10, 6))
-        for (stime, ssignal, label), (ftime, fsignal, _) in zip(combined_curves, fitted_curves):
-            plt.plot(stime, ssignal, label=f"{label} (Smoothed)")
-            plt.plot(ftime, fsignal, label=f"{label} (Fit)", linestyle='--', linewidth=1.5)
-        plt.xlabel("Time (s)")
-        plt.ylabel("Ellipticity (mdeg)")
-        plt.title(f"Combined Smoothed and Fitted CD Kinetics Curves\n({wavelength_label})")
-        #plt.legend(fontsize='small', loc='best')
-        plt.grid(True)
-        plt.tight_layout()
-        combined_fit_plot_path = os.path.join(folder_path, "combined_smoothed_fitted_plot.png")
-        plt.savefig(combined_fit_plot_path)
-        plt.show()
-        plt.close()
-        """

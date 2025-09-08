@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import curve_fit
 from scipy.signal import savgol_filter
-import re
 
 # --- Model Functions ---
 
@@ -54,45 +53,43 @@ model_registry = {
     },
 }
 
-# --- Main Function ---
+# --- Main Plot Function ---
 
-def plot_all_traces_with_fit(
-    folder_path,
-    model='exponential',
+def plot_three_traces_with_optional_fit_and_smoothing(
+    file_paths,
+    model=None,
     fit_start=0.5,
     fit_end=10.0,
     smooth=True,
-    window_length=15,
-    polyorder=3,
+    window_lengths=None,
+    polyorders=None,
+    default_polyorder=3,
     x_limits=None,
     y_limits=None,
 ):
-    protein_colors = {
-        '6_3': '#75053b',
-        'gamma': '#136308',
-        'zeta': '#0721a6'
-    }
+    labels = ["alpha", "gamma", "zeta"]
+    colors = ["#75053b", "#136308", "#0721a6"]
+
+    if window_lengths is None:
+        window_lengths = [15, 15, 15]  # default same for all
+    if polyorders is None:
+        polyorders = [default_polyorder] * len(file_paths)
 
     plt.figure(figsize=(6, 5))
 
-    for filename in os.listdir(folder_path):
-        if not filename.endswith(".csv"):
+    for idx, (path, label, color) in enumerate(zip(file_paths, labels, colors)):
+        if not os.path.exists(path):
+            print(f"File not found: {path}")
             continue
-
-        file_path = os.path.join(folder_path, filename)
-        match = re.search(r'(6_3|gamma|zeta)', filename)
-        if not match:
-            print(f"Skipping file without known protein label: {filename}")
-            continue
-        protein = match.group(1)
-        color = protein_colors.get(protein, 'gray')
 
         try:
-            df = pd.read_csv(file_path, header=None, usecols=[0, 1])
+            df = pd.read_csv(path, header=None, usecols=[0, 1])
             df.columns = ['time', 'voltage']
+
             wrap_index = next((i for i in range(1, len(df)) if df['time'][i] <= df['time'][i - 1]), None)
             if wrap_index:
                 df = df.iloc[:wrap_index]
+
             df = df.drop_duplicates(subset='time')
             df = df[df['voltage'] < 20].reset_index(drop=True)
 
@@ -100,36 +97,40 @@ def plot_all_traces_with_fit(
             voltage = df['voltage'].values
 
             if smooth:
-                if window_length % 2 == 0:
-                    window_length += 1
-                if len(voltage) >= window_length:
-                    voltage = savgol_filter(voltage, window_length=window_length, polyorder=polyorder)
+                win = window_lengths[idx]
+                poly = polyorders[idx]
+                if win % 2 == 0:
+                    win += 1  # ensure odd
+                if len(voltage) >= win:
+                    voltage = savgol_filter(voltage, window_length=win, polyorder=poly)
                 else:
-                    print(f"{filename}: Not enough points for smoothing; skipping it.")
+                    print(f"{label}: Not enough points for smoothing (needs at least {win}); skipping it.")
 
-            plt.plot(time, voltage, label=f"{filename} ({protein})", color=color)
+            plt.plot(time, voltage, label=label, color=color)
 
             if model and model in model_registry:
                 model_info = model_registry[model]
                 fit_func = model_info['func']
-                guess_func = model_info['initial_guess']
                 param_names = model_info['param_names']
+                guess_func = model_info['initial_guess']
 
                 fit_df = df[(df['time'] >= fit_start) & (df['time'] <= fit_end)]
                 if len(fit_df) < len(param_names):
-                    print(f"{filename}: Not enough points for fitting; skipping.")
+                    print(f"{label}: Not enough points for fitting; skipping.")
                     continue
 
                 t_fit = fit_df['time'].values
                 v_fit = fit_df['voltage'].values
                 initial_guess = guess_func(t_fit, v_fit)
+
                 params, _ = curve_fit(fit_func, t_fit, v_fit, p0=initial_guess, maxfev=10000)
+
                 t_smooth = np.linspace(t_fit[0], t_fit[-1], 1000)
                 v_smooth = fit_func(t_smooth, *params)
-                plt.plot(t_smooth, v_smooth, linestyle='--', color=color, label=f"{filename} fit")
+                plt.plot(t_smooth, v_smooth, linestyle='--', color=color, label=f"{label} ({model}) fit")
 
         except Exception as e:
-            print(f"Error processing {filename}: {e}")
+            print(f"Error processing {label}: {e}")
 
     if x_limits:
         plt.xlim(*x_limits)
@@ -137,62 +138,35 @@ def plot_all_traces_with_fit(
         plt.ylim(*y_limits)
     plt.xlabel("Time (s)", fontsize=16)
     plt.ylabel("Voltage (V)", fontsize=16)
-    #plt.legend(fontsize=10, frameon=False)
-    plt.tight_layout()
     plt.xticks(fontsize=15)
     plt.yticks(fontsize=15)
-    plt.savefig(f"{folder_path}/phase_D_SI.svg", format='svg', dpi=600, bbox_inches='tight')
-    plt.savefig(f"{folder_path}/phase_D_SI.png", format='png', dpi=600, bbox_inches='tight')
+    plt.legend(fontsize=14, frameon=False)
+    plt.tight_layout()
+    # plt.savefig("/home/matifortunka/Documents/JS/data_Cambridge/8_3/plots_paper/panel_A/protein_traces.svg", format='svg', dpi=600, bbox_inches='tight')
+    # plt.savefig("/home/matifortunka/Documents/JS/data_Cambridge/8_3/plots_paper/panel_A/protein_traces.png", format='png', dpi=600, bbox_inches='tight')
+
+    plt.savefig("/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/plots_paper/panel_B/protein_traces.svg", format='svg', dpi=600, bbox_inches='tight')
+    plt.savefig("/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/plots_paper/panel_B/protein_traces.png", format='png', dpi=600, bbox_inches='tight')
     plt.show()
 
-# Example call:
-plot_all_traces_with_fit(
-    folder_path="/home/matifortunka/Documents/JS/data_Cambridge/6_3/kinetics/SF/unfolding/5M/1s",
-    model='double_exponential',
-    fit_start=0.005,
-    fit_end=1,
-    smooth=False,
-    window_length=15,
-    polyorder=3,
-    x_limits=None,
+
+plot_three_traces_with_optional_fit_and_smoothing(
+    file_paths=[
+       "/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/plots_paper/panel_B/8_3_alpha00056.csv",
+       "/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/plots_paper/panel_B/8_3_gamma_2000s00031.csv",
+       "/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/plots_paper/panel_B/8_3_dzeta_2000s00042.csv"
+    ],
+    # file_paths=[
+    #     "/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/plots_paper/panel_A/alpha/8_3_alpha00053.csv",
+    #     "/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/plots_paper/panel_A/gamma/8_3_gamma_50_100s00033.csv",
+    #     "/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/plots_paper/panel_A/dzeta/8_3_dzeta_fastest.csv"
+    # ],
+    model=None,          # or None to disable fitting
+    fit_start=1100,
+    fit_end=2000,
+    smooth=False,              # Toggle smoothing on/off
+    window_lengths=[5, 5, 5],   # Different for each trace
+    polyorders=[3, 3, 3],
+    x_limits=(-15, 2000),
     y_limits=None
 )
-
-# phase A
-# plot_all_traces_with_fit(
-#     folder_path="/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/SI_plots/SF_kinetics/phase_A",
-#     model='exponential',
-#     fit_start=0.1,
-#     fit_end=1,
-#     smooth=False,
-#     window_length=15,
-#     polyorder=3,
-#     x_limits=(-0.0001, 1),
-#     y_limits=(5.5,10)
-# )
-
-# phase B-C
-# plot_all_traces_with_fit(
-#     folder_path="/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/SI_plots/SF_kinetics/double_exp_B-C",
-#     model='double_exponential',
-#     fit_start=1,
-#     fit_end=1050,
-#     smooth=False,
-#     window_length=15,
-#     polyorder=3,
-#     x_limits=(-4, 1050),
-#     y_limits=(6.4,12)
-# )
-
-# phase D
-# plot_all_traces_with_fit(
-#     folder_path="/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/SI_plots/SF_kinetics/sigmoid_D",
-#     model='sigmoid',
-#     fit_start=1000,
-#     fit_end=2000,
-#     smooth=False,
-#     window_length=15,
-#     polyorder=3,
-#     x_limits=(1000, 2000),
-#     y_limits=None
-# )

@@ -68,6 +68,6 @@ def process_and_visualize_csv_with_smoothing(folder_path, output_folder, smoothi
                 print(f"Error processing {file_name}: {e}")
 
 # Example usage
-folder_path = ("/home/matifortunka/Documents/JS/data_Cambridge/fusions/F8E4N/equilibrium/unfolding/1st_set/fluo/bad")  # Replace with the path to your folder containing CSV files
+folder_path = ("/home/matifortunka/Documents/JS/data_Cambridge/fusions/8b1n/fluo/1")  # Replace with the path to your folder containing CSV files
 output_folder = folder_path + "/output"  # Replace with the desired output folder
-process_and_visualize_csv_with_smoothing(folder_path, output_folder, smoothing_method="moving_average", range_interval=20, poly_order=5)
+process_and_visualize_csv_with_smoothing(folder_path, output_folder, smoothing_method="savitzky_golay", range_interval=15, poly_order=3)
