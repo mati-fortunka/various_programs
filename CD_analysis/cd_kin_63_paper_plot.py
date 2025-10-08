@@ -263,7 +263,7 @@ def plot_data(df, smooth_method=None, window_size=5, polyorder=2,
 
 # BATCH PROCESSING SCRIPT
 if __name__ == "__main__":
-    folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/6_3/paper/CD/all2"
+    folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/6_3/paper/CD/cd_kin_2000s_final/simple"
     smooth_method = 'savitzky_golay'
     window_size = 5
     polyorder = 3
@@ -388,8 +388,8 @@ if __name__ == "__main__":
 
     # color_map = plt.get_cmap('tab10')
 
+
     """
-    
     # Plot combined raw + fitted curves
     if raw_curves and fitted_curves:
         plt.figure(figsize=(6, 5))
@@ -414,4 +414,4 @@ if __name__ == "__main__":
         plt.show()
         plt.close()
 
-    """
+"""

@@ -463,7 +463,7 @@ def read_dead_times(file_path):
 # BATCH PROCESSING SCRIPT
 if __name__ == "__main__":
     # IMPORTANT: Replace "/path/to/your/data/folder" with the actual path to your CSV files.
-    folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/6_3/paper/CD/all"
+    folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/fusions/8b1n/kinetics/cd/fuzja_october/2000s"
     # Example: If your files are in a subfolder named 'data' in the same directory as your script,
     # you might use: folder_path = os.path.join(os.path.dirname(__file__), 'data')
 

@@ -286,11 +286,11 @@ def plot_data(df, smooth_method=None, window_size=5, polyorder=2,
 # --- Main execution part ---
 
 if __name__ == "__main__":
-    filename = "/home/matifortunka/Documents/JS/data_Cambridge/js/flourymetry/6_w11/63_2h_13.csv"
+    filename = "/home/matifortunka/Documents/JS/data_Cambridge/fusions/F632/kinetics/fluo/F6_2h_4.csv"
     df = read_data(filename)
 
     smooth_method = 'savitzky_golay'
-    window_size = 25
+    window_size = 15
     polyorder = 3
     dead_time = 0
     out = filename[:-4] + "_fit.png"
@@ -303,9 +303,9 @@ if __name__ == "__main__":
               polyorder=polyorder,
               output_plot=out,
               dead_time=dead_time,
-              fit_type='two_models',
-              fit_start=0,
-              fit_end=3500)
+              fit_type="sigmoid",
+              fit_start=2000,
+              fit_end=3000)
 
     # Example 2: Fitting two models (exponential and double exponential) at once
     # Uncomment the following block to run this example

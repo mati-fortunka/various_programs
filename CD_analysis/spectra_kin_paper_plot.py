@@ -8,20 +8,24 @@ from io import StringIO
 from matplotlib.cm import ScalarMappable
 
 # === User Settings ===
-input_csv = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/A/spectra_kinetics/36h/8_3 alfa urea_unf_5 uM_time00003.csv"
+input_csv = "/home/matifortunka/Documents/JS/data_Cambridge/js/63/63_september/spectra_kin/6/63_native_old_4h_new00001.csv"
 native_spectrum_path = None
 
 path = "/".join(input_csv.split('/')[:-1])
-output_plot = f"{path}/alfa_spec_kin_fig."
+output_plot = f"{path}/6_3_spec_kin_fig."
 
 hv_threshold = 1000
 smoothing_window = 15
 smoothing_polyorder = 3
-transpose_data = False
-baseline_correction = True
+transpose_data = True
+baseline_correction = False
 baseline_wavelength = 250.0
-dead_time = 120  # seconds
-nm_per_sec = 0.1
+dead_time = 30  # seconds
+nm_per_sec = 0.4
+
+# Optional wavelength range cutting ===
+cut_xaxis = True          # Set to False to disable
+xrange = (214, 250)       # Only used if cut_xaxis=True
 
 # === Helpers ===
 
@@ -153,20 +157,35 @@ for idx, (cd_time, shifted_cd_time_hr) in enumerate(zip(cd_times, shifted_cd_tim
     hv = hv_df[hv_col].values
     if len(hv) != len(wavelengths):
         hv = hv[:len(wavelengths)]
+
     mask = hv <= hv_threshold
     x = wavelengths[mask]
     y = cd[mask]
+
+    # === NEW: Apply wavelength cutting ===
+    if cut_xaxis and xrange is not None:
+        xmin, xmax = xrange
+        cut_mask = (x >= xmin) & (x <= xmax)
+        x = x[cut_mask]
+        y = y[cut_mask]
+
     if len(y) >= smoothing_window:
         y = savgol_filter(y, window_length=smoothing_window, polyorder=smoothing_polyorder)
-    if baseline_correction:
+
+    if baseline_correction and len(x) > 0:
         baseline_idx = np.argmin(np.abs(x - baseline_wavelength))
         baseline_val = y[baseline_idx]
         y = y - baseline_val
-    ax.plot(x, y, alpha=0.5, linewidth=2, c=sm.to_rgba(shifted_cd_time_hr))
+
+    if len(x) > 0:  # Ensure we still have data to plot
+        ax.plot(x, y, alpha=0.5, linewidth=2, c=sm.to_rgba(shifted_cd_time_hr))
 
 ax.spines[['right', 'top']].set_visible(False)
 ax.set_xlabel("Wavelength [nm]", fontsize=16)
 ax.set_ylabel("Ellipticity [mdeg]", fontsize=16)
+
+if cut_xaxis and xrange is not None:
+    ax.set_xlim(xrange)
 
 # === Vertical Gradient Legend (no border, smaller, top-right) ===
 grad_ax = fig.add_axes([0.93, 0.15, 0.02, 0.2])

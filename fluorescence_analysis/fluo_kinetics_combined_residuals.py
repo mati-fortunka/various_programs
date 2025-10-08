@@ -218,7 +218,7 @@ def plot_multiple_csvs_with_logging(folder_path,
 
 
 if __name__ == "__main__":
-    folder = "/home/matifortunka/Documents/JS/data_Cambridge/js/flourymetry/6_w11"
+    folder = "/home/matifortunka/Documents/JS/data_Cambridge/fusions/F8E4N/kinetics/F8_september/2000s"
 
     plot_multiple_csvs_with_logging(
         folder_path=folder,
@@ -226,7 +226,7 @@ if __name__ == "__main__":
         window_size=25,
         polyorder=3,
         dead_time=30,
-        fit_type='double_exponential',
+        fit_type='single_exponential',
         fit_start=0,
         fit_end=1500,
         output_plot="combined_kinetics_plot.png",

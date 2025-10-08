@@ -268,7 +268,7 @@ def plot_multiple_csvs_with_logging(
 
 
 if __name__ == "__main__":
-    folder = "/home/matifortunka/Documents/JS/data_Cambridge/6_3/paper/fluo/sigmoid"
+    folder = "/home/matifortunka/Documents/JS/data_Cambridge/6_3/paper/fluo/new fits/sigmoid"
 
     plot_multiple_csvs_with_logging(
         folder_path=folder,
@@ -278,11 +278,11 @@ if __name__ == "__main__":
         dead_time=0,
         fit_type="sigmoid",
         # fit_ranges=None,
-        fit_files=["63_2h_3.csv", "63_2h_6.csv", "63_2h_7.csv", "63_12h_1.csv"],
-        fit_starts = [1400, 1780, 2400, 1780],
-        fit_ends = [2000, 2400, 3200, 2600],
-        output_plot="SI_fluo_plot3.svg",
+        fit_files=["63_2h_3.csv", "63_2h_6.csv", "63_4h_7.csv", "63_12h_1.csv"],
+        fit_starts = [1400, 1780, 1400, 1850],
+        fit_ends = [1900, 2400, 1900, 2600],
+        output_plot="SI_fluo_plot4.svg",
         output_log=f"{folder}/fitted_parameters.txt",
-        x_limits=(1400, 3200),
-        y_limits=(5,12)
+        x_limits=(1300, 2600),
+        y_limits=(5,15)
     )

@@ -92,7 +92,7 @@ def fit_exponential(time, intensity):
 
 # BATCH PROCESSING SCRIPT
 if __name__ == "__main__":
-    folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/SI_plots/CD_kinetics/zeta"
+    folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/SI_plots/CD_kinetics/new_zeta"
     smooth_method = 'savitzky_golay'
     window_size = 25
     polyorder = 3
@@ -108,6 +108,7 @@ if __name__ == "__main__":
     all_fit_params = []
     fitted_curves = []
     raw_curves = []
+    t_halves = []
 
     for filepath in glob.glob(os.path.join(folder_path, "*.csv")):
         try:
@@ -128,6 +129,7 @@ if __name__ == "__main__":
                 fit_vals = exponential(fit_time, *params)
                 fitted_curves.append((fit_time, fit_vals, filename_base))
                 t_half = np.log(2) / params[1]
+                t_halves.append(t_half)
                 fit_summary = (
                     f"Exponential fit: A={params[0]:.7f}±{errors[0]:.7f}, "
                     f"k={params[1]:.7f}±{errors[1]:.7f}, c={params[2]:.7f}±{errors[2]:.7f}, "
@@ -153,6 +155,7 @@ if __name__ == "__main__":
             f.write("\n\nSummary of Fitted Parameters:\n")
             for label, mean, std in zip(labels, means, stds):
                 f.write(f"{label}: mean={mean:.7f}, std={std:.7f}\n")
+            f.write(f"t_half: mean={np.mean(t_halves):.7f}, std={np.std(t_halves):.7f}")
 
     # Plot combined raw + fitted curves
     if raw_curves and fitted_curves:

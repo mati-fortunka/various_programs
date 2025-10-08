@@ -277,7 +277,7 @@ def plot_multiple_csvs_with_logging(folder_path,
 
 
 if __name__ == "__main__":
-    folder = "/home/matifortunka/Documents/JS/data_Cambridge/6_3/paper/fluo/double_exp"
+    folder = "/home/matifortunka/Documents/JS/data_Cambridge/6_3/paper/fluo/new fits/double"
 
     plot_multiple_csvs_with_logging(
         folder_path=folder,

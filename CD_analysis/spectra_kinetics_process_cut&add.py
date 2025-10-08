@@ -11,10 +11,10 @@ from io import StringIO
 from scipy.optimize import curve_fit
 
 # === User Settings ===
-input_csv = "/home/matifortunka/Documents/JS/data_Cambridge/js/63/63_september/spectra_kin/3/63_native_old_4h_test00001.csv"
+input_csv = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/G/spectra_kinetics/kolejne_26-29_wrzesnia/60h/83_native_26sp_60h00005.csv"
 native_spectrum_path = None#"/home/matifortunka/Documents/JS/data_Cambridge/8_3/A/spectra_kinetics/8_3_A_5uM_nat00043_raw.txt"
 dead_time = 30  # seconds
-nm_per_sec = 0.4
+nm_per_sec = 0.1
 
 path = "/".join(input_csv.split('/')[:-1])
 output_plot = f"{path}/Combined_CD_HHMM.png"
@@ -27,12 +27,17 @@ labels = ["alpha", "gamma", "zeta"]
 colors = ["#75053b", "#136308", "#0721a6"]
 label_color_map = dict(zip(labels, colors))
 
+remove_between = (23400, 46800 )   # e.g. (1000, 2000) to remove timepoints between 1000–2000 s
+modify_between = (46800, 259200)   # e.g. (3000, 4000)
+modify_mode = "add"             # "add" or "scale"
+modify_value = 0.25                # number to add OR coefficient to multiply
+
 # Plot 2
-target_wavelength = 218
+target_wavelength = 225
 fit_model = "double"
 
 # Plot 3
-integration_range = (214, 250)
+integration_range = (190, 250)
 integration_sign = "negative"
 
 # Baseline
@@ -148,6 +153,45 @@ else:
 cd_times = sorted(cd_col_map.keys())
 hv_times = sorted(hv_col_map.keys())
 wavelengths = cd_df.iloc[:, 0].values
+
+
+def apply_data_editing(cd_df, hv_df, cd_col_map, hv_col_map):
+    global cd_times, hv_times
+
+    # --- 1) Remove section ---
+    if remove_between[0] is not None and remove_between[1] is not None:
+        t0, t1 = remove_between
+        to_remove = [t for t in cd_col_map if t0 <= t <= t1]
+        print(f"🗑 Removing {len(to_remove)} CD timepoints between {t0}–{t1} s")
+        for t in to_remove:
+            col = cd_col_map[t]
+            cd_df.drop(columns=[col], inplace=True, errors="ignore")
+            del cd_col_map[t]
+        cd_times = sorted(cd_col_map.keys())
+
+        to_remove_hv = [t for t in hv_col_map if t0 <= t <= t1]
+        for t in to_remove_hv:
+            col = hv_col_map[t]
+            hv_df.drop(columns=[col], inplace=True, errors="ignore")
+            del hv_col_map[t]
+        hv_times = sorted(hv_col_map.keys())
+
+    # --- 2) Modify section ---
+    if modify_between[0] is not None and modify_between[1] is not None:
+        t0, t1 = modify_between
+        to_modify = [t for t in cd_col_map if t0 <= t <= t1]
+        print(f"✏️ Modifying CD values between {t0}–{t1} s with {modify_mode} {modify_value}")
+        for t in to_modify:
+            col = cd_col_map[t]
+            if modify_mode == "add":
+                cd_df[col] = cd_df[col] + modify_value
+            elif modify_mode == "scale":
+                cd_df[col] = cd_df[col] * modify_value
+
+    return cd_df, hv_df, cd_col_map, hv_col_map
+
+cd_df, hv_df, cd_col_map, hv_col_map = apply_data_editing(cd_df, hv_df, cd_col_map, hv_col_map)
+
 
 # === Native spectrum ===
 native_wl, native_cd = None, None
