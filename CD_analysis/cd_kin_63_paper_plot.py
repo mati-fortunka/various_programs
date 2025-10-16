@@ -359,7 +359,7 @@ if __name__ == "__main__":
                     # plt.plot(rtime, rsignal, label=f"{label} (Raw)", alpha=0.3, color=color)
 
                     plt.plot(stime, ssignal, label=f"{label} (Smoothed)", color=color)
-                    plt.plot(ftime, fsignal, label=f"{label} (Fit)", linestyle='--', linewidth=1.5, color=color)
+                    # plt.plot(ftime, fsignal, label=f"{label} (Fit)", linestyle='--', linewidth=1.5, color=color)
 
             else:  # smoothed only
                 for idx, (stime, ssignal, label) in enumerate(combined_curves):
@@ -378,8 +378,8 @@ if __name__ == "__main__":
             # plt.legend(fontsize=14, frameon=False)  # enable if needed
             plt.tight_layout()
 
-            png_path = os.path.join(folder_path, "CD_SI_plot.png")
-            svg_path = os.path.join(folder_path, "CD_SI_plot.svg")
+            png_path = os.path.join(folder_path, "CD_plot1.png")
+            svg_path = os.path.join(folder_path, "CD_plot1.svg")
             plt.savefig(png_path, dpi=600)
             plt.savefig(svg_path, dpi=600)
 

@@ -11,10 +11,10 @@ from io import StringIO
 from scipy.optimize import curve_fit
 
 # === User Settings ===
-input_csv = "/home/matifortunka/Documents/JS/data_Cambridge/js/63/63_september/spectra_kin/3/63_native_old_4h_test00001.csv"
+input_csv = "/home/matifortunka/Documents/JS/data_Cambridge/fusions/F632/kinetics/CD/spectra_kin/spectra_2h_cp.csv"
 native_spectrum_path = None#"/home/matifortunka/Documents/JS/data_Cambridge/8_3/A/spectra_kinetics/8_3_A_5uM_nat00043_raw.txt"
 dead_time = 30  # seconds
-nm_per_sec = 0.4
+nm_per_sec = 0.5
 
 path = "/".join(input_csv.split('/')[:-1])
 output_plot = f"{path}/Combined_CD_HHMM.png"
@@ -28,8 +28,8 @@ colors = ["#75053b", "#136308", "#0721a6"]
 label_color_map = dict(zip(labels, colors))
 
 # Plot 2
-target_wavelength = 218
-fit_model = "double"
+target_wavelength = 222
+fit_model = "single_drift"
 
 # Plot 3
 integration_range = (214, 250)
@@ -40,7 +40,7 @@ baseline_correction = False
 baseline_wavelength = 250.0
 
 # Manual transpose
-transpose_data = True
+transpose_data = False
 
 print("\n🔧 Parameters:")
 print(f"  input_csv = {input_csv}")
@@ -285,6 +285,8 @@ plt.ylabel(f"Ellipticity at {target_wavelength} nm [mdeg]", fontsize=16)
 def linear(t, k, b): return k * t + b
 def single_exp(t, a, k, c): return a * np.exp(-k * t) + c
 def double_exp(t, a, k1, c, k2, e): return a * np.exp(-k1 * t) + c * np.exp(-k2 * t) + e
+def single_exp_drift(t, a, k, b, c):
+    return a * np.exp(-k * t) + b * t + c
 
 t_fit = np.array(valid_times_s)
 y_fit = np.array(cd_values_at_wl)
@@ -313,6 +315,13 @@ try:
         print(f"   Fast phase (k1): {t_half1:.2f} s = {t_half1 / 3600:.2f} h")
         print(f"   Slow phase (k2): {t_half2:.2f} s = {t_half2 / 3600:.2f} h")
         plt.plot(valid_times_hr, double_exp(t_fit, *popt), linestyle='--', label='fit', color=color)
+    elif fit_model == "single_drift":
+        popt, pcov = curve_fit(single_exp_drift, t_fit, y_fit, p0=(y_fit[0], 0.001, 0, y_fit[-1]), maxfev=5000)
+        print_fit_params(popt, pcov, ['a', 'k', 'b', 'c'])
+        t_half = log(2) / popt[1]
+        print(f"🧮 Half-life (t₁/₂) = {t_half:.2f} s = {t_half / 3600:.2f} h")
+        plt.plot(valid_times_hr, single_exp_drift(t_fit, *popt), linestyle='--', label='Single Exp + Drift Fit', color=color)
+
 except Exception as e:
     print(f"❌ Fit failed: {repr(e)}")
 
@@ -428,6 +437,13 @@ try:
         print(f"   Fast phase (k1): {t_half1:.2f} s = {t_half1 / 3600:.2f} h")
         print(f"   Slow phase (k2): {t_half2:.2f} s = {t_half2 / 3600:.2f} h")
         plt.plot(integration_times_hr, double_exp(t_fit, *popt), linestyle='--', label='Double Exp Fit')
+    elif fit_model == "single_drift":
+        popt, pcov = curve_fit(single_exp_drift, t_fit,y_fit, p0=(y_fit[0], 0.001, 0, y_fit[-1]), maxfev=5000)
+        print_fit_params(popt, pcov, ['a', 'k', 'b', 'c'])
+        t_half = log(2) / popt[1]
+        print(f"🧮 Half-life (t₁/₂) = {t_half:.2f} s = {t_half / 3600:.2f} h")
+        plt.plot(integration_times_hr, single_exp_drift(t_fit, *popt), linestyle='--', label='Single Exp + Drift Fit')
+
 except Exception as e:
     print(f"❌ Fit failed: {repr(e)}")
 
