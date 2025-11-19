@@ -75,9 +75,11 @@ for i, phase in enumerate(df.index):
 # --- Figure style ---
 plt.xlabel("GdmCl concentration (M)", fontsize=16)
 plt.ylabel("ln(k)", fontsize=16)
-plt.xticks(fontsize=15)
-plt.yticks(fontsize=15)
 plt.legend(fontsize=14, frameon=False)
+plt.xlim(3.45,5.05)
+xticks = np.arange(3.5, 5.1, 0.5)  # from 3.5 to 5.0 every 0.1 M
+plt.xticks(xticks, fontsize=15)
+plt.yticks(fontsize=15)
 plt.tight_layout()
 
 # --- Save plot ---

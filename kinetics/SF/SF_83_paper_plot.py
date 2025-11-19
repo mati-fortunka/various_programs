@@ -137,7 +137,7 @@ def plot_three_traces_with_optional_fit_and_smoothing(
     if y_limits:
         plt.ylim(*y_limits)
     plt.xlabel("Time (s)", fontsize=16)
-    plt.ylabel("Voltage (V)", fontsize=16)
+    plt.ylabel("Intrinsic fluorescence (a.u.)", fontsize=16)
     plt.xticks(fontsize=15)
     plt.yticks(fontsize=15)
     plt.legend(fontsize=14, frameon=False)
@@ -145,8 +145,8 @@ def plot_three_traces_with_optional_fit_and_smoothing(
     # plt.savefig("/home/matifortunka/Documents/JS/data_Cambridge/8_3/plots_paper/panel_A/protein_traces.svg", format='svg', dpi=600, bbox_inches='tight')
     # plt.savefig("/home/matifortunka/Documents/JS/data_Cambridge/8_3/plots_paper/panel_A/protein_traces.png", format='png', dpi=600, bbox_inches='tight')
 
-    plt.savefig("/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/plots_paper/panel_B/protein_traces.svg", format='svg', dpi=600, bbox_inches='tight')
-    plt.savefig("/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/plots_paper/panel_B/protein_traces.png", format='png', dpi=600, bbox_inches='tight')
+    plt.savefig("/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/plots_paper/panel_B/protein_traces_1.svg", format='svg', dpi=600, bbox_inches='tight')
+    plt.savefig("/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/plots_paper/panel_B/protein_traces_1.png", format='png', dpi=600, bbox_inches='tight')
     plt.show()
 
 

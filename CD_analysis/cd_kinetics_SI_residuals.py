@@ -12,6 +12,7 @@ labels = ["alpha", "gamma", "zeta"]
 colors = ["#75053b", "#136308", "#0721a6"]
 label_color_map = dict(zip(labels, colors))
 
+
 def read_data(filename):
     global wavelength_label
     with open(filename, 'r') as file:
@@ -48,6 +49,7 @@ def read_data(filename):
     df = df.drop_duplicates(subset=df.columns[0], keep='first')
     return df
 
+
 def read_dead_times(file_path):
     dead_times = {}
     if not os.path.exists(file_path):
@@ -66,8 +68,10 @@ def read_dead_times(file_path):
                     print(f"\u26a0\ufe0f Invalid dead time format for file '{name}': '{time_str}'")
     return dead_times
 
+
 def exponential(t, A, k, c):
     return A * np.exp(-k * t) + c
+
 
 def estimate_initial_k(time, intensity):
     A0 = max(intensity)
@@ -76,6 +80,7 @@ def estimate_initial_k(time, intensity):
     half_max_index = np.abs(intensity - half_max).argmin()
     t_half = time.iloc[half_max_index]
     return 1 / t_half if t_half > 0 else 1
+
 
 def fit_exponential(time, intensity):
     A0 = max(intensity)
@@ -90,9 +95,10 @@ def fit_exponential(time, intensity):
         print("Exponential fit failed.")
         return None, None
 
+
 # BATCH PROCESSING SCRIPT
 if __name__ == "__main__":
-    folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/SI_plots/CD_kinetics/new_zeta"
+    folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/SI_plots/CD_kinetics/new_gamma"
     smooth_method = 'savitzky_golay'
     window_size = 25
     polyorder = 3
@@ -100,15 +106,20 @@ if __name__ == "__main__":
     dead_time_file = os.path.join(folder_path, "dead_times.txt")
     dead_times_dict = read_dead_times(dead_time_file)
     fit_type = 'exponential'
-    fit_start = 0
+    fit_start = 70
     fit_end = 2000
-    protein = "zeta"
-    x_lim = (-1,2000)
+    protein = "alpha"
+
+    # This controls the view limits AND the starting tick
+    x_lim = (100, 2000)
+
     results = []
     all_fit_params = []
     fitted_curves = []
     raw_curves = []
     t_halves = []
+
+    residual_curves = []
 
     for filepath in glob.glob(os.path.join(folder_path, "*.csv")):
         try:
@@ -128,6 +139,10 @@ if __name__ == "__main__":
             if params is not None:
                 fit_vals = exponential(fit_time, *params)
                 fitted_curves.append((fit_time, fit_vals, filename_base))
+
+                residuals = fit_cd - fit_vals
+                residual_curves.append((fit_time, residuals, filename_base))
+
                 t_half = np.log(2) / params[1]
                 t_halves.append(t_half)
                 fit_summary = (
@@ -144,7 +159,6 @@ if __name__ == "__main__":
         except Exception as e:
             results.append(f"{os.path.basename(filepath)}: Failed to process - {str(e)}")
 
-    # Save fitting results
     with open(os.path.join(folder_path, "fitting_results.txt"), "w") as f:
         f.write("\n".join(results))
         if all_fit_params:
@@ -157,25 +171,49 @@ if __name__ == "__main__":
                 f.write(f"{label}: mean={mean:.7f}, std={std:.7f}\n")
             f.write(f"t_half: mean={np.mean(t_halves):.7f}, std={np.std(t_halves):.7f}")
 
-    # Plot combined raw + fitted curves
-    if raw_curves and fitted_curves:
-        plt.figure(figsize=(6, 5))
-        for (rtime, rsignal, label), (ftime, fsignal, _) in zip(raw_curves, fitted_curves):
-            color = label_color_map.get(protein, 'gray')
-            plt.plot(rtime, rsignal, label=f"{label} (Raw)", alpha=0.5, color=color)
-            plt.plot(ftime, fsignal, label=f"{label} (Fit)", linestyle='--', linewidth=1.5, color=color)
+    if raw_curves and fitted_curves and residual_curves:
+        fig, (ax1, ax2) = plt.subplots(
+            nrows=2,
+            ncols=1,
+            figsize=(6, 7),
+            sharex=True,
+            gridspec_kw={'height_ratios': [3, 1]}
+        )
 
-        plt.xlabel('Time (s)', fontsize=16)
-        plt.ylabel('Ellipticity at 222 nm [mdeg]', fontsize=16)
+        for (rtime, rsignal, label), (ftime, fsignal, _), (restime, ressignal, _) in zip(raw_curves, fitted_curves,
+                                                                                         residual_curves):
+            color = label_color_map.get(protein, 'gray')
+            ax1.plot(rtime, rsignal, label=f"{label} (Raw)", alpha=0.5, color=color)
+            ax1.plot(ftime, fsignal, label=f"{label} (Fit)", linestyle='--', linewidth=1.5, color=color)
+            ax2.plot(restime, ressignal, 'o', color=color, markersize=2, alpha=0.7)
+
+        ax1.set_ylabel('Ellipticity at 222 nm [mdeg]', fontsize=16)
+        ax1.tick_params(axis='y', labelsize=15)
+
         if x_lim:
-            plt.xlim(*x_lim)
-        locs, labels = plt.xticks()
-        plt.xticks(locs[1::2], labels[1::2], fontsize=15)
-        plt.yticks(fontsize=15)
-        plt.tight_layout()
+            ax1.set_xlim(*x_lim)
+
+            # --- ZMIANA: 100 + reszta generowana co 500 ---
+            start_manual = [100]
+            # Generuj od 500 do końca zakresu (x_lim[1]) z krokiem 500
+            rest_auto = np.arange(500, x_lim[1] + 1, 500)
+
+            # Połącz obie tablice
+            custom_ticks = np.concatenate([start_manual, rest_auto])
+
+            ax2.set_xticks(custom_ticks)
+
+        ax2.axhline(0, color='black', linestyle='--', linewidth=0.8)
+        ax2.set_xlabel('Time (s)', fontsize=16)
+        ax2.set_ylabel('Residuals [mdeg]', fontsize=16)
+        ax2.tick_params(axis='y', labelsize=15)
+        ax2.tick_params(axis='x', labelsize=15)
+
+        fig.subplots_adjust(hspace=0.1)
+
         png_path = os.path.join(folder_path, "combined_raw_fitted_plot1.png")
         svg_path = os.path.join(folder_path, "combined_raw_fitted_plot1.svg")
-        plt.savefig(png_path, dpi=600)
-        plt.savefig(svg_path, dpi=600)
+        plt.savefig(png_path, dpi=600, bbox_inches='tight')
+        plt.savefig(svg_path, dpi=600, bbox_inches='tight')
         plt.show()
         plt.close()
