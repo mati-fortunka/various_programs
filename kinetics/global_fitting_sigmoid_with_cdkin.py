@@ -247,7 +247,7 @@ if __name__ == "__main__":
                 lim = CUT_CONFIG.get(category, {})
                 t_cut, y_cut = cut_data(t_raw, y_raw, lim.get('min'), lim.get('max'))
                 if t_cut is not None and len(t_cut) > 10:
-                    t_dec, y_dec = decimate(t_cut, y_cut, 1000)
+                    t_dec, y_dec = decimate(t_cut, y_cut, 500)
                     off_key = f"off_sf_{category}_{i}"
                     scale_key = f"scale_sf_{category}_{i}"
                     params.add(off_key, value=np.mean(y_dec))
@@ -305,9 +305,9 @@ if __name__ == "__main__":
     params.add('amp_sf_F', value=0, vary=False)
 
     params.add('amp_cd_A', value=0, vary=False);
-    params.add('amp_cd_B', value=100)
+    params.add('amp_cd_B', value=0)
     params.add('amp_cd_C', value=500);
-    params.add('amp_cd_D', value=1000)
+    params.add('amp_cd_D', value=0)
     params.add('amp_cd_E', value=2000);
     params.add('amp_cd_F', value=5000)
 
@@ -393,5 +393,6 @@ if __name__ == "__main__":
     ax_ins.grid(True, alpha=0.3)
     ax2.indicate_inset_zoom(ax_ins, edgecolor="black")
 
-    plt.tight_layout();
+    plt.tight_layout()
+    plt.savefig(f"/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/SI_plots/global fitting/fit6.png", format='png', dpi=600, bbox_inches='tight')
     plt.show()
