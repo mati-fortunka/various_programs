@@ -409,5 +409,5 @@ if __name__ == "__main__":
     ax2.indicate_inset_zoom(ax_ins, edgecolor="black")
 
     plt.tight_layout()
-    plt.savefig(f"/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/SI_plots/ODE_fits/lin_model/ODE_fit9.png", format='png', dpi=600, bbox_inches='tight')
+    plt.savefig(f"/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/SI_plots/ODE_fits/lin_model/ODE_fit10.png", format='png', dpi=600, bbox_inches='tight')
     plt.show()

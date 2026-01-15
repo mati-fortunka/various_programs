@@ -161,41 +161,56 @@ def cut_data(t, y, t_min=None, t_max=None):
     return t[mask], y[mask]
 
 
-def decimate(t, y, max_pts=300):
+def decimate(t, y, max_pts=1000):
     if t is None or len(t) <= max_pts: return t, y
     step = int(np.ceil(len(t) / max_pts))
     return t[::step], y[::step]
 
 
 # ==========================================
-# 2. HYBRID MODEL (Exp + Sigmoid)
+# 2. HYBRID MODEL (No Phase A)
 # ==========================================
 
 def hybrid_model_base(t, amps, rates, t_half_D):
-    """Base model (Pure Kinetics centered at 0)"""
+    """
+    Model for Phases B, C, D, E, F (No A)
+    Input Lists must be length 5: [B, C, D, E, F]
+    """
     model = np.zeros_like(t, dtype=float)
-    exp_indices = [0, 1, 2, 4, 5]
+
+    # Exponentials: B(0), C(1), E(3), F(4)
+    # Note: Indices correspond to position in the passed list, not original A-F naming
+    exp_indices = [0, 1, 3, 4]
+
     for i in exp_indices:
+        # Safety clip for exponent
         exponent = np.clip(-rates[i] * t, -700, 700)
         model += amps[i] * np.exp(exponent)
-    if abs(amps[3]) > 1e-12:
-        sigmoid_exponent = np.clip(-rates[3] * (t - t_half_D), -700, 700)
-        model += amps[3] / (1 + np.exp(sigmoid_exponent))
+
+    # Sigmoid: D (Index 2)
+    # rates[2] is k_D (steepness)
+    if abs(amps[2]) > 1e-12:
+        sigmoid_exponent = np.clip(-rates[2] * (t - t_half_D), -700, 700)
+        model += amps[2] / (1 + np.exp(sigmoid_exponent))
+
     return model
 
 
 def objective(params, data_blocks):
     residuals = []
-    rates = [params[f'k_{p}'] for p in ['A', 'B', 'C', 'D', 'E', 'F']]
+
+    # 1. Unpack Rates (Length 5)
+    rates = [params[f'k_{p}'] for p in ['B', 'C', 'D', 'E', 'F']]
     t_half_D = params['t_half_D']
 
     for block in data_blocks:
         t, y = block['t'], block['y']
 
+        # 2. Unpack Amplitudes (Length 5)
         if block['type'] == 'SF':
-            amps = [params[f'amp_sf_{p}'] for p in ['A', 'B', 'C', 'D', 'E', 'F']]
-        else:
-            amps = [params[f'amp_cd_{p}'] for p in ['A', 'B', 'C', 'D', 'E', 'F']]
+            amps = [params[f'amp_sf_{p}'] for p in ['B', 'C', 'D', 'E', 'F']]
+        else:  # CD
+            amps = [params[f'amp_cd_{p}'] for p in ['B', 'C', 'D', 'E', 'F']]
 
         offset = params[block['offset_key']]
         scale = params[block['scale_key']]
@@ -226,7 +241,7 @@ if __name__ == "__main__":
         'SF_Slow': os.path.join(base_sf, "double_exp_B-C")
     }
     cd_spectra_file = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/G/spectra_kinetics/60h_2/8_3_gamma_spectra_kin_60h00000.csv"
-    cd_kinetics_folder = f"/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/SI_plots/CD_kinetics/new_{PROTEIN}"
+    cd_kinetics_folder = f"/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/SI_plots/CD_kinetics/{PROTEIN}"
 
     CUT_CONFIG = {
         'SF_Fast': {'min': 4.0, 'max': None},
@@ -247,7 +262,7 @@ if __name__ == "__main__":
                 lim = CUT_CONFIG.get(category, {})
                 t_cut, y_cut = cut_data(t_raw, y_raw, lim.get('min'), lim.get('max'))
                 if t_cut is not None and len(t_cut) > 10:
-                    t_dec, y_dec = decimate(t_cut, y_cut, 500)
+                    t_dec, y_dec = decimate(t_cut, y_cut, 20000)
                     off_key = f"off_sf_{category}_{i}"
                     scale_key = f"scale_sf_{category}_{i}"
                     params.add(off_key, value=np.mean(y_dec))
@@ -276,7 +291,7 @@ if __name__ == "__main__":
     for i, fpath in enumerate(kin_files):
         t_kin, y_kin = read_cd_kinetics_simple(fpath, dead_time=DT_KINETICS)
         if t_kin is not None:
-            t_dec, y_dec = decimate(t_kin, y_kin, 500)
+            t_dec, y_dec = decimate(t_kin, y_kin, 1000)
             off_key = f'off_cd_kin_{i}'
             scale_key = f'scale_cd_kin_{i}'
             params.add(off_key, value=y_dec[-1])
@@ -289,37 +304,67 @@ if __name__ == "__main__":
     if not data_blocks: print("No data loaded."); exit()
 
     # PARAMS
-    params.add('k_A', value=np.log(2) / 0.38, min=0)
     params.add('k_B', value=np.log(2) / 12.0, min=0)
     params.add('k_C', value=np.log(2) / 334.0, min=0)
     params.add('k_D', value=0.01, min=0)
-    params.add('t_half_D', value=1500.0, min=1000, max=5000)
+    params.add('t_half_D', value=1300.0, min=1000, max=5000)
     params.add('k_E', value=np.log(2) / (2.4 * 3600), min=0)
     params.add('k_F', value=np.log(2) / (33 * 3600), min=0)
 
-    params.add('amp_sf_A', value=2.0);
     params.add('amp_sf_B', value=1.0)
     params.add('amp_sf_C', value=0.5);
     params.add('amp_sf_D', value=0.2)
     params.add('amp_sf_E', value=0, vary=False);
     params.add('amp_sf_F', value=0, vary=False)
 
-    params.add('amp_cd_A', value=0, vary=False);
     params.add('amp_cd_B', value=0)
     params.add('amp_cd_C', value=500);
     params.add('amp_cd_D', value=0)
     params.add('amp_cd_E', value=2000);
     params.add('amp_cd_F', value=5000)
 
-    # FIT
+    # --- FIT ---
     print(f"\nRunning Hybrid Global Fit ({len(data_blocks)} blocks)...")
     minner = Minimizer(objective, params, fcn_args=(data_blocks,))
-    result = minner.minimize(method='leastsq')
+
+    # INCREASE ACCURACY
+    result = minner.minimize(
+        method='leastsq',
+        max_nfev=10000,  # Increase max steps (Default is usually 2000 * N_params)
+        ftol=1e-6,  # Make it 10,000x stricter on error improvement
+        xtol=1e-6  # Make it 10,000x stricter on parameter changes
+    )
+
+    # --- FIT DIAGNOSTICS ---
+    print("\n" + "=" * 30 + "\n FIT STATISTICS \n" + "=" * 30)
+    print(f"Function Evaluations (nfev): {result.nfev}")
+    print(f"Data Points: {result.ndata}")
+    print(f"Variables: {result.nvarys}")
+    print(f"Chi-Square: {result.chisqr:.4e}")
+    print(f"Reduced Chi-Square: {result.redchi:.4e}")
+    print(f"Akaike Info Crit (AIC): {result.aic:.2f}")
+    print(f"Bayesian Info Crit (BIC): {result.bic:.2f}")
+
+    print("-" * 20)
+    print(f"Exit Message: {result.message}")
+    print(f"Exit Code (ier): {result.ier}")
+
+    # Interpret the Exit Code (Specific to 'leastsq')
+    if result.ier in [1, 2, 3, 4]:
+        print("  -> CONVERGED SUCCESSFULLY")
+        if result.ier == 1: print("  -> Stopped by ftol (Sum of Squares didn't change).")
+        if result.ier == 2: print("  -> Stopped by xtol (Parameters didn't change).")
+        if result.ier == 3: print("  -> Stopped by BOTH ftol and xtol.")
+        if result.ier == 4: print("  -> Stopped by ftol (Absolute).")
+    elif result.ier == 5:
+        print("  -> WARNING: Max Steps (max_nfev) reached without convergence!")
+    else:
+        print("  -> ERROR: Improper input parameters or internal error.")
 
     # REPORT
     print("\n" + "=" * 60 + "\n RESULTS: HYBRID MODEL\n" + "=" * 60)
     four_hours = 14400
-    for p in ['A', 'B', 'C', 'E', 'F']:
+    for p in ['B', 'C', 'E', 'F']:
         k = result.params[f'k_{p}'].value
         k_err = result.params[f'k_{p}'].stderr
         if k > 1e-10:
@@ -337,26 +382,37 @@ if __name__ == "__main__":
     else:
         print(f"Phase D (Sigm): {th_D / 3600:.2f} ± {th_D_err / 3600:.2f} h")
 
-    # PLOT
+    # --- PLOT ---
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 12))
-    rates = [result.params[f'k_{p}'].value for p in ['A', 'B', 'C', 'D', 'E', 'F']]
+
+    # Define lists exactly as they are in the objective function (No A)
+    phases = ['B', 'C', 'D', 'E', 'F']
+    rates = [result.params[f'k_{p}'].value for p in phases]
     t_half_D = result.params['t_half_D'].value
 
     # 1: SF
-    sf_amps = [result.params[f'amp_sf_{p}'].value for p in ['A', 'B', 'C', 'D', 'E', 'F']]
+    sf_amps = [result.params[f'amp_sf_{p}'].value for p in phases]
     for b in data_blocks:
         if b['type'] == 'SF':
             off = result.params[b['offset_key']].value
             scale = result.params[b['scale_key']].value
-            t_sm = np.linspace(min(b['t']), max(b['t']), 1000)
+
+            t_sm = np.linspace(min(b['t']), max(b['t']), 10000)
+
+            # Pass the lists (Length 5) to the model
             model_sm = off + (scale * hybrid_model_base(t_sm, sf_amps, rates, t_half_D))
+
             ax1.plot(b['t_raw'], b['y_raw'], 'o', color='blue', alpha=0.3, markersize=2)
             ax1.plot(t_sm, model_sm, 'r--', lw=1.0)
-    ax1.set_ylabel("SF Signal (V)");
-    ax1.set_title("SF Data")
+
+    # --- FONT SIZE UPDATES (SF) ---
+    ax1.set_ylabel("Stopped-flow fluorimetry signal (V)", fontsize=16)
+    # ax1.set_title("SF Data", fontsize=16)
+    ax1.tick_params(axis='both', which='major', labelsize=15)
+    ax1.set_xlim(-10, 2010)
 
     # 2: CD
-    cd_amps = [result.params[f'amp_cd_{p}'].value for p in ['A', 'B', 'C', 'D', 'E', 'F']]
+    cd_amps = [result.params[f'amp_cd_{p}'].value for p in phases]
     ax_ins = ax2.inset_axes([0.45, 0.08, 0.50, 0.35])
 
     all_cd_times = [t for b in data_blocks if b['type'] == 'CD' for t in b['t']]
@@ -371,7 +427,8 @@ if __name__ == "__main__":
 
             # Plot Main
             ax2.plot(b['t_raw'] / 3600, b['y_raw'], 'o', color=col, alpha=0.3, markersize=3, label=lbl)
-            t_sm = np.linspace(min(b['t']), max(b['t']), 1000)
+
+            t_sm = np.linspace(min(b['t']), max(b['t']), 10000)
             model_sm = off + (scale * hybrid_model_base(t_sm, cd_amps, rates, t_half_D))
             ax2.plot(t_sm / 3600, model_sm, 'k--', lw=1.5)
 
@@ -382,17 +439,32 @@ if __name__ == "__main__":
     # Fix Legend
     handles, labels = ax2.get_legend_handles_labels()
     by_label = dict(zip(labels, handles))
-    ax2.legend(by_label.values(), by_label.keys(), loc='upper right')
+    # Added fontsize=14 for the legend to match
+    ax2.legend(
+        by_label.values(),
+        by_label.keys(),
+        loc='upper right',  # Which corner of the legend to grab
+        bbox_to_anchor=(1, 0.9),  # Place it at x=1.0 (Right edge), y=0.9 (10% down from top)
+        fontsize=15
+    )
 
+    # --- FONT SIZE UPDATES (CD) ---
     ax2.set_xlim(0, max_cd_time / 3600 * 1.05)
-    ax2.set_xlabel("Time (h)");
-    ax2.set_ylabel("Ellipticity")
+    ax2.set_xlabel("Time (h)", fontsize=16)
+    ax2.set_ylabel("Ellipticity (mdeg)", fontsize=16)
+    ax2.tick_params(axis='both', which='major', labelsize=15)
 
+    # --- INSET SETTINGS ---
     ax_ins.set_xlim(-0.02, 2000 / 3600)
-    ax_ins.set_title("Zoom: 0-2000s");
+    ax_ins.set_title("Zoom: 0-2000s", fontsize=14)
+    ax2.set_xlim(0, 60)
+    # Insets usually need slightly smaller ticks than main plot,
+    # but I bumped them to 12 here so they are readable.
+    ax_ins.tick_params(axis='both', labelsize=12)
     ax_ins.grid(True, alpha=0.3)
     ax2.indicate_inset_zoom(ax_ins, edgecolor="black")
 
+
     plt.tight_layout()
-    plt.savefig(f"/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/SI_plots/global fitting/fit10.png", format='png', dpi=600, bbox_inches='tight')
+    plt.savefig(f"/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/SI_plots/global fitting/gamma2.svg", format='svg', dpi=500, bbox_inches='tight', transparent=True)
     plt.show()
