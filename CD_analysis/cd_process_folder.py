@@ -3,10 +3,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # User-defined HV threshold
-HV_THRESHOLD = 1000  # Change this value as needed
+HV_THRESHOLD = 990  # Change this value as needed
 
 # Path to your input folder and output folder
-input_folder = "/home/matifortunka/Documents/JS/data_Cambridge/fusions/F632/F6_september/2000s"  # Replace with your folder path
+input_folder = "/home/matifortunka/Documents/JS/kinetics_stability/biofizyka_CD/fuzja"  # Replace with your folder path
 output_folder = os.path.join(input_folder, "output")
 
 # Create the output folder if it doesn't exist

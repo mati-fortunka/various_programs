@@ -281,10 +281,10 @@ def extract_cd_and_plot(folder_path, wavelength, concentration_file, smoothing_m
 
 # Example usage
 if __name__ == "__main__":
-    path = "/home/matifortunka/Documents/JS/data_Cambridge/fusions/F8E4N/equilibrium/unfolding/2nd_set/22h/CD/fuzja_F8_unfolding_spectra_widmo_JS_26_04"
+    path = "/home/matifortunka/Documents/JS/kinetics_stability/biofizyka_CD/Tm1570/best"
     concentrations = os.path.join(path, "concentrations.txt")
 
     # hv_mode: 'per_point' (remove points where HV>cutoff) OR 'per_spectrum' (skip file if any HV>cutoff)
-    extract_cd_and_plot(path, 220, concentrations, smoothing_method="savitzky_golay",
+    extract_cd_and_plot(path, 235, concentrations, smoothing_method="savitzky_golay",
                         window_size=15, spline_smoothing_factor=0.5, poly_order=3,
-                        baseline_wavelength=250, hv_cutoff=800, hv_mode='per_point')
+                        baseline_wavelength=250, hv_cutoff=990, hv_mode='per_point')
