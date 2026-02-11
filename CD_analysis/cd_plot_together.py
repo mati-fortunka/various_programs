@@ -12,7 +12,7 @@ SMOOTHING_POLYORDER = 3      # Only used for Savitzky-Golay
 BASELINE_WAVELENGTH = 250    # Set to None to disable baseline correction
 
 # Paths
-input_folder = os.path.expanduser("/home/matifortunka/Documents/JS/kinetics_stability/biofizyka_CD/Tm1570")      # Change this to your input directory
+input_folder = os.path.expanduser("/home/matifortunka/Documents/JS/kinetics_stability/biofizyka_CD/fuzja")      # Change this to your input directory
 output_folder = os.path.expanduser(input_folder+"/combined")    # Change this to your output directory
 range_type = ""
 

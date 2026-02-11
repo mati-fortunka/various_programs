@@ -14,7 +14,7 @@ from selenium.webdriver.support import expected_conditions as EC
 # Configuration
 DICHROWEB_FORM_URL = "http://dichroweb.cryst.bbk.ac.uk/html/process.shtml"
 CHROMEDRIVER_PATH = "/home/matifortunka/Programs/chromedriver-linux64/chromedriver"
-INPUT_DIRECTORY = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/Maciek_CD/unfolding_SAV"
+INPUT_DIRECTORY = "/home/matifortunka/Documents/JS/kinetics_stability/data_Cambridge/8_3/Maciek_CD/unfolding_SAV"
 ERROR_LOG_PATH = os.path.join(INPUT_DIRECTORY, "error_log.txt")
 
 FORM_DATA_TEMPLATE_BASE = {
@@ -37,10 +37,10 @@ SECOND_FORM_VALUES = {
     "PATH": "0.01"
 }
 
-# METHODS = ["SELCON3"]
-# BASIS_SETS = ["SET 4"]
-METHODS = ["SELCON3", "CONTIN", "K2D"]
-BASIS_SETS = ["SET 4", "SET 7", "SET 10"]
+METHODS = ["SELCON3"]
+BASIS_SETS = ["SET 4"]
+# METHODS = ["SELCON3", "CONTIN", "K2D"]
+#  = ["SET 4", "SET 7", "SET 10"]
 
 
 def log_error(filename, method, step, message):
