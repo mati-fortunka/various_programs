@@ -357,7 +357,7 @@ def plot_multiple_csvs_with_logging(folder_path,
 
 if __name__ == "__main__":
     # Update this path to your actual folder location
-    folder = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/kinetyka/fuzja/best_all"
+    folder = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/kinetyka/fluo/Tm1570"
 
     plot_multiple_csvs_with_logging(
         folder_path=folder,
@@ -365,10 +365,10 @@ if __name__ == "__main__":
         window_size=25,
         polyorder=3,
         dead_time=30,
-        fit_type='exponential_with_drift',
+        fit_type='double_exponential',
         # Options: 'exponential', 'exponential_with_drift', 'double_exponential', 'double_exp_plus_sigmoid', 'linear'
         fit_start=0,
-        fit_end=10000,
-        output_plot="combined_kinetics_drift.png",
-        output_log=f"{folder}/fitted_parameters_drift.txt"
+        fit_end=1600,
+        output_plot="combined_kinetics_double.png",
+        output_log=f"{folder}/fitted_parameters_double.txt"
     )
