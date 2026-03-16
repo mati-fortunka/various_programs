@@ -153,7 +153,7 @@ def process_and_visualize_combined_with_smoothing(folder_path, smoothing_method=
 
 
 # Example usage
-folder_path = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/fluorimetry/TrmD"
+folder_path = "/home/matifortunka/Downloads/seria4-20260310T155407Z-3-001/seria4"
 
 # Note: I added data_type="Fluorescence".
 # Ensure your CSV columns are actually named "Ellipticity (mdeg)".
@@ -161,10 +161,10 @@ folder_path = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/fl
 process_and_visualize_combined_with_smoothing(
     folder_path,
     smoothing_method="savitzky_golay",
-    range_interval=10,
+    range_interval=25,
     poly_order=3,
     save_plot=True,
     output="output_plot.png",
-    baseline_wavelength=400,  # Set to e.g., 360 or 400 if needed
+    baseline_wavelength=None,  # Set to e.g., 360 or 400 if needed
     data_type="Fluorescence"
 )

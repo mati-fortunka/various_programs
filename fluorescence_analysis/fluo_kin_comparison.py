@@ -221,7 +221,16 @@ def plot_multiple_csvs_with_logging(folder_path,
 
         # Extract Time and Intensity (cols 0 and 1)
         time = df.iloc[:, 0] + dead_time
-        intensity = df.iloc[:, 1]
+        raw_intensity = df.iloc[:, 1]
+
+        # --- NORMALIZATION LOGIC START ---
+        # Normalize intensity so the maximum value is 1
+        max_val = raw_intensity.max()
+        if max_val != 0:
+            intensity = raw_intensity / max_val
+        else:
+            intensity = raw_intensity  # handle flat zero signal
+        # --- NORMALIZATION LOGIC END ---
 
         # Smoothing
         if smooth_method == 'moving_average':
@@ -337,7 +346,7 @@ def plot_multiple_csvs_with_logging(folder_path,
                 f.write(f"{key} t_half: mean={avg:.2f}, std={std:.2f}\n")
 
     # Plot settings
-    ax_main.set_ylabel("Fluorescence Intensity (a.u.)")
+    ax_main.set_ylabel("Normalized Fluorescence Intensity")  # Updated label
     ax_main.set_title("Smoothed Fluorescence Curves with Fits")
     ax_main.legend(loc='best', fontsize='small')
     ax_main.grid(True)
@@ -365,7 +374,7 @@ if __name__ == "__main__":
         window_size=25,
         polyorder=3,
         dead_time=30,
-        fit_type='double_exponential',
+        fit_type=None,
         # Options: 'exponential', 'exponential_with_drift', 'double_exponential', 'double_exp_plus_sigmoid', 'linear'
         fit_start=0,
         fit_end=1600,

@@ -7,7 +7,7 @@ from scipy.signal import savgol_filter
 # User-defined settings
 HV_THRESHOLD = 995
 SMOOTHING_METHOD = "savgol"  # Options: "savgol", "moving_average", None
-SMOOTHING_WINDOW = 5        # Must be odd
+SMOOTHING_WINDOW = 25        # Must be odd
 SMOOTHING_POLYORDER = 3      # Only used for Savitzky-Golay
 BASELINE_WAVELENGTH = None    # Set to None to disable baseline correction
 

@@ -116,10 +116,7 @@ def analyse_two_sets(unfold_folder, refold_folder,
                      output_txt="fit_results.txt"):
 
     save_folder = os.path.dirname(unfold_folder)
-    """
-    Analyse unfolding and refolding datasets and plot them on the same figure.
-    Parameters are fitted separately for each dataset.
-    """
+    open(output_txt, "w").close()
 
     def process_set(folder, wavelength, label):
         spectra = load_bka_files(folder)
@@ -192,37 +189,62 @@ def analyse_two_sets(unfold_folder, refold_folder,
 
         return plot_data, popt, all_spectra
 
-    # --- Process both datasets ---
-    open(output_txt, "w").close()  # clear file
-    unfold_data, unfold_fit, _ = process_set(unfold_folder, wavelength_unfold, "Unfolding")
-    refold_data, refold_fit, _ = process_set(refold_folder, wavelength_refold, "Refolding")
+    # --- 1. Procesowanie danych (teraz zapisujemy też all_spectra) ---
+    unfold_data, unfold_fit, unfold_spectra = process_set(unfold_folder, wavelength_unfold, "Unfolding")
+    refold_data, refold_fit, refold_spectra = process_set(refold_folder, wavelength_refold, "Refolding")
 
-    # --- Combined plot ---
-    fig, ax = plt.subplots(figsize=(8, 6))
+    # --- 2. Wykres dopasowania (ten co był) ---
+    fig1, ax1 = plt.subplots(figsize=(8, 6))
 
-    # Unfolding
-    ax.scatter(unfold_data["den_concentration"], unfold_data["Ellipticity"],
-               label=f"Unfolding ({wavelength_unfold} nm)", color="blue", marker="o")
+    ax1.scatter(unfold_data["den_concentration"], unfold_data["Ellipticity"], label=f"Unfolding", color="blue")
+    ax1.scatter(refold_data["den_concentration"], refold_data["Ellipticity"], label=f"Refolding", color="red",
+                marker="s")
     if unfold_fit is not None:
-        fit_x = np.linspace(unfold_data["den_concentration"].min(),
-                            unfold_data["den_concentration"].max(), 200)
-        ax.plot(fit_x, G(fit_x, *unfold_fit), color="blue", linestyle="--")
-
-    # Refolding
-    ax.scatter(refold_data["den_concentration"], refold_data["Ellipticity"],
-               label=f"Refolding ({wavelength_refold} nm)", color="red", marker="s")
+        fx = np.linspace(unfold_data["den_concentration"].min(), unfold_data["den_concentration"].max(), 200)
+        ax1.plot(fx, G(fx, *unfold_fit), color="blue", linestyle="--")
     if refold_fit is not None:
-        fit_x = np.linspace(refold_data["den_concentration"].min(),
-                            refold_data["den_concentration"].max(), 200)
-        ax.plot(fit_x, G(fit_x, *refold_fit), color="red", linestyle="--")
+        fx = np.linspace(refold_data["den_concentration"].min(), refold_data["den_concentration"].max(), 200)
+        ax1.plot(fx, G(fx, *refold_fit), color="red", linestyle="--")
+    ax1.set_title("Unfolding vs Refolding (Titration Curve)")
+    ax1.legend()
+    fig1.savefig(f"{save_folder}/fit_comparison.png")
 
-    ax.set_title("Unfolding vs Refolding")
-    ax.set_xlabel("Denaturant Concentration (M)")
-    ax.set_ylabel("Ellipticity (mdeg)")
-    ax.legend()
-    ax.grid(True)
-    fig.tight_layout()
-    fig.savefig(f"{save_folder}/unfolding_refolding_comparison_nobase.png")
+    # --- 3. NOWY WYKRES: WSZYSTKIE WIDMA ---
+    fig2, ax2 = plt.subplots(figsize=(10, 7))
+
+    # Znalezienie max stężenia do normalizacji kolorów
+    all_concs = [s[2] for s in unfold_spectra] + [s[2] for s in refold_spectra]
+    max_c = max(all_concs) if all_concs else 1.0
+    norm = Normalize(vmin=0, vmax=max_c)
+
+    cmap_u = plt.get_cmap("Blues")
+    cmap_r = plt.get_cmap("Reds")
+
+    # Rysowanie widm Unfolding
+    for w, e, c in unfold_spectra:
+        # 0.3 offsetu żeby najniższe stężenie nie było całkiem białe
+        color = cmap_u(0.2 + 0.9 * norm(c))
+        ax2.plot(w, e, color=color, lw=1, alpha=0.8)
+
+    # Rysowanie widm Refolding
+    for w, e, c in refold_spectra:
+        color = cmap_r(0.2 + 0.9 * norm(c))
+        ax2.plot(w, e, color=color, lw=1, alpha=0.8)
+
+    # Dodanie legendy "ręcznie" dla grup
+    from matplotlib.lines import Line2D
+    custom_lines = [Line2D([0], [0], color='blue', lw=2),
+                    Line2D([0], [0], color='red', lw=2)]
+    ax2.legend(custom_lines, ['Unfolding (light to dark blue)', 'Refolding (light to dark red)'])
+
+    ax2.set_title("All CD Spectra (Intensity ~ Concentration)")
+    ax2.set_xlabel("Wavelength (nm)")
+    ax2.set_ylabel("Ellipticity (mdeg)")
+    ax2.grid(True, alpha=0.3)
+
+    fig2.tight_layout()
+    fig2.savefig(f"{save_folder}/all_spectra_comparison.png")
+
     plt.show()
 
     return (unfold_data, unfold_fit), (refold_data, refold_fit)
@@ -232,10 +254,10 @@ def analyse_two_sets(unfold_folder, refold_folder,
 # Example usage
 # -------------------
 if __name__ == "__main__":
-    path_unf = "/home/matifortunka/Documents/JS/kinetics_stability/data_Cambridge/fusions/8b1n/equlibrium/CD/urea/fus_unfold_SAV"
-    path_ref = "/home/matifortunka/Documents/JS/kinetics_stability/data_Cambridge/fusions/8b1n/equlibrium/CD/urea/fus_refold_SAV"
+    path_unf = "/home/matifortunka/Documents/JS/kinetics_stability/data_Cambridge/Tm1570/equilibrium/CD/GuCl/tm_unfold"
+    path_ref = "/home/matifortunka/Documents/JS/kinetics_stability/data_Cambridge/Tm1570/equilibrium/CD/GuCl/tm_refold"
     analyse_two_sets(unfold_folder = path_unf, refold_folder = path_ref,
-                     wavelength_unfold=215, wavelength_refold=215, smoothing_method="savitzky_golay",
+                     wavelength_unfold=220, wavelength_refold=220, smoothing_method="savitzky_golay",
                      window_size=15, spline_smoothing_factor=0.5,
                      poly_order=3, baseline_wavelength=None,
                      output_txt="fit_results.txt")

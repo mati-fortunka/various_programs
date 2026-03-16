@@ -8,18 +8,18 @@ import os
 # --- KONFIGURACJA ---
 CONFIG = {
     # Ścieżka do pliku
-    'filename': '/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/kinetyka/fluo/Tm1570/spectra_kinetics/MultipleEmScan1.csv',
+    'filename': '/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/kinetyka/fluo/fuzja/spectra_kin/MultipleEmScan1_fusion.csv',
 
     'time_interval': 34,  # Czas w sekundach między skanami
 
     # Parametry analizy
-    'target_wl': 345,  # Długość fali do analizy pojedynczej intensywności (to będzie też fitowane)
-    'ratio_wl1': 345,  # Licznik do ratio
+    'target_wl': 343,  # Długość fali do analizy pojedynczej intensywności (to będzie też fitowane)
+    'ratio_wl1': 343,  # Licznik do ratio
     'ratio_wl2': 320,  # Mianownik do ratio
 
     # Wygładzanie
     'smoothing': True,
-    'window_size': 11,
+    'window_size': 25,
     'poly_order': 3,
 
     # --- NOWE: KOREKTA TŁA ---
@@ -30,9 +30,9 @@ CONFIG = {
     # --- NOWE: DOPASOWANIE (FITTING) ---
     'fit_enable': True,
     # Dostępne modele: 'mono_exp', 'mono_exp_drift', 'double_exp'
-    'fit_model': 'mono_exp',
+    'fit_model': 'double_exp',
     # Zakres czasu do fitowania [start, koniec]. Ustaw [0, None] dla całości.
-    'fit_range': [0, 15000]
+    'fit_range': [0, 20000]
 }
 
 

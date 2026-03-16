@@ -242,21 +242,21 @@ def fit_and_plot(df, col, config, ylabel):
 
 def main():
     config = {
-        'folder': "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/fluorimetry/TrmD",
-        'concentration_file': "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/fluorimetry/TrmD/concentrations.txt",
+        'folder': "/home/matifortunka/Downloads/seria5-20260310T154724Z-3-001/seria5",
+        'concentration_file': "/home/matifortunka/Downloads/seria4-20260310T155407Z-3-001/seria4/concentrations.txt",
 
         # Smoothing
         'smoothing': "savitzky_golay",
-        'window': 10,  # 10 nm interval
+        'window': 21,  # 10 nm interval
         'spline_s': 0.5,
         'poly': 3,
 
         # Analysis
-        'baseline': 400,  # Set to e.g., 400 if needed
+        'baseline': None,  # Set to e.g., 400 if needed
         'fit_model': "two_state",
-        'wl1': 325,  # For Ratio
+        'wl1': 330,  # For Ratio
         'wl2': 350,  # For Ratio
-        'target_wl': 325,  # For Single Wavelength
+        'target_wl': 330,  # For Single Wavelength
 
         # Method options: "csm" (was ew), "ratio", "single_wavelength", "all"
         'method': "all"
