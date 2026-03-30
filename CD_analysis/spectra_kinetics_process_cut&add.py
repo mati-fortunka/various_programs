@@ -11,7 +11,7 @@ from io import StringIO
 from scipy.optimize import curve_fit
 
 # === User Settings ===
-input_csv = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/G/spectra_kinetics/kolejne_26-29_wrzesnia/60h/83_native_26sp_60h00005.csv"
+input_csv = "/home/matifortunka/Documents/JS/kinetics_stability/data_Cambridge/Tm1570/kinetcs/CD/GuCl/specra_kin/Tm1570_september/1/Tm15_12h00000.csv"
 native_spectrum_path = None#"/home/matifortunka/Documents/JS/data_Cambridge/8_3/A/spectra_kinetics/8_3_A_5uM_nat00043_raw.txt"
 dead_time = 30  # seconds
 nm_per_sec = 0.1
@@ -27,17 +27,19 @@ labels = ["alpha", "gamma", "zeta"]
 colors = ["#75053b", "#136308", "#0721a6"]
 label_color_map = dict(zip(labels, colors))
 
-remove_between = (23400, 46800 )   # e.g. (1000, 2000) to remove timepoints between 1000–2000 s
-modify_between = (46800, 259200)   # e.g. (3000, 4000)
+
+remove_between = (0,0)    # (23400, 46800 )e.g. (1000, 2000) to remove timepoints between 1000–2000 s
+modify_between = (0,0)   # (46800, 259200) e.g. (3000, 4000)
 modify_mode = "add"             # "add" or "scale"
 modify_value = 0.25                # number to add OR coefficient to multiply
 
+
 # Plot 2
-target_wavelength = 225
+target_wavelength = 222
 fit_model = "double"
 
 # Plot 3
-integration_range = (190, 250)
+integration_range = (214, 250)
 integration_sign = "negative"
 
 # Baseline
@@ -45,7 +47,7 @@ baseline_correction = False
 baseline_wavelength = 250.0
 
 # Manual transpose
-transpose_data = True
+transpose_data = False
 
 print("\n🔧 Parameters:")
 print(f"  input_csv = {input_csv}")
@@ -238,7 +240,8 @@ for idx, (cd_time, shifted_cd_time_hr) in enumerate(zip(cd_times, shifted_cd_tim
         baseline_idx = np.argmin(np.abs(x - baseline_wavelength))
         baseline_val = y[baseline_idx]
         y = y - baseline_val
-
+    plt.margins(0.02)
+    plt.tight_layout()
     plt.plot(x, y, color=cmap(norm(shifted_cd_time_hr)))
 
 # === Native spectrum smoothed and baseline corrected ===
@@ -252,10 +255,15 @@ if native_spectrum_path:
         native_y = native_y - baseline_val
     plt.plot(native_wl, native_y, color='black', linestyle='--', label='Native (0 s)')
 
-plt.xlabel("Wavelength [nm]")
-plt.ylabel("Ellipticity [mdeg]")
-plt.title(f"CD Kinetics (HV ≤ {hv_threshold} V, Savitzky-Golay)")
-plt.colorbar(sm, label="Time [h]", ax=plt.gca(), format="%.1f")
+plt.xlabel("Wavelength [nm]", fontsize=16)
+plt.ylabel("Ellipticity [mdeg]", fontsize=16)
+# plt.title(f"CD Kinetics (HV ≤ {hv_threshold} V, Savitzky-Golay)")
+cbar = plt.colorbar(sm, ax=plt.gca(), format="%.1f")
+cbar.set_label("Time [h]", fontsize=16)
+cbar.ax.tick_params(labelsize=14, length=6, width=1.5)
+# plt.colorbar(sm, label="Time [h]", ax=plt.gca(), format="%.1f", labelsize=16)
+plt.tick_params(axis='x', labelsize=15)
+plt.tick_params(axis='y', labelsize=15)
 #plt.grid(True)
 plt.tight_layout()
 plt.savefig(output_plot)

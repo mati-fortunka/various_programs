@@ -131,16 +131,23 @@ def process_and_visualize_combined_with_smoothing(folder_path, smoothing_method=
     sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
     sm.set_array([])
     cbar = fig.colorbar(sm, ax=ax)
-    cbar.set_label("Denaturant Concentration (M)")
+    cbar.set_label("Denaturant Concentration (M)", fontsize=16)
+    cbar.ax.tick_params(labelsize=15)
 
     title_text = f"Combined Data ({data_type})"
     if baseline_wavelength:
         title_text += f" - Baseline Corrected at {baseline_wavelength} nm"
 
-    ax.set_title(title_text)
-    ax.set_xlabel("Wavelength (nm)")
-    ax.set_ylabel(y_axis_label)
-    ax.grid(True, linestyle='--', alpha=0.7)
+    ax.set_ylim(-50, 62500)
+    # ax.set_title(title_text)
+    ax.set_xlabel("Wavelength (nm)", fontsize=16)
+    ax.set_ylabel(y_axis_label, fontsize=16)
+    # ax.grid(True, linestyle='--', alpha=0.7)
+
+    plt.tick_params(axis='x', labelsize=15)
+    plt.tick_params(axis='y', labelsize=15)
+    plt.margins(0.02)
+    plt.tight_layout()
 
     if save_plot:
         output_folder = os.path.join(folder_path, "output")
@@ -153,7 +160,7 @@ def process_and_visualize_combined_with_smoothing(folder_path, smoothing_method=
 
 
 # Example usage
-folder_path = "/home/matifortunka/Downloads/seria4-20260310T155407Z-3-001/seria4"
+folder_path = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/fluorimetry/TrmD/seria2_1"
 
 # Note: I added data_type="Fluorescence".
 # Ensure your CSV columns are actually named "Ellipticity (mdeg)".
@@ -161,10 +168,10 @@ folder_path = "/home/matifortunka/Downloads/seria4-20260310T155407Z-3-001/seria4
 process_and_visualize_combined_with_smoothing(
     folder_path,
     smoothing_method="savitzky_golay",
-    range_interval=25,
+    range_interval=35,
     poly_order=3,
     save_plot=True,
-    output="output_plot.png",
-    baseline_wavelength=None,  # Set to e.g., 360 or 400 if needed
+    output="output_plot_lim2.png",
+    baseline_wavelength=400,  # Set to e.g., 360 or 400 if needed
     data_type="Fluorescence"
 )

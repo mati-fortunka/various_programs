@@ -8,16 +8,16 @@ from io import StringIO
 from matplotlib.cm import ScalarMappable
 
 # === User Settings ===
-input_csv = "/home/matifortunka/Documents/JS/data_Cambridge/js/63/63_september/spectra_kin/6/63_native_old_4h_new00001.csv"
+input_csv = "/home/matifortunka/Documents/JS/kinetics_stability/data_Cambridge/Tm1570/kinetcs/CD/GuCl/specra_kin/Tm1570_september/1/Tm15_12h00000.csv"
 native_spectrum_path = None
 
 path = "/".join(input_csv.split('/')[:-1])
-output_plot = f"{path}/6_3_spec_kin_fig."
+output_plot = f"{path}/Tm1570_spec_kin_fig."
 
-hv_threshold = 1000
+hv_threshold = 990
 smoothing_window = 15
 smoothing_polyorder = 3
-transpose_data = True
+transpose_data = False
 baseline_correction = False
 baseline_wavelength = 250.0
 dead_time = 30  # seconds
@@ -200,6 +200,8 @@ grad_ax.set_yticks([0, 255])
 grad_ax.set_yticklabels([f"{max_hr} h", f"{min_hr} h"], fontsize=15)
 grad_ax.set_xticks([])
 grad_ax.tick_params(length=0)
+plt.margins(0.02)
+# plt.tight_layout()
 
 fig.set_constrained_layout(True)
 plt.savefig(output_plot+"svg", format='svg', dpi=600, bbox_inches='tight')

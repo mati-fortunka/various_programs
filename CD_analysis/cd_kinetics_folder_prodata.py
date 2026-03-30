@@ -339,10 +339,10 @@ def read_dead_times(file_path):
 
 # BATCH PROCESSING SCRIPT
 if __name__ == "__main__":
-    folder_path = "/home/matifortunka/Documents/JS/kinetics_stability/data_Cambridge/Tm1570/kinetcs/CD/urea/Tm1570_ref_CD/kinetics"
+    folder_path = "/home/matifortunka/Documents/JS/kinetics_stability/data_Cambridge/Tm1570/kinetcs/CD/GuCl/2000s/best"
 
     smooth_method = "savitzky_golay"
-    window_size = 5
+    window_size = 25
     polyorder = 3
     default_dead_time = 25
     dead_time_file = os.path.join(folder_path, "dead_times.txt")
@@ -433,13 +433,17 @@ if __name__ == "__main__":
         colors = [colormap(i) for i in np.linspace(0, 1, len(combined_curves))]
 
         for idx, (smoothed_time, smoothed_signal, label) in enumerate(combined_curves):
+            # plt.plot(smoothed_time, smoothed_signal, label=label, color=colors[idx], linewidth=1.5)
             plt.plot(smoothed_time, smoothed_signal, label=label, color=colors[idx], linewidth=1.5)
 
-        plt.xlabel('Time (s) [Adjusted with dead time]', fontsize=14)
-        plt.ylabel('Ellipticity (mdeg)', fontsize=14)
-        plt.title('Combined Processed Kinetics', fontsize=16)
-        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='small')
-        plt.grid(True, which='both', linestyle='--', linewidth=0.5)
+        plt.xlabel('Time (s)', fontsize=16)
+        plt.ylabel('Ellipticity (mdeg)', fontsize=16)
+        # plt.title('Combined Processed Kinetics', fontsize=16)
+        # plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='small')
+        # plt.grid(True, which='both', linestyle='--', linewidth=0.5)
+        plt.tick_params(axis='x', labelsize=15)
+        plt.tick_params(axis='y', labelsize=15)
+        plt.margins(0.02)
         plt.tight_layout()
 
         save_path = os.path.join(folder_path, "combined_processed_kinetics.png")

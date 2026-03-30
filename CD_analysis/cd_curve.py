@@ -240,14 +240,19 @@ def extract_cd_and_plot(folder_path, wavelength, concentration_file, smoothing_m
     if popt is not None:
         ax1.plot(np.linspace(x_data.min(), x_data.max(), 200), G(np.linspace(x_data.min(), x_data.max(), 200), *popt),
                  label='Fit', color='red', linestyle='--')
-    ax1.set_title(f'Ellipticity at {wavelength} nm vs Denaturant Concentration')
-    ax1.set_xlabel('Denaturant Concentration (M)')
-    ax1.set_ylabel('Mean Ellipticity (mdeg)')
-    ax1.grid(True)
-    ax1.legend()
+    ax1.set_title(f'Ellipticity at {wavelength} nm vs Denaturant Concentration', fontsize=16)
+    ax1.set_xlabel('Denaturant concentration (M)', fontsize=16)
+    ax1.set_ylabel('Ellipticity (mdeg)', fontsize=16)
+    ax1.tick_params(axis='x', labelsize=15)
+    ax1.tick_params(axis='y', labelsize=15)
+    # ax1.grid(True, linestyle=':', alpha=0.7)
+    ax1.legend(fontsize=15)
+    ax1.margins(0.02)
     output_file = os.path.join(folder_path, f"CD_{wavelength}nm_{smoothing_method}_fit.png")
     fig1.savefig(output_file)
     plt.show()
+
+
 
     # Heatbar-style combined spectra plot
     if all_spectra:
@@ -264,12 +269,18 @@ def extract_cd_and_plot(folder_path, wavelength, concentration_file, smoothing_m
         smap = cm.ScalarMappable(norm=norm, cmap=cmap)
         smap.set_array([])  # for compatibility
         cbar = fig2.colorbar(smap, ax=ax2)
-        cbar.set_label("Denaturant concentration (M)")
+        cbar.set_label("Denaturant concentration (M)", fontsize=16)
+        cbar.ax.tick_params(labelsize=15)
 
-        ax2.set_title("Smoothed CD Spectra (Heatbar by Denaturant Concentration)")
-        ax2.set_xlabel("Wavelength (nm)")
-        ax2.set_ylabel("Ellipticity (mdeg)")
-        ax2.grid(True)
+        # ax2.set_title("Smoothed CD Spectra (Heatbar by Denaturant Concentration)", fontsize=16)
+        ax2.set_xlabel("Wavelength (nm)", fontsize=16)
+        ax2.set_ylabel("Ellipticity (mdeg)", fontsize=16)
+        ax2.set_ylim(-16,0.25)
+        ax2.tick_params(axis='x', labelsize=15)
+        ax2.tick_params(axis='y', labelsize=15)
+        ax2.margins(0.02)
+        # ax2.grid(True, linestyle=':', alpha=0.7)
+
         fig2.tight_layout()
         combined_plot_file = os.path.join(folder_path, "combined_cd_spectra_heatbar.png")
         fig2.savefig(combined_plot_file)
@@ -282,7 +293,7 @@ def extract_cd_and_plot(folder_path, wavelength, concentration_file, smoothing_m
 
 # Example usage
 if __name__ == "__main__":
-    path = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/biofizyka_CD/trmd/seria2_2"
+    path = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/biofizyka_CD/Tm1570/seria2_2"
     concentrations = os.path.join(path, "concentrations.txt")
 
     # hv_mode: 'per_point' (remove points where HV>cutoff) OR 'per_spectrum' (skip file if any HV>cutoff)

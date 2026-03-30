@@ -203,7 +203,7 @@ def process_cd_data(folder_path, wavelength, concentration_file, series_name="Se
 if __name__ == "__main__":
 
     # Define paths for both series (Update these with your actual local paths)
-    base_path = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/biofizyka_CD/trmd/"
+    base_path = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/biofizyka_CD/Tm1570/"
 
     path_series1 = os.path.join(base_path, "seria2_1")
     conc_series1 = os.path.join(path_series1, "concentrations.txt")
@@ -214,6 +214,8 @@ if __name__ == "__main__":
     conc_series2 = os.path.join(path_series2, "concentrations.txt")
 
     wavelength_to_check = 217
+
+    labels = {"s1" : '4th day', "s2" : '5th day'}
 
     print("Processing series1...")
     data1, popt1 = process_cd_data(path_series1, wavelength_to_check, conc_series1, series_name="series1",
@@ -226,32 +228,37 @@ if __name__ == "__main__":
                                    baseline_wavelength=250, hv_cutoff=990, hv_mode='per_point')
 
     # --- Plot Comparison ---
-    fig_comp, ax_comp = plt.subplots(figsize=(10, 7))
+    fig_comp, ax_comp = plt.subplots(layout="constrained", figsize=(10, 7))
 
     # Plot Series 1
     if data1 is not None and not data1.empty:
         x1 = data1['den_concentration'].values
         y1 = data1['Ellipticity'].values
-        ax_comp.scatter(x1, y1, label='series1 Data', color='blue', marker='o')
+        ax_comp.scatter(x1, y1, label=f'{labels["s1"]}', color='blue', marker='o')
         if popt1 is not None:
             x_fit1 = np.linspace(x1.min(), x1.max(), 200)
-            ax_comp.plot(x_fit1, G(x_fit1, *popt1), label='series1 Fit', color='blue', linestyle='-')
+            ax_comp.plot(x_fit1, G(x_fit1, *popt1), label=f'{labels["s1"]} fit', color='blue', linestyle='-')
 
     # Plot Series 2
     if data2 is not None and not data2.empty:
         x2 = data2['den_concentration'].values
         y2 = data2['Ellipticity'].values
-        ax_comp.scatter(x2, y2, label='series2 Data', color='red', marker='s')
+        ax_comp.scatter(x2, y2, label=f'{labels["s2"]}', color='red', marker='s')
         if popt2 is not None:
             x_fit2 = np.linspace(x2.min(), x2.max(), 200)
-            ax_comp.plot(x_fit2, G(x_fit2, *popt2), label='series2 Fit', color='red', linestyle='--')
+            ax_comp.plot(x_fit2, G(x_fit2, *popt2), label=f'{labels["s1"]} fit', color='red', linestyle='--')
 
-    ax_comp.set_title(f'Ellipticity Comparison at {wavelength_to_check} nm vs Denaturant Concentration')
-    ax_comp.set_xlabel('Denaturant Concentration (M)')
-    ax_comp.set_ylabel('Mean Ellipticity (mdeg)')
-    ax_comp.grid(True, linestyle=':', alpha=0.7)
-    ax_comp.legend()
+    # ax_comp.set_title(f'Ellipticity Comparison at {wavelength_to_check} nm vs Denaturant Concentration')
+    ax_comp.set_ylim(-26, -1)
+    ax_comp.tick_params(axis='x', labelsize=15)
+    ax_comp.tick_params(axis='y', labelsize=15)
+    ax_comp.set_xlabel('Denaturant concentration (M)', fontsize=16)
+    ax_comp.set_ylabel('Ellipticity (mdeg)', fontsize=16)
+    # ax_comp.grid(True, linestyle=':', alpha=0.7)
+    ax_comp.legend(fontsize=15)
+    plt.margins(0.02)
+    # plt.tight_layout()
+    # plt.tight_layout(pad=0.5)
 
-    plt.tight_layout()
-    plt.savefig(os.path.join(base_path, f"CD_{wavelength_to_check}nm_comparison_fit.png"))
+    plt.savefig(os.path.join(base_path, f"CD_{wavelength_to_check}nm_comp_fit_lim.png"))
     plt.show()

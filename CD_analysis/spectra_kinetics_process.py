@@ -318,8 +318,8 @@ if __name__ == "__main__":
             # ax1.plot(b['t'], b['y'], 'kx', alpha=0.5, markersize=3) # Optional: show fit points
             t_sm = np.linspace(min(b['t']), max(b['t']), 1000)
             ax1.plot(t_sm, multi_exp_model(t_sm, sf_amps, rates, off), 'r--', lw=1, alpha=0.8)
-    ax1.set_ylabel("SF Signal (V)");
-    ax1.set_title("Global Fit: SF")
+    ax1.set_ylabel("SF Signal (V)", fontsize=16);
+    # ax1.set_title("Global Fit: SF", fontsize=16)
 
     # Plot CD
     for b in data_blocks:
@@ -331,9 +331,9 @@ if __name__ == "__main__":
             t_sm = np.linspace(min(b['t']), max(b['t']), 1000)
             ax2.plot(t_sm / 3600, multi_exp_model(t_sm, cd_amps, rates, off_cd), 'k-', lw=1.5)
 
-    ax2.set_xlabel("Time (h)");
-    ax2.set_ylabel("Ellipticity");
-    ax2.set_title("Global Fit: CD")
+    ax2.set_xlabel("Time (h)", fontsize=16);
+    ax2.set_ylabel("Ellipticity",fontsize=16);
+    # ax2.set_title("Global Fit: CD")
     ax2.legend()
     plt.tight_layout()
     plt.show()

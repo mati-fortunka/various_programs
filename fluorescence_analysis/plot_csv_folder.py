@@ -6,7 +6,7 @@ from scipy.signal import savgol_filter
 import numpy as np
 
 def process_and_visualize_csv_with_smoothing(folder_path, output_folder, smoothing_method="moving_average",
-                                             range_interval=10,  # Interval in nanometers for smoothing
+                                             range_interval=15,  # Interval in nanometers for smoothing
                                              spline_smoothing_factor=0.5, poly_order=3):
     # Ensure the output folder exists
     os.makedirs(output_folder, exist_ok=True)
@@ -68,6 +68,6 @@ def process_and_visualize_csv_with_smoothing(folder_path, output_folder, smoothi
                 print(f"Error processing {file_name}: {e}")
 
 # Example usage
-folder_path = ("/home/matifortunka/Documents/JS/data_Cambridge/fusions/8b1n/fluo/1")  # Replace with the path to your folder containing CSV files
+folder_path = ("/home/matifortunka/Documents/JS/kinetics_stability/data_Cambridge/TrmD/TrmD/spectrum")  # Replace with the path to your folder containing CSV files
 output_folder = folder_path + "/output"  # Replace with the desired output folder
-process_and_visualize_csv_with_smoothing(folder_path, output_folder, smoothing_method="savitzky_golay", range_interval=15, poly_order=3)
+process_and_visualize_csv_with_smoothing(folder_path, output_folder, smoothing_method="savitzky_golay", range_interval=25, poly_order=3)

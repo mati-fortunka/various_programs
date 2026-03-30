@@ -182,17 +182,25 @@ def compare_and_plot(df1, df2, df3, title, ylabel, save_name, base_path, config)
             try:
                 guess = guess_initial_params(x, y, config['fit_model'])
 
+                # Create a high-resolution x-axis for a smooth fit line (e.g., 500 points)
+                x_fit = np.linspace(np.min(x), np.max(x), 500)
+
                 if config['fit_model'] == "two_state":
                     param_names = ["a_n", "a_u", "m", "d"]
+                    # Keep fitting on the actual x and y data
                     popt, pcov = curve_fit(G, x, y, p0=guess, maxfev=5000)
-                    y_fit = G(x, *popt)
+                    # Calculate the smooth line using the dense x_fit array
+                    y_fit = G(x_fit, *popt)
+
                 elif config['fit_model'] == "three_state":
                     param_names = ["a_n", "a_i", "a_u", "m1", "d1", "m2", "d2"]
+                    # Keep fitting on the actual x and y data
                     popt, pcov = curve_fit(G_three_state_weighted, x, y, p0=guess, maxfev=5000)
-                    y_fit = G_three_state_weighted(x, *popt)
+                    # Calculate the smooth line using the dense x_fit array
+                    y_fit = G_three_state_weighted(x_fit, *popt)
 
-                sort_idx = np.argsort(x)
-                plt.plot(x[sort_idx], y_fit[sort_idx], label=f'{name} Fit', color=color, linestyle=linestyle,
+                # Plot using the smooth arrays (no need to sort anymore, linspace is sorted)
+                plt.plot(x_fit, y_fit, label=f'{name} Fit', color=color, linestyle=linestyle,
                          linewidth=2)
 
                 perr = np.sqrt(np.diag(pcov))
@@ -209,11 +217,16 @@ def compare_and_plot(df1, df2, df3, title, ylabel, save_name, base_path, config)
     plot_series(df2, 'series2', 'red', 's', '--')
     plot_series(df3, 'series3', 'green', '^', ':')
 
-    plt.xlabel('Denaturant Concentration (M)')
-    plt.ylabel(ylabel)
-    plt.title(title)
-    plt.grid(True, linestyle='--', alpha=0.6)
-    plt.legend()
+    plt.tick_params(axis='x', labelsize=15)
+    plt.tick_params(axis='y', labelsize=15)
+    plt.margins(0.02)
+    plt.ylim(350.5, 356.2)
+
+    plt.xlabel('Denaturant Concentration (M)', fontsize=16)
+    plt.ylabel(ylabel, fontsize=16)
+    # plt.title(title, fontsize=16)
+    # plt.grid(True, linestyle='--', alpha=0.6)
+    # plt.legend()
     plt.tight_layout()
 
     save_path = os.path.join(base_path, f"{save_name}_comparison.png")
@@ -237,7 +250,7 @@ def main():
     config = {
         # Smoothing
         'smoothing': "savitzky_golay",
-        'window': 25,  # 10 nm interval
+        'window': 35,  # 10 nm interval
         'spline_s': 0.5,
         'poly': 3,
 
@@ -246,7 +259,7 @@ def main():
         'fit_model': "two_state",
 
         # New CSM Parameters
-        'csm_min': 320,  # CSM calculation lower bound (nm)
+        'csm_min': 325,  # CSM calculation lower bound (nm)
         'csm_max': 400,  # CSM calculation upper bound (nm)
 
         'wl1': 330,  # For Ratio
@@ -254,11 +267,11 @@ def main():
         'target_wl': 330,  # For Single Wavelength
 
         # Method options: "csm", "ratio", "single_wavelength", "all"
-        'method': "all"
+        'method': "csm"
     }
 
     # Define paths
-    base_path = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/fluorimetry/TrmD"
+    base_path = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/fluorimetry/Fuzja"
 
     path_series1 = os.path.join(base_path, "seria2_1")
     conc_series1 = os.path.join(path_series1, "concentrations.txt")
@@ -289,7 +302,7 @@ def main():
         compare_and_plot(data1['CSM'], data2['CSM'], data3['CSM'],
                          title='Center of Spectral Mass (CSM) Comparison',
                          ylabel='Average Emission Wavelength (nm)',
-                         save_name='CSM', base_path=base_path, config=config)
+                         save_name='CSM_lim', base_path=base_path, config=config)
 
     if config['method'] in ["all", "ratio"]:
         compare_and_plot(data1['Ratio'], data2['Ratio'], data3['Ratio'],

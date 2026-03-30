@@ -13,7 +13,7 @@ CONFIG = {
     'time_interval': 34,  # Czas w sekundach między skanami
 
     # Parametry analizy
-    'target_wl': 343,  # Długość fali do analizy pojedynczej intensywności (to będzie też fitowane)
+    'target_wl': 343,  # Długość fali do analizy pojedynczej intensywności
     'ratio_wl1': 343,  # Licznik do ratio
     'ratio_wl2': 320,  # Mianownik do ratio
 
@@ -22,12 +22,14 @@ CONFIG = {
     'window_size': 25,
     'poly_order': 3,
 
-    # --- NOWE: KOREKTA TŁA ---
-    # Podaj długość fali (nm), względem której zerujemy widmo.
-    # Wpisz 0 lub None, aby wyłączyć.
+    # --- KOREKTA TŁA ---
     'baseline_wl': 400,
 
-    # --- NOWE: DOPASOWANIE (FITTING) ---
+    # --- NOWE: METODA DO PLOTOWANIA NA DRUGIM WYKRESIE ---
+    # Dostępne opcje: 'single', 'ratio', 'csm'
+    'plot_method': 'single',
+
+    # --- DOPASOWANIE (FITTING) ---
     'fit_enable': True,
     # Dostępne modele: 'mono_exp', 'mono_exp_drift', 'double_exp'
     'fit_model': 'double_exp',
@@ -36,8 +38,7 @@ CONFIG = {
 }
 
 
-# --- MODELE MATEMATYCZNE (z Twoich poprzednich programów) ---
-
+# --- MODELE MATEMATYCZNE ---
 def mono_exp(t, A, k, c):
     return A * np.exp(-k * t) + c
 
@@ -51,7 +52,6 @@ def double_exp(t, A1, k1, A2, k2, c):
 
 
 # --- FUNKCJE POMOCNICZE ---
-
 def smooth_spectrum(y, window, poly):
     n = len(y)
     if n < window: return y
@@ -114,7 +114,6 @@ def perform_fitting(x_data, y_data, config):
     """Logika dopasowania krzywych."""
     model_name = config['fit_model']
 
-    # 1. Filtrowanie zakresu
     start_t, end_t = config['fit_range']
     if end_t is None: end_t = np.max(x_data)
 
@@ -126,20 +125,19 @@ def perform_fitting(x_data, y_data, config):
         print("Za mało punktów do fitowania w zadanym zakresie.")
         return None, None, None
 
-    # 2. Parametry startowe (Guess)
     A0 = np.max(y_fit) - np.min(y_fit)
     C0 = np.min(y_fit)
-    k0 = 1.0 / (np.mean(x_fit) + 1e-5)  # prymitywne przybliżenie
+    k0 = 1.0 / (np.mean(x_fit) + 1e-5)
 
     try:
         if model_name == 'mono_exp':
             p0 = [A0, k0, C0]
             popt, pcov = curve_fit(mono_exp, x_fit, y_fit, p0=p0, maxfev=5000)
-            perr = np.sqrt(np.diag(pcov))  # Calculate errors for parameters
+            perr = np.sqrt(np.diag(pcov))
             y_model = mono_exp(x_fit, *popt)
 
             t_half = np.log(2) / popt[1]
-            t_half_err = (np.log(2) / (popt[1] ** 2)) * perr[1]  # Error propagation
+            t_half_err = (np.log(2) / (popt[1] ** 2)) * perr[1]
 
             print(f"\n--- FIT RESULTS ({model_name}) ---")
             print(f"A = {popt[0]:.2f} ± {perr[0]:.2f}")
@@ -194,7 +192,6 @@ def perform_fitting(x_data, y_data, config):
 
 
 # --- GŁÓWNA ANALIZA ---
-
 def main():
     print(f"Analiza pliku: {CONFIG['filename']}")
 
@@ -205,7 +202,6 @@ def main():
     scan_columns = df.columns[1:]
     num_scans = len(scan_columns)
 
-    # Obliczamy całkowity czas dla skanów
     total_time = (num_scans - 1) * CONFIG['time_interval']
 
     kinetics_data = {'Time': [], 'Single_Int': [], 'Ratio': [], 'CSM': []}
@@ -219,8 +215,6 @@ def main():
     for i, col_name in enumerate(scan_columns):
         raw_intensities = df[col_name].values
 
-        # --- 1. POPRAWIONA KOREKTA TŁA ---
-        # Jeśli zdefiniowano baseline_wl, znajdź wartość w tym punkcie i odejmij
         if CONFIG['baseline_wl'] and CONFIG['baseline_wl'] > 0:
             bl_idx = (np.abs(wavelengths - CONFIG['baseline_wl'])).argmin()
             baseline_val = raw_intensities[bl_idx]
@@ -228,16 +222,13 @@ def main():
         else:
             intensities = raw_intensities
 
-        # Wygładzanie
         if CONFIG['smoothing']:
             intensities = smooth_spectrum(intensities, CONFIG['window_size'], CONFIG['poly_order'])
 
-        # Rysowanie
         step = 1 if num_scans < 50 else int(num_scans / 50)
         if i % step == 0:
             ax.plot(wavelengths, intensities, color=colors[i], alpha=0.8, linewidth=1)
 
-        # Kinetyka
         time_point = i * CONFIG['time_interval']
 
         kinetics_data['Time'].append(time_point)
@@ -249,55 +240,58 @@ def main():
 
         kinetics_data['CSM'].append(calculate_csm(wavelengths, intensities))
 
-    # Opisy wykresu widm
     ax.set_xlabel("Wavelength (nm)")
     ax.set_ylabel("Intensity (a.u.)")
     ax.set_title(f"Spectra Evolution (Baseline @ {CONFIG['baseline_wl']}nm)")
     ax.grid(True, linestyle='--', alpha=0.8)
 
-    # --- 2. POPRAWIONY COLORBAR (Czas rzeczywisty) ---
     sm = plt.cm.ScalarMappable(cmap='viridis', norm=plt.Normalize(vmin=0, vmax=total_time))
     sm.set_array([])
     cbar = plt.colorbar(sm, ax=ax, label='Time (s)')
 
-    # Zapis widm
     base_dir = os.path.dirname(CONFIG['filename'])
     plt.savefig(os.path.join(base_dir, "analiza_widma.png"), dpi=300)
     plt.show()
 
-    # --- RYSUNEK 2: KINETYKA ---
+    # --- RYSUNEK 2: KINETYKA (JEDNA METODA) ---
     times = np.array(kinetics_data['Time'])
-    int_data = np.array(kinetics_data['Single_Int'])
 
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(8, 10), sharex=True)
+    # Wybór odpowiedniej metody do analizy
+    plot_method = CONFIG.get('plot_method', 'single')
+    if plot_method == 'ratio':
+        y_data = np.array(kinetics_data['Ratio'])
+        y_label = f"Ratio {CONFIG['ratio_wl1']}/{CONFIG['ratio_wl2']}"
+        title = "Kinetic Analysis (Ratio)"
+    elif plot_method == 'csm':
+        y_data = np.array(kinetics_data['CSM'])
+        y_label = "CSM (nm)"
+        title = "Kinetic Analysis (CSM)"
+    else:  # default to 'single'
+        y_data = np.array(kinetics_data['Single_Int'])
+        y_label = f"Intensity at {CONFIG['target_wl']} nm (a.u.)"
+        title = "Kinetic Analysis (Single Wavelength)"
 
-    # Panel 1: Pojedyncza intensywność + FIT
-    ax1.plot(times, int_data, 'o', color='blue', markersize=3, alpha=0.7, label='Data')
+    fig, ax1 = plt.subplots(figsize=(8, 6))
 
-    # --- 3. LOGIKA FITOWANIA ---
+    ax1.plot(times, y_data, 'o', color='blue', markersize=4, alpha=0.7, label='Data')
+
+    # Logika fitowania dla wybranej metody
     if CONFIG['fit_enable']:
-        x_fit, y_fit, params = perform_fitting(times, int_data, CONFIG)
+        x_fit, y_fit, params = perform_fitting(times, y_data, CONFIG)
         if x_fit is not None:
             ax1.plot(x_fit, y_fit, 'r-', linewidth=2, label=f"Fit: {CONFIG['fit_model']}")
-            ax1.legend()
+            # ax1.legend()
 
-    ax1.set_ylabel(f"Intensity @ {CONFIG['target_wl']} nm")
-    ax1.set_title("Kinetic Analysis")
-    ax1.grid(True)
-
-    # Panel 2: Ratio
-    ax2.plot(times, kinetics_data['Ratio'], 's-', color='green', markersize=3, linewidth=1)
-    ax2.set_ylabel(f"Ratio {CONFIG['ratio_wl1']}/{CONFIG['ratio_wl2']}")
-    ax2.grid(True)
-
-    # Panel 3: CSM
-    ax3.plot(times, kinetics_data['CSM'], 'd-', color='red', markersize=3, linewidth=1)
-    ax3.set_ylabel("CSM (nm)")
-    ax3.set_xlabel("Time (s)")
-    ax3.grid(True)
+    ax1.set_ylabel(y_label, fontsize=16)
+    ax1.set_xlabel("Time (s)", fontsize=16)
+    ax1.tick_params(axis='x', labelsize=15)
+    ax1.tick_params(axis='y', labelsize=15)
+    ax1.margins(0.02)
+    # ax1.set_title(title)
+    # ax1.grid(True)
 
     plt.tight_layout()
-    plt.savefig(os.path.join(base_dir, "analiza_kinetyka.png"), dpi=300)
+    plt.savefig(os.path.join(base_dir, f"analiza_kinetyka_{plot_method}.png"), dpi=300)
     plt.show()
 
     # Zapis CSV

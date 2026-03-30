@@ -196,7 +196,9 @@ def plot_multiple_csvs_with_logging(folder_path,
                                     fit_end=None,
                                     output_plot="combined_plot.png",
                                     output_log="fitted_parameters.txt",
-                                    lag_start=1000):
+                                    lag_start=1000,
+                                    plot_residuals=True,
+                                    xlim=None):
     files = sorted(glob.glob(os.path.join(folder_path, "*.csv")))
     if not files:
         print("No CSV files found in the directory.")
@@ -204,32 +206,32 @@ def plot_multiple_csvs_with_logging(folder_path,
 
     color_cycle = plt.cm.hsv(np.linspace(0, 1, len(files)))
 
-    # Create figure with main plot and residuals
-    fig, (ax_main, ax_resid) = plt.subplots(2, 1, figsize=(10, 8), sharex=True,
-                                            gridspec_kw={'height_ratios': [3, 1]})
+    # --- CONDITIONAL PLOT CREATION ---
+    if plot_residuals:
+        fig, (ax_main, ax_resid) = plt.subplots(2, 1, figsize=(10, 8), sharex=True,
+                                                gridspec_kw={'height_ratios': [3, 1]})
+    else:
+        fig, ax_main = plt.subplots(figsize=(10, 6))
+        ax_resid = None
 
     param_log = []
     t_half_values = defaultdict(list)
 
     for i, filepath in enumerate(files):
-        # Use the NEW robust read_data function
         df = read_data(filepath)
 
         if df.empty:
             print(f"Skipping empty or malformed file: {filepath}")
             continue
 
-        # Extract Time and Intensity (cols 0 and 1)
         time = df.iloc[:, 0] + dead_time
         intensity = df.iloc[:, 1]
 
         # Smoothing
         if smooth_method == 'moving_average':
             smoothed = np.convolve(intensity, np.ones(window_size) / window_size, mode='valid')
-            # Adjust time array length to match valid convolution output
             time_plot = time[:len(smoothed)]
         elif smooth_method == 'savitzky_golay':
-            # Ensure window_size is odd and <= size of array
             w_size = window_size
             if w_size % 2 == 0: w_size += 1
             if len(intensity) < w_size: w_size = len(intensity) if len(intensity) % 2 != 0 else len(intensity) - 1
@@ -252,7 +254,6 @@ def plot_multiple_csvs_with_logging(folder_path,
             fit_time = time
             fit_intensity = intensity
 
-            # Apply time range mask if specified
             if fit_start is not None and fit_end is not None:
                 mask = (time >= fit_start) & (time <= fit_end)
                 fit_time = time[mask]
@@ -267,7 +268,8 @@ def plot_multiple_csvs_with_logging(folder_path,
                     eA, ek, ec = errors
                     fit_vals = exponential(fit_time, *params)
                     ax_main.plot(fit_time, fit_vals, linestyle='dotted', color=color_cycle[i])
-                    ax_resid.plot(fit_time, fit_intensity - fit_vals, color=color_cycle[i])
+                    if plot_residuals:
+                        ax_resid.plot(fit_time, fit_intensity - fit_vals, color=color_cycle[i])
 
                     t_half = np.log(2) / k if k > 0 else np.nan
                     t_half_values["exp"].append(t_half)
@@ -280,7 +282,8 @@ def plot_multiple_csvs_with_logging(folder_path,
                     eA, ek, ec, em = errors
                     fit_vals = single_exponential_with_drift(fit_time, *params)
                     ax_main.plot(fit_time, fit_vals, linestyle='dotted', color=color_cycle[i])
-                    ax_resid.plot(fit_time, fit_intensity - fit_vals, color=color_cycle[i])
+                    if plot_residuals:
+                        ax_resid.plot(fit_time, fit_intensity - fit_vals, color=color_cycle[i])
 
                     t_half = np.log(2) / k if k > 0 else np.nan
                     t_half_values["exp_drift"].append(t_half)
@@ -293,7 +296,8 @@ def plot_multiple_csvs_with_logging(folder_path,
                     eA1, ek1, eA2, ek2, ec = errors
                     fit_vals = double_exponential(fit_time, *params)
                     ax_main.plot(fit_time, fit_vals, linestyle='dotted', color=color_cycle[i])
-                    ax_resid.plot(fit_time, fit_intensity - fit_vals, color=color_cycle[i])
+                    if plot_residuals:
+                        ax_resid.plot(fit_time, fit_intensity - fit_vals, color=color_cycle[i])
 
                     t_half1 = np.log(2) / k1 if k1 > 0 else np.nan
                     t_half2 = np.log(2) / k2 if k2 > 0 else np.nan
@@ -308,7 +312,8 @@ def plot_multiple_csvs_with_logging(folder_path,
                     A1, k1, A2, k2, c, L, ksig, x0, lag = params
                     fit_vals = double_exp_plus_sigmoid(fit_time, *params)
                     ax_main.plot(fit_time, fit_vals, linestyle='dotted', color=color_cycle[i])
-                    ax_resid.plot(fit_time, fit_intensity - fit_vals, color=color_cycle[i])
+                    if plot_residuals:
+                        ax_resid.plot(fit_time, fit_intensity - fit_vals, color=color_cycle[i])
 
                     t_half1 = np.log(2) / k1 if k1 > 0 else np.nan
                     t_half2 = np.log(2) / k2 if k2 > 0 else np.nan
@@ -321,12 +326,12 @@ def plot_multiple_csvs_with_logging(folder_path,
                 slope, intercept = fit_linear(fit_time, fit_intensity)
                 fit_vals = slope * fit_time + intercept
                 ax_main.plot(fit_time, fit_vals, linestyle='dashed', color=color_cycle[i])
-                ax_resid.plot(fit_time, fit_intensity - fit_vals, color=color_cycle[i])
+                if plot_residuals:
+                    ax_resid.plot(fit_time, fit_intensity - fit_vals, color=color_cycle[i])
                 line_log += f"Linear Fit: slope={slope:.4f}, intercept={intercept:.4f}"
 
             param_log.append(line_log)
 
-    # Logging results
     with open(os.path.join(folder_path, output_log), "w") as f:
         f.write("\n".join(param_log))
         f.write("\n\nSummary Statistics:\n")
@@ -336,17 +341,25 @@ def plot_multiple_csvs_with_logging(folder_path,
                 avg, std = np.nanmean(arr), np.nanstd(arr)
                 f.write(f"{key} t_half: mean={avg:.2f}, std={std:.2f}\n")
 
-    # Plot settings
-    ax_main.set_ylabel("Fluorescence Intensity (a.u.)")
-    ax_main.set_title("Smoothed Fluorescence Curves with Fits")
-    ax_main.legend(loc='best', fontsize='small')
-    ax_main.grid(True)
+    ax_main.set_ylabel("Fluorescence Intensity (a.u.)", fontsize=16)
+    # ax_main.set_title("Smoothed Fluorescence Curves with Fits")
+    # ax_main.legend(loc='best', fontsize='small')
+    # ax_main.grid(True)
+    if xlim is not None:
+        ax_main.set_xlim(xlim)
 
-    ax_resid.axhline(0, color='black', linewidth=0.8)
-    ax_resid.set_xlabel("Time (s)")
-    ax_resid.set_ylabel("Residuals")
-    ax_resid.grid(True)
+    # --- CONDITIONAL RESIDUAL PLOT FORMATTING ---
+    if plot_residuals:
+        ax_resid.axhline(0, color='black', linewidth=0.8)
+        ax_resid.set_xlabel("Time (s)", fontsize=16)
+        ax_resid.set_ylabel("Residuals", fontsize=16)
+        ax_resid.grid(True)
+    else:
+        ax_main.set_xlabel("Time (s)", fontsize=16)
 
+    ax_main.tick_params(axis='x', labelsize=15)
+    ax_main.tick_params(axis='y', labelsize=15)
+    plt.margins(0.02)
     plt.tight_layout()
     plt.savefig(os.path.join(folder_path, output_plot))
     plt.show()
@@ -356,8 +369,7 @@ def plot_multiple_csvs_with_logging(folder_path,
 
 
 if __name__ == "__main__":
-    # Update this path to your actual folder location
-    folder = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/kinetyka/fluo/comparison/Cam_vs_Wwa"
+    folder = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/kinetyka/fluo/Tm1570"
 
     plot_multiple_csvs_with_logging(
         folder_path=folder,
@@ -366,9 +378,10 @@ if __name__ == "__main__":
         polyorder=3,
         dead_time=30,
         fit_type='double_exponential',
-        # Options: 'exponential', 'exponential_with_drift', 'double_exponential', 'double_exp_plus_sigmoid', 'linear'
         fit_start=0,
-        fit_end=1600,
+        fit_end=2000,
         output_plot="combined_kinetics_double.png",
-        output_log=f"{folder}/fitted_parameters_double.txt"
+        output_log=f"{folder}/fitted_parameters_double.txt",
+        plot_residuals=False,
+        xlim=(0, 2000)
     )
