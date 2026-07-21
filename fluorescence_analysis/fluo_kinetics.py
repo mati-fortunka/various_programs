@@ -58,34 +58,103 @@ def double_exp_sigmoid_model(t, A1_exp, k1_exp, A2_exp, k2_exp, c_exp, y0_sig, a
 
 # Data processing functions
 # -----------------------------------------------------------
+def is_numeric_value(text: str) -> bool:
+    """Safely checks if a string represents a numerical data entry."""
+    try:
+        float(text.strip())
+        return True
+    except ValueError:
+        return False
 
-def read_data(filename):
+
+def detect_time_units(line: str) -> tuple[bool, str, float]:
     """
-    Reads data from a CSV file, handling headers and potential data wraps.
+    Detects time units in a header line.
+    Returns: (found_units, unit_name, conversion_factor_to_seconds)
     """
+    # Regex patterns to match common time unit representations
+    seconds_pattern = r'time\s*[\(\[\/]?\s*(s|sec|seconds)\s*[\)\]]?'
+    minutes_pattern = r'time\s*[\(\[\/]?\s*(m|min|minutes)\s*[\)\]]?'
+    hours_pattern = r'time\s*[\(\[\/]?\s*(h|hr|hours)\s*[\)\]]?'
+
+    line_lower = line.lower()
+
+    if re.search(seconds_pattern, line_lower):
+        print("\u2705 Time units detected: seconds (s).")
+        return True, "seconds", 1.0
+    elif re.search(minutes_pattern, line_lower):
+        print("\u2705 Time units detected: minutes (min). Converting to seconds (*60).")
+        return True, "minutes", 60.0
+    elif re.search(hours_pattern, line_lower):
+        print("\u2705 Time units detected: hours (h). Converting to seconds (*3600).")
+        return True, "hours", 3600.0
+
+    return False, "unknown", 1.0
+
+
+def read_data(filename: str, max_header_lines: int = 2) -> pd.DataFrame:
+    """
+    Reads data from a CSV file, handling dynamic headers, time unit detection/conversion, and data wrapping.
+    """
+    skiprows = 0
+    units_found = False
+    time_scale_factor = 1.0
+    unit_name = "unknown"
+
     with open(filename, 'r') as file:
-        first_line = file.readline().strip()
-        if not re.match(r'^[\d\.\-]', first_line.split(',')[0]):
-            print(f"Header detected: '{first_line}'")
-            if "Time (s)" in first_line:
-                print("\u2705 Time units confirmed as seconds (s).")
-            else:
-                print("\u26a0\ufe0f Warning: Time units not clearly specified as seconds (s).")
-            skiprows = 1
+        for _ in range(max_header_lines):
+            pos = file.tell()
+            line = file.readline()
+            if not line:
+                break
+
+            line_str = line.strip()
+
+            # Skip empty lines at top of file
+            if not line_str:
+                skiprows += 1
+                continue
+
+            first_col = line_str.split(',')[0]
+
+            # Stop scanning if we hit actual numeric data
+            if is_numeric_value(first_col):
+                file.seek(pos)  # Rewind to start of data block
+                break
+
+            skiprows += 1
+            print(f"Header line detected: '{line_str}'")
+
+            # Check for time units
+            found, unit, factor = detect_time_units(line_str)
+            if found and not units_found:
+                units_found = True
+                unit_name = unit
+                time_scale_factor = factor
+
+    if not units_found:
+        if skiprows == 0:
+            print("\u26a0\ufe0f No header detected. Assuming time is already in seconds (s).")
         else:
-            print("\u26a0\ufe0f No header detected or malformed header. Assuming data starts immediately.")
-            skiprows = 0
+            print("\u26a0\ufe0f Warning: Header detected, but time units could not be verified. Assuming seconds (s).")
 
-    skiprows = 2
-
+    # Load data
     df_full = pd.read_csv(filename, skiprows=skiprows, sep=",")
     df_full = df_full.dropna(how='all', axis=1)
 
+    # Convert time column to seconds if necessary
+    if time_scale_factor != 1.0:
+        df_full.iloc[:, 0] = df_full.iloc[:, 0] * time_scale_factor
+
+    # Secondary block / wrap detection
     time_col = df_full.iloc[:, 0]
     initial_time = time_col.iloc[0]
 
-    wrap_index = time_col[1:].sub(initial_time).abs().lt(1e-6).idxmax()
-    if wrap_index > 1:
+    # Find where time wraps back to initial_time
+    matches = time_col.iloc[1:].sub(initial_time).abs().lt(1e-6)
+
+    if matches.any():
+        wrap_index = matches.idxmax()
         print(f"Detected secondary block starting at row {wrap_index}. Truncating data.")
         df = df_full.iloc[:wrap_index]
     else:
@@ -286,7 +355,7 @@ def plot_data(df, smooth_method=None, window_size=5, polyorder=2,
 # --- Main execution part ---
 
 if __name__ == "__main__":
-    filename = "/home/matifortunka/Documents/JS/data_Cambridge/fusions/F8E4N/kinetics/fluo/F8_september/F8_12h_4.csv"
+    filename = "/home/matifortunka/Documents/JS/kinetics_stability/data_Cambridge/fusions/8b1n/kinetics/fluo/kinetics/48h/fusion_fluo_kin_48h.csv"
     df = read_data(filename)
 
     smooth_method = 'savitzky_golay'
@@ -296,7 +365,6 @@ if __name__ == "__main__":
     out = filename[:-4] + "_fit.png"
 
     # Example 1: Fitting a single sigmoid model
-    # print("--- Fitting Sigmoid Model ---")
     plot_data(df,
               smooth_method=smooth_method,
               window_size=window_size,
@@ -305,43 +373,4 @@ if __name__ == "__main__":
               dead_time=dead_time,
               fit_type="two_models",
               fit_start=0,
-              fit_end=5000)
-
-    # Example 2: Fitting two models (exponential and double exponential) at once
-    # Uncomment the following block to run this example
-    # print("\n--- Fitting Two Models ---")
-    # plot_data(df,
-    #           smooth_method=smooth_method,
-    #           window_size=window_size,
-    #           polyorder=polyorder,
-    #           output_plot=out,
-    #           dead_time=dead_time,
-    #           fit_type='two_models',
-    #           fit_start=None,
-    #           fit_end=None)
-
-    # Example 3: Fitting a combined exponential + sigmoidal model
-    # Uncomment the following block to run this example
-    # print("\n--- Fitting Exponential + Sigmoid Model ---")
-    # plot_data(df,
-    #           smooth_method=smooth_method,
-    #           window_size=window_size,
-    #           polyorder=polyorder,
-    #           output_plot=out,
-    #           dead_time=dead_time,
-    #           fit_type='exp_sigmoid',
-    #           fit_start=None,
-    #           fit_end=None)
-
-    # Example 4: Fitting a combined double exponential + sigmoidal model
-    # Uncomment the following block to run this example
-    # print("\n--- Fitting Double Exponential + Sigmoid Model ---")
-    # plot_data(df,
-    #           smooth_method=smooth_method,
-    #           window_size=window_size,
-    #           polyorder=polyorder,
-    #           output_plot=out,
-    #           dead_time=dead_time,
-    #           fit_type='double_exp_sigmoid',
-    #           fit_start=None,
-    #           fit_end=None)
+              fit_end=20000)

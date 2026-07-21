@@ -279,7 +279,7 @@ def plot_data(df, smooth_method=None, window_size=5, polyorder=2,
 
 if __name__ == "__main__":
     # Update this path to your actual file
-    filename = "/home/matifortunka/Documents/JS/data_Cambridge/fusions/F8E4N/kinetics/fluo/F8_september/F8_12h_6.csv"
+    filename = "/home/matifortunka/Documents/JS/kinetics_stability/data_Cambridge/fusions/8b1n/kinetics/fluo/kinetics/48h/fusion_fluo_kin_48h.csv"
 
     # Check if file exists, else create dummy for demo
     try:
