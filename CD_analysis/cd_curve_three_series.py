@@ -26,16 +26,8 @@ def G_three_state_weighted(x, a_n, a_i, a_u, m1, d1, m2, d2):
     return a_n * (1 - sigmoid1) + a_i * (sigmoid1 - sigmoid2) + a_u * sigmoid2
 
 
-# Helper: find the data block for a given property (e.g. "CircularDichroism" or "HV")
+# Helper: find the data block for a given property
 def find_block(lines, property_name):
-    """
-    Returns (start_index, end_index) of the data lines for the block whose header equals property_name.
-    Expectation in file:
-      Wavelength,
-      <PropertyName>
-      <data lines...>
-      (possibly) blank line or next "Wavelength," starting next block
-    """
     for i in range(len(lines) - 1):
         if lines[i].strip().startswith("Wavelength") and lines[i + 1].strip().startswith(property_name):
             start = i + 2
@@ -48,16 +40,10 @@ def find_block(lines, property_name):
     return None, None
 
 
-# Main function
-def extract_cd_and_plot(folder_path, wavelength, concentration_file, smoothing_method=None,
-                        window_size=15, spline_smoothing_factor=0.5, poly_order=3,
-                        baseline_wavelength=None, hv_cutoff=700, hv_mode='per_point'):
-    """
-    hv_mode:
-      - 'per_point'   : remove wavelengths where HV > hv_cutoff (default)
-      - 'per_spectrum': discard entire file if any HV > hv_cutoff
-      - None or False : do no HV filtering
-    """
+# Main processing function
+def process_cd_data(folder_path, wavelength, concentration_file, series_name="Series",
+                    smoothing_method=None, window_size=15, spline_smoothing_factor=0.5,
+                    poly_order=3, baseline_wavelength=None, hv_cutoff=700, hv_mode='per_point'):
     # Load concentration file accepting both ',' and '.' as decimal separators
     with open(concentration_file, 'r') as f:
         conc_text = f.read().replace(',', '.')
@@ -76,12 +62,10 @@ def extract_cd_and_plot(folder_path, wavelength, concentration_file, smoothing_m
             with open(file_path, 'r') as f:
                 lines = f.readlines()
 
-            # Extract CD block
             cd_start, cd_end = find_block(lines, "CircularDichroism")
             if cd_start is None:
                 raise ValueError(f"CircularDichroism block not found in {file_name}")
             cd_lines = [ln.strip() for ln in lines[cd_start:cd_end] if ln.strip()]
-
             cd_pairs = [list(map(float, ln.replace(',', ' ').split())) for ln in cd_lines]
             cd_data = np.array(cd_pairs)
             if cd_data.shape[1] < 2:
@@ -90,11 +74,9 @@ def extract_cd_and_plot(folder_path, wavelength, concentration_file, smoothing_m
             wavelengths_cd = cd_data[:, 0]
             ellipticity = cd_data[:, 1]
 
-            # Extract HV block (if present)
             hv_start, hv_end = find_block(lines, "HV")
             if hv_start is None:
                 hv_values = np.full_like(wavelengths_cd, fill_value=np.nan, dtype=float)
-                print(f"Warning: HV block not found in {file_name}; skipping HV filtering for this file.")
             else:
                 hv_lines = [ln.strip() for ln in lines[hv_start:hv_end] if ln.strip()]
                 hv_pairs = [list(map(float, ln.replace(',', ' ').split())) for ln in hv_lines]
@@ -112,7 +94,6 @@ def extract_cd_and_plot(folder_path, wavelength, concentration_file, smoothing_m
                     ellipticity = ellipticity[idx_cd]
                     hv_values = hv_values[idx_hv]
 
-            # Apply HV filtering modes
             if hv_cutoff is not None and hv_mode:
                 if hv_mode == 'per_point':
                     mask = np.where(np.isnan(hv_values), True, hv_values <= hv_cutoff)
@@ -121,7 +102,7 @@ def extract_cd_and_plot(folder_path, wavelength, concentration_file, smoothing_m
                     hv_values = hv_values[mask]
                 elif hv_mode == 'per_spectrum':
                     if np.any(~np.isnan(hv_values) & (hv_values > hv_cutoff)):
-                        print(f"Skipping {file_name} because HV exceeded cutoff ({hv_cutoff}) in per_spectrum mode.")
+                        print(f"Skipping {file_name} because HV exceeded cutoff.")
                         continue
                     else:
                         wavelengths = wavelengths_cd
@@ -131,73 +112,48 @@ def extract_cd_and_plot(folder_path, wavelength, concentration_file, smoothing_m
                 wavelengths = wavelengths_cd
 
             if wavelengths.size == 0 or ellipticity.size == 0:
-                print(f"Skipping {file_name}: no data after HV filtering.")
                 continue
 
-            # Smoothing
             smoothed = ellipticity.copy()
             if smoothing_method == "moving_average":
                 if len(ellipticity) >= window_size:
                     smoothed = pd.Series(ellipticity).rolling(window=window_size, center=True).mean().to_numpy()
                     nan_idx = np.isnan(smoothed)
                     smoothed[nan_idx] = ellipticity[nan_idx]
-                else:
-                    print(f"Not enough points for moving_average for {file_name}; skipping smoothing.")
-
             elif smoothing_method == "spline":
                 if len(wavelengths) >= 4:
                     spline = UnivariateSpline(wavelengths, ellipticity, s=spline_smoothing_factor)
                     smoothed = spline(wavelengths)
-                else:
-                    print(f"Not enough points for spline smoothing for {file_name}; skipping smoothing.")
-
             elif smoothing_method == "savitzky_golay":
-                if window_size % 2 == 0:
-                    raise ValueError("Window size for Savitzky-Golay filter must be odd.")
                 if len(ellipticity) >= window_size:
                     smoothed = savgol_filter(ellipticity, window_length=window_size, polyorder=poly_order)
-                else:
-                    print(f"Not enough points for savitzky_golay for {file_name}; skipping smoothing.")
-            else:
-                smoothed = ellipticity
 
             if wavelengths[0] > wavelengths[-1]:
                 wavelengths = wavelengths[::-1]
                 smoothed = smoothed[::-1]
 
-            # Baseline correction
             if baseline_wavelength is not None:
-                if baseline_wavelength < wavelengths.min() or baseline_wavelength > wavelengths.max():
-                    print(f"Warning: baseline_wavelength {baseline_wavelength} out of range for {file_name}")
                 baseline_value = np.interp(baseline_wavelength, wavelengths, smoothed)
             else:
                 baseline_value = 0.0
 
-            corrected_spectrum = smoothed - baseline_value
-            target_ellipticity = np.interp(wavelength, wavelengths, corrected_spectrum)
+            target_ellipticity = np.interp(wavelength, wavelengths, smoothed)
+            corrected_ellipticity = target_ellipticity - baseline_value
 
             file_pattern = re.compile(r"(\d{5})\.csv$")
             match = file_pattern.search(file_name)
-            if not match:
-                print(f"Warning: file name {file_name} doesn't match expected pattern; skipping concentration mapping.")
-                sample_number = None
-            else:
+            if match:
                 sample_number = int(match.group(1))
-
-            den_conc = concentration_mapping.get(sample_number, None) if sample_number is not None else None
-            if den_conc is not None:
-                ellipticity_vs_concentration.append((den_conc, target_ellipticity))
-                all_spectra.append((wavelengths, corrected_spectrum, den_conc))
-            else:
-                print(
-                    f"Note: sample {sample_number} from {file_name} not found in concentration file; skipping concentration entry.")
+                den_conc = concentration_mapping.get(sample_number, None)
+                if den_conc is not None:
+                    ellipticity_vs_concentration.append((den_conc, corrected_ellipticity))
+                    all_spectra.append((wavelengths, smoothed, den_conc))
 
         except Exception as e:
             print(f"Error processing {file_name}: {e}")
 
     if not ellipticity_vs_concentration:
-        raise RuntimeError(
-            "No data collected (ellipticity_vs_concentration is empty). Check files and concentration mapping.")
+        raise RuntimeError(f"No data collected for {series_name}.")
 
     plot_data = pd.DataFrame(ellipticity_vs_concentration, columns=['den_concentration', 'Ellipticity'])
     plot_data.sort_values(by='den_concentration', inplace=True)
@@ -211,53 +167,30 @@ def extract_cd_and_plot(folder_path, wavelength, concentration_file, smoothing_m
         popt, pcov = curve_fit(G, x_data, y_data, p0=initial_guess)
         perr = np.sqrt(np.diag(pcov))
 
-        # Prepare parameter lines
         fit_results_text = (
-            f"Fitted parameters and their errors (Wavelength: {wavelength} nm):\n"
+            f"--- Fitted parameters for {series_name} ---\n"
             f"a_n = {popt[0]:.2f} ± {perr[0]:.2f}\n"
             f"a_u = {popt[1]:.2f} ± {perr[1]:.2f}\n"
             f"m   = {popt[2]:.2f} ± {perr[2]:.2f}\n"
             f"d   = {popt[3]:.2f} ± {perr[3]:.2f}\n"
+            f"-----------------------------------"
         )
-
-        # Print parameters to terminal
         print("\n" + fit_results_text)
 
-        # Save parameters to fit.txt in folder_path
+        # Save fit parameters to fit.txt inside the respective folder
         fit_file_path = os.path.join(folder_path, "fit.txt")
         with open(fit_file_path, "w") as fit_file:
             fit_file.write(fit_results_text)
-        print(f"Saved fitting parameters to: {fit_file_path}")
 
     except Exception as e:
-        print(f"Curve fitting failed: {e}")
+        print(f"Curve fitting failed for {series_name}: {e}")
         popt = None
 
-    # Plotting fit
-    fig1, ax1 = plt.subplots(figsize=(8, 6))
-    ax1.scatter(x_data, y_data, label='Data', color='blue', marker='o')
-    if popt is not None:
-        fit_label = f'Fit (m={popt[2]:.2f}, d={popt[3]:.2f})'
-        ax1.plot(np.linspace(x_data.min(), x_data.max(), 200), G(np.linspace(x_data.min(), x_data.max(), 200), *popt),
-                 label=fit_label, color='red', linestyle='--')
-
-    ax1.set_title(f'Ellipticity at {wavelength} nm vs Denaturant Concentration', fontsize=16)
-    ax1.set_xlabel('Denaturant concentration (M)', fontsize=16)
-    ax1.set_ylabel('Ellipticity (mdeg)', fontsize=16)
-    ax1.tick_params(axis='x', labelsize=15)
-    ax1.tick_params(axis='y', labelsize=15)
-    ax1.legend(fontsize=15)
-    ax1.margins(0.02)
-    output_file = os.path.join(folder_path, f"CD_{wavelength}nm_{smoothing_method}_fit.png")
-    fig1.savefig(output_file)
-    plt.show()
-
-    # Heatbar-style combined spectra plot
+    # Heatbar-style combined spectra plot (per folder)
     if all_spectra:
         fig2, ax2 = plt.subplots(figsize=(10, 7))
         denaturant_values = [c for _, _, c in all_spectra]
-        vmin = min(denaturant_values)
-        vmax = max(denaturant_values)
+        vmin, vmax = min(denaturant_values), max(denaturant_values)
         norm = Normalize(vmin=vmin, vmax=vmax)
         cmap = cm.viridis
 
@@ -267,31 +200,98 @@ def extract_cd_and_plot(folder_path, wavelength, concentration_file, smoothing_m
         smap = cm.ScalarMappable(norm=norm, cmap=cmap)
         smap.set_array([])
         cbar = fig2.colorbar(smap, ax=ax2)
-        cbar.set_label("Denaturant concentration (M)", fontsize=16)
-        cbar.ax.tick_params(labelsize=15)
+        cbar.set_label("Denaturant concentration (M)")
 
-        ax2.set_xlabel("Wavelength (nm)", fontsize=16)
-        ax2.set_ylabel("Ellipticity (mdeg)", fontsize=16)
-        # ax2.set_ylim(-16, 0.25)
-        ax2.tick_params(axis='x', labelsize=15)
-        ax2.tick_params(axis='y', labelsize=15)
-        ax2.margins(0.02)
-
+        ax2.set_title(f"Smoothed CD Spectra - {series_name}")
+        ax2.set_xlabel("Wavelength (nm)")
+        ax2.set_ylabel("Ellipticity (mdeg)")
+        ax2.grid(True)
         fig2.tight_layout()
-        combined_plot_file = os.path.join(folder_path, "combined_cd_spectra_heatbar.png")
+        combined_plot_file = os.path.join(folder_path, f"{series_name}_spectra_heatbar.png")
         fig2.savefig(combined_plot_file)
-        plt.show()
-    else:
-        print("No spectra to plot in combined plot (all_spectra is empty).")
+        plt.close(fig2)
 
     return plot_data, popt
 
 
 # Example usage
 if __name__ == "__main__":
-    path = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/biofizyka_CD/trmd/3/3uM/28_07_26"
-    concentrations = os.path.join(path, "concentrations.txt")
 
-    extract_cd_and_plot(path, 217, concentrations, smoothing_method="savitzky_golay",
-                        window_size=15, spline_smoothing_factor=0.5, poly_order=3,
-                        baseline_wavelength=250, hv_cutoff=990, hv_mode='per_point')
+    # Base path
+    base_path = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/biofizyka_CD/trmd/3/3uM/"
+
+    # --- Series 1 Paths & Config ---
+    path_series1 = os.path.join(base_path, "28_07_26")
+    conc_series1 = os.path.join(path_series1, "concentrations.txt")
+
+    # --- Series 2 Paths & Config ---
+    path_series2 = os.path.join(base_path, "29_07_26")
+    conc_series2 = os.path.join(path_series2, "concentrations.txt")
+
+    # --- Series 3 Paths & Config ---
+    path_series3 = os.path.join(base_path, "31_07_26")  # Update folder name as needed
+    conc_series3 = os.path.join(path_series3, "concentrations.txt")
+
+    wavelength_to_check = 217
+
+    labels = {
+        "s1": '12h',
+        "s2": '36h',
+        "s3": '84'  # Updated label for series 3
+    }
+
+    print("Processing series1...")
+    data1, popt1 = process_cd_data(path_series1, wavelength_to_check, conc_series1, series_name="series1",
+                                   smoothing_method="savitzky_golay", window_size=15, poly_order=3,
+                                   baseline_wavelength=250, hv_cutoff=990, hv_mode='per_point')
+
+    print("Processing series2...")
+    data2, popt2 = process_cd_data(path_series2, wavelength_to_check, conc_series2, series_name="series2",
+                                   smoothing_method="savitzky_golay", window_size=15, poly_order=3,
+                                   baseline_wavelength=250, hv_cutoff=990, hv_mode='per_point')
+
+    print("Processing series3...")
+    data3, popt3 = process_cd_data(path_series3, wavelength_to_check, conc_series3, series_name="series3",
+                                   smoothing_method="savitzky_golay", window_size=15, poly_order=3,
+                                   baseline_wavelength=250, hv_cutoff=990, hv_mode='per_point')
+
+    # --- Plot Comparison for 3 Series ---
+    fig_comp, ax_comp = plt.subplots(layout="constrained", figsize=(10, 7))
+
+    # Plot Series 1
+    if data1 is not None and not data1.empty:
+        x1 = data1['den_concentration'].values
+        y1 = data1['Ellipticity'].values
+        ax_comp.scatter(x1, y1, label=f'{labels["s1"]}', color='blue', marker='o')
+        if popt1 is not None:
+            x_fit1 = np.linspace(x1.min(), x1.max(), 200)
+            ax_comp.plot(x_fit1, G(x_fit1, *popt1), label=f'{labels["s1"]} fit', color='blue', linestyle='-')
+
+    # Plot Series 2
+    if data2 is not None and not data2.empty:
+        x2 = data2['den_concentration'].values
+        y2 = data2['Ellipticity'].values
+        ax_comp.scatter(x2, y2, label=f'{labels["s2"]}', color='red', marker='s')
+        if popt2 is not None:
+            x_fit2 = np.linspace(x2.min(), x2.max(), 200)
+            ax_comp.plot(x_fit2, G(x_fit2, *popt2), label=f'{labels["s2"]} fit', color='red', linestyle='--')
+
+    # Plot Series 3
+    if data3 is not None and not data3.empty:
+        x3 = data3['den_concentration'].values
+        y3 = data3['Ellipticity'].values
+        ax_comp.scatter(x3, y3, label=f'{labels["s3"]}', color='green', marker='^')
+        if popt3 is not None:
+            x_fit3 = np.linspace(x3.min(), x3.max(), 200)
+            ax_comp.plot(x_fit3, G(x_fit3, *popt3), label=f'{labels["s3"]} fit', color='green', linestyle=':')
+
+    # ax_comp.set_ylim(-26, -1)
+    ax_comp.tick_params(axis='x', labelsize=15)
+    ax_comp.tick_params(axis='y', labelsize=15)
+    ax_comp.set_xlabel('Denaturant concentration (M)', fontsize=16)
+    ax_comp.set_ylabel('Ellipticity (mdeg)', fontsize=16)
+    ax_comp.legend(fontsize=15)
+    plt.margins(0.02)
+
+    plt.savefig(os.path.join(base_path, f"CD_{wavelength_to_check}nm_comp3_fit_lim.png"))
+    plt.show()

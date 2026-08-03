@@ -98,9 +98,9 @@ def main():
     file3 = input("Podaj nazwę 3. pliku z białkiem (np. bialko3.txt): ")
 
     # Pobieranie źródeł
-    src_prot1 = input("Podaj źródło dla 1. białka (np. 1_1_A1): ")
-    src_prot2 = input("Podaj źródło dla 2. białka (np. 1_1_A2): ")
-    src_prot3 = input("Podaj źródło dla 3. białka (np. 1_1_A3): ")
+    src_prot1 = input("Podaj źródło dla 1. białka (np. 1_1_A1): ") or "1_1_A1"
+    src_prot2 = input("Podaj źródło dla 2. białka (np. 1_1_A2): ") or "1_1_A2"
+    src_prot3 = input("Podaj źródło dla 3. białka (np. 1_1_A3): ") or "1_1_A3"
 
     src_buf = input("Podaj źródło dla buforu [domyślnie: 1_3_A1]: ") or "1_3_A1"
     src_gucl = input("Podaj źródło dla GuCl [domyślnie: 1_3_B1]: ") or "1_3_B1"

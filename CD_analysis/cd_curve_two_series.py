@@ -1,5 +1,6 @@
 import os
 import re
+from io import StringIO
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -43,7 +44,12 @@ def find_block(lines, property_name):
 def process_cd_data(folder_path, wavelength, concentration_file, series_name="Series",
                     smoothing_method=None, window_size=15, spline_smoothing_factor=0.5,
                     poly_order=3, baseline_wavelength=None, hv_cutoff=700, hv_mode='per_point'):
-    concentration_data = pd.read_csv(concentration_file, sep="\t")
+    # Read concentration file and replace European decimal commas with dots
+    with open(concentration_file, 'r') as f:
+        conc_text = f.read().replace(',', '.')
+
+    concentration_data = pd.read_csv(StringIO(conc_text), sep=r"\s+", engine='python')
+    concentration_data['den_concentration'] = pd.to_numeric(concentration_data['den_concentration'], errors='coerce')
     concentration_mapping = concentration_data.set_index('Sample_number')['den_concentration']
 
     ellipticity_vs_concentration = []
@@ -140,9 +146,9 @@ def process_cd_data(folder_path, wavelength, concentration_file, series_name="Se
             if match:
                 sample_number = int(match.group(1))
                 den_conc = concentration_mapping.get(sample_number, None)
-                if den_conc is not None:
-                    ellipticity_vs_concentration.append((den_conc, corrected_ellipticity))
-                    all_spectra.append((wavelengths, smoothed, den_conc))
+                if den_conc is not None and not np.isnan(den_conc):
+                    ellipticity_vs_concentration.append((float(den_conc), float(corrected_ellipticity)))
+                    all_spectra.append((wavelengths, smoothed, float(den_conc)))
 
         except Exception as e:
             print(f"Error processing {file_name}: {e}")
@@ -153,8 +159,8 @@ def process_cd_data(folder_path, wavelength, concentration_file, series_name="Se
     plot_data = pd.DataFrame(ellipticity_vs_concentration, columns=['den_concentration', 'Ellipticity'])
     plot_data.sort_values(by='den_concentration', inplace=True)
 
-    x_data = plot_data['den_concentration'].values
-    y_data = plot_data['Ellipticity'].values
+    x_data = plot_data['den_concentration'].values.astype(float)
+    y_data = plot_data['Ellipticity'].values.astype(float)
 
     # Fit curve
     initial_guess = [min(y_data), max(y_data), 2, 2]
@@ -174,7 +180,7 @@ def process_cd_data(folder_path, wavelength, concentration_file, series_name="Se
     # Heatbar-style combined spectra plot (per folder)
     if all_spectra:
         fig2, ax2 = plt.subplots(figsize=(10, 7))
-        denaturant_values = [c for _, _, c in all_spectra]
+        denaturant_values = [float(c) for _, _, c in all_spectra]
         vmin, vmax = min(denaturant_values), max(denaturant_values)
         norm = Normalize(vmin=vmin, vmax=vmax)
         cmap = cm.viridis
@@ -202,20 +208,17 @@ def process_cd_data(folder_path, wavelength, concentration_file, series_name="Se
 # Example usage
 if __name__ == "__main__":
 
-    # Define paths for both series (Update these with your actual local paths)
-    base_path = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/biofizyka_CD/Tm1570/"
+    base_path = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/biofizyka_CD/trmd/3"
 
-    path_series1 = os.path.join(base_path, "seria2_1")
+    path_series1 = os.path.join(base_path, "2uM/31_07_26")
     conc_series1 = os.path.join(path_series1, "concentrations.txt")
 
-    # path_series2 = os.path.join(base_path, "seria2_1", "best")  # Replace with actual series2 path
-    path_series2 = os.path.join(base_path, "seria2_2")  # Replace with actual series2 path
-
+    path_series2 = os.path.join(base_path, "3uM/31_07_26")
     conc_series2 = os.path.join(path_series2, "concentrations.txt")
 
     wavelength_to_check = 217
 
-    labels = {"s1" : '4th day', "s2" : '5th day'}
+    labels = {"s1": '2 µM', "s2": '3 µM'}
 
     print("Processing series1...")
     data1, popt1 = process_cd_data(path_series1, wavelength_to_check, conc_series1, series_name="series1",
@@ -246,19 +249,14 @@ if __name__ == "__main__":
         ax_comp.scatter(x2, y2, label=f'{labels["s2"]}', color='red', marker='s')
         if popt2 is not None:
             x_fit2 = np.linspace(x2.min(), x2.max(), 200)
-            ax_comp.plot(x_fit2, G(x_fit2, *popt2), label=f'{labels["s1"]} fit', color='red', linestyle='--')
+            ax_comp.plot(x_fit2, G(x_fit2, *popt2), label=f'{labels["s2"]} fit', color='red', linestyle='--')
 
-    # ax_comp.set_title(f'Ellipticity Comparison at {wavelength_to_check} nm vs Denaturant Concentration')
-    ax_comp.set_ylim(-26, -1)
     ax_comp.tick_params(axis='x', labelsize=15)
     ax_comp.tick_params(axis='y', labelsize=15)
     ax_comp.set_xlabel('Denaturant concentration (M)', fontsize=16)
     ax_comp.set_ylabel('Ellipticity (mdeg)', fontsize=16)
-    # ax_comp.grid(True, linestyle=':', alpha=0.7)
     ax_comp.legend(fontsize=15)
     plt.margins(0.02)
-    # plt.tight_layout()
-    # plt.tight_layout(pad=0.5)
 
     plt.savefig(os.path.join(base_path, f"CD_{wavelength_to_check}nm_comp_fit_lim.png"))
     plt.show()
