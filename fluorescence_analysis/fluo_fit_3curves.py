@@ -220,7 +220,7 @@ def compare_and_plot(df1, df2, df3, title, ylabel, save_name, base_path, config)
     plt.tick_params(axis='x', labelsize=15)
     plt.tick_params(axis='y', labelsize=15)
     plt.margins(0.02)
-    plt.ylim(350.5, 356.2)
+    # plt.ylim(350.5, 356.2)
 
     plt.xlabel('Denaturant Concentration (M)', fontsize=16)
     plt.ylabel(ylabel, fontsize=16)
@@ -250,37 +250,37 @@ def main():
     config = {
         # Smoothing
         'smoothing': "savitzky_golay",
-        'window': 35,  # 10 nm interval
+        'window': 11,  # 10 nm interval
         'spline_s': 0.5,
         'poly': 3,
 
         # Analysis
-        'baseline': None,  # Set to e.g., 400 if needed
+        'baseline': 400,  # Set to e.g., 400 if needed
         'fit_model': "two_state",
 
         # New CSM Parameters
         'csm_min': 325,  # CSM calculation lower bound (nm)
         'csm_max': 400,  # CSM calculation upper bound (nm)
 
-        'wl1': 330,  # For Ratio
-        'wl2': 350,  # For Ratio
-        'target_wl': 330,  # For Single Wavelength
+        'wl1': 325,  # For Ratio
+        'wl2': 345,  # For Ratio
+        'target_wl': 335,  # For Single Wavelength
 
         # Method options: "csm", "ratio", "single_wavelength", "all"
-        'method': "csm"
+        'method': "ratio"
     }
 
     # Define paths
-    base_path = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/fluorimetry/Fuzja"
+    base_path = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/fluorimetry/Fuzja/3/2uM"
 
-    path_series1 = os.path.join(base_path, "seria2_1")
+    path_series1 = os.path.join(base_path, "fuzja 28.07.26/csv")
     conc_series1 = os.path.join(path_series1, "concentrations.txt")
 
-    path_series2 = os.path.join(base_path, "seria2_2")
+    path_series2 = os.path.join(base_path, "Fuzja 29.07.26/csv")
     conc_series2 = os.path.join(path_series2, "concentrations.txt")
 
     # Added 3rd series path
-    path_series3 = os.path.join(base_path, "seria2_3")
+    path_series3 = os.path.join(base_path, "fuzja 31.07.26/csv")
     conc_series3 = os.path.join(path_series3, "concentrations.txt")
 
     # Load Concentration Maps
