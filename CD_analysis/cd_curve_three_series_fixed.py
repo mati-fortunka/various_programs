@@ -247,7 +247,7 @@ def process_cd_data(folder_path, wavelength, concentration_file, series_name="Se
 # Example usage
 if __name__ == "__main__":
 
-    base_path = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/biofizyka_CD/fuzja/3/3uM/"
+    base_path = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/biofizyka_CD/fuzja/3/2uM/"
 
     path_series1 = os.path.join(base_path, "28_07_26")
     conc_series1 = os.path.join(path_series1, "concentrations.txt")
@@ -268,12 +268,12 @@ if __name__ == "__main__":
 
     # Configuration toggles
     PLOT_FITTED_CURVES = True     # Set to False if you only want the theoretical curves
-    FIT_ALPHA = 1               # Transparency for fitted curves
+    FIT_ALPHA = 0.5               # Transparency for fitted curves
 
     # --- Isolated Domain Parameters ---
     # TrmD (Domain 1):   a_n1, a_u1, m1, d1
     # Tm1570 (Domain 2): a_n2, a_u2, m2, d2
-    """
+
     domain_params = {
         "s1": {
             'trmd':   {'a_n': -6.46, 'a_u': -1.12, 'm': 0.94, 'd': 1.98},
@@ -303,7 +303,7 @@ if __name__ == "__main__":
             'tm1570': {'a_n': -6.57, 'a_u': -1.20, 'm': 2.26, 'd': 3.14}
         }
     }
-
+    """
     # Derive fixed m, d, and a_i = a_u1 + a_n2 for fitting
     fixed_params_s1 = {
         'm1': domain_params["s1"]['trmd']['m'],
@@ -399,5 +399,5 @@ if __name__ == "__main__":
     ax_comp.legend(fontsize=11, loc='best')
     plt.margins(0.02)
 
-    plt.savefig(os.path.join(base_path, f"CD_{wavelength_to_check}nm_comp3_theoretical_vs_fitted_3uM.png"))
+    plt.savefig(os.path.join(base_path, f"CD_{wavelength_to_check}nm_comp3_theoretical_vs_fitted_2uM.png"))
     plt.show()
