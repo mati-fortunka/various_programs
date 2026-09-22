@@ -283,7 +283,7 @@ def plot_multiple_csvs_with_logging(folder_path,
     print(f"Fit results and t_half values saved to: {output_log}")
 
 if __name__ == "__main__":
-    folder = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/kinetyka/TrmD/best"
+    folder = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/kinetyka/fluo/TrmD/all"
 
     plot_multiple_csvs_with_logging(
         folder_path=folder,
@@ -291,9 +291,9 @@ if __name__ == "__main__":
         window_size=15,
         polyorder=3,
         dead_time=20,
-        fit_type="exponential_with_drift",
+        fit_type="double_exponential",
         fit_start=0,
-        fit_end=10000,
+        fit_end=2000,
         output_plot="combined_kinetics_plot.png",
         output_log=f"{folder}/fitted_parameters.txt"
     )

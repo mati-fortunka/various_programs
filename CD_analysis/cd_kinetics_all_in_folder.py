@@ -278,7 +278,7 @@ def plot_data(df, smooth_method=None, window_size=5, polyorder=2,
 
 # BATCH PROCESSING SCRIPT
 if __name__ == "__main__":
-    folder_path = "/home/matifortunka/Documents/JS/data_Cambridge/js/83_gamma/kinetyka_20min"
+    folder_path = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/kinetyka/CD/Fuzja_kinetyka/10_08_26"
     smooth_method = 'savitzky_golay'
     window_size = 15
     polyorder = 3

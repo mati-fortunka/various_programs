@@ -11,7 +11,7 @@ TELEGRAM_BOT_TOKEN = "8560988995:AAEqMnsdMsuQFpDiUoZN0BOtwt3bg_tn3So"
 TELEGRAM_CHAT_ID = "2075949423"
 
 # Maksymalna data egzaminu (YYYY-MM-DD)
-MAX_TARGET_DATE = "2026-09-11"
+MAX_TARGET_DATE = "2026-09-30"
 
 CENTERS = {
     26: "Warszawa Bemowo",
@@ -66,7 +66,7 @@ def parse_schedule(data):
 
 def main():
     seen_slots = set()
-    print("[*] Uruchamianie silnika Chromium z trwałym profilem...")
+    print("[*] Uruchamianie Chromium z trwałym profilem...")
 
     with sync_playwright() as p:
         context = p.chromium.launch_persistent_context(
@@ -79,43 +79,66 @@ def main():
         page.goto("https://info-kierowca.pl/reservation")
 
         print("\n" + "="*60)
-        print(">>> ZALOGUJ SIĘ W PRZEGLĄDARCE PRZEZ mOBYWATEL <<<")
-        print(">>> PRZEJDŹ DO KROKU WYBORU TERMINÓW <<<")
-        print(">>> GDY ZOBACZYSZ LISTĘ TERMINÓW, WCISNIJ ENTER TUTAJ <<<")
+        print(">>> 1. ZALOGUJ SIĘ W PRZEGLĄDARCE PRZEZ mOBYWATEL <<<")
+        print(">>> 2. WYBIERZ PROFIL, KATEGORIĘ I PRZEJDŹ DO WYBORU TERMINU <<<")
+        print(">>> 3. GDY ZOBACZYSZ EKRAN Z TERMINAMI, WCISNIJ ENTER TUTAJ <<<")
         print("="*60 + "\n")
         input()
 
-        print("[*] Rozpoczynam stały monitoring bezpośrednio przez kontekst przeglądarki...")
+        print("[*] Rozpoczynam stały monitoring oparty na realnych akcjach UI...")
 
         payload = {
-            'startDate': '2026-08-25',
-            'organizationId': [26, 25, 31, 31001, 32004],  # Bemowo, Odlewnicza, Siedlce, Garwolin, Grójec
+            'startDate': '2026-09-08',
+            'organizationId': [26, 25, 31, 31001, 32004],
             'category': 5,
             'profileNumber': '72501092495855042122',
             'profileType': 'Pkk',
         }
 
-        api_url = "https://info-kierowca.pl/bknd/exam/api/v1/Schedules/user/MultipleCentersExams"
+        # Ten skrypt symuluje ruch myszką/kliknięcie wewnątrz DOM, co resetuje licznik bezczynności w Angularze
+        heartbeat_js = """
+        () => {
+            document.body.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+            document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Shift' }));
+        }
+        """
+
+        # Bezpieczne zapytanie przez fetch wewnątrz zalogowanej sesji
+        fetch_js = """
+        async (payload) => {
+            try {
+                const res = await fetch('/bknd/exam/api/v1/Schedules/user/MultipleCentersExams', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json, text/plain, */*'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                if (res.status === 200) {
+                    return { status: 200, data: await res.json() };
+                }
+                return { status: res.status, data: null };
+            } catch (e) {
+                return { status: -1, data: null };
+            }
+        }
+        """
 
         while True:
             ts = datetime.now().strftime("%H:%M:%S")
-            print(f"[{ts}] Odpytuję API PWPW przez sesję przeglądarki...")
+            print(f"[{ts}] Sprawdzam terminy i podtrzymuję aktywność UI...")
 
             try:
-                # context.request automatycznie używa świeżych ciasteczek sesyjnych z Chromium
-                response = context.request.post(
-                    api_url,
-                    data=payload,
-                    headers={
-                        "Accept": "application/json, text/plain, */*",
-                        "Content-Type": "application/json",
-                        "Referer": "https://info-kierowca.pl/reservation",
-                        "Origin": "https://info-kierowca.pl"
-                    }
-                )
+                # 1. Reset licznika bezczynności w aplikacji
+                page.evaluate(heartbeat_js)
 
-                if response.status == 200:
-                    data = response.json()
+                # 2. Wywołanie zapytania
+                result = page.evaluate(fetch_js, payload)
+                status = result.get("status")
+                data = result.get("data")
+
+                if status == 200 and data:
                     slots = parse_schedule(data)
                     new_slots = [s for s in slots if s not in seen_slots]
 
@@ -128,22 +151,24 @@ def main():
                         seen_slots.update(new_slots)
                     else:
                         print("[-] Brak nowych terminów przed " + MAX_TARGET_DATE)
-                elif response.status in (401, 403):
-                    print("[!] Sesja wygasła. Zaloguj się ponownie w otwartym oknie przeglądarki.")
-                else:
-                    print(f"[!] Kod błędu: {response.status}")
+
+                elif status in (401, 403):
+                    print("[!] Sesja wygasła po >1h. Wymagane ponowne potwierdzenie.")
+                    if not alert_session_sent:
+                        # Dźwięk systemowy w Linuksie (terminal beep)
+                        print('\a')
+                        send_telegram_alert(
+                            "⚠️ *Sesja Info-Kierowca wygasła po godzinie!*\nZaloguj się ponownie w oknie Chromium, aby wznowić monitoring.")
+                        alert_session_sent = True
+
+                    # Czekamy chwilę dłużej, aby nie spamować serwera
+                    time.sleep(30)
 
             except Exception as e:
-                print(f"[!] Błąd zapytania: {e}")
+                print(f"[!] Błąd w pętli: {e}")
 
-            # Lekki ping na stronie co jakiś czas, aby utrzymać aktywność w karcie
-            try:
-                page.evaluate("() => window.scrollTo(0, 0)")
-            except Exception:
-                pass
-
-            # Losowy interwał 60–100 sekund
-            time.sleep(random.randint(60, 100))
+            # Odpytuj co 50–80 sekund (przed limitem 10 minut)
+            time.sleep(random.randint(50, 80))
 
 if __name__ == "__main__":
     main()

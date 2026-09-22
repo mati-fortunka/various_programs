@@ -9,16 +9,19 @@ from scipy.integrate import trapezoid
 from datetime import timedelta
 from io import StringIO
 from scipy.optimize import curve_fit
+from math import log
 
 # === User Settings ===
-input_csv = "/home/matifortunka/Documents/JS/kinetics_stability/data_Cambridge/Tm1570/kinetcs/CD/GuCl/specra_kin/Tm1570_september/1/Tm15_12h00000.csv"
-native_spectrum_path = None#"/home/matifortunka/Documents/JS/data_Cambridge/8_3/A/spectra_kinetics/8_3_A_5uM_nat00043_raw.txt"
+input_csv = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/kinetyka/CD/Fuzja_kinetyka/10-12_08_26/spec_kin/Fusion_2uM_6M00001.csv"
+native_spectrum_path = None #"/home/matifortunka/Documents/JS/data_Cambridge/8_3/A/spectra_kinetics/8_3_A_5uM_nat00043_raw.txt"
 dead_time = 30  # seconds
-nm_per_sec = 0.1
+nm_per_sec = 0.4
+sec_per_spectrum = 109.65
+time_mode = "Repeats"  # "Repeats" or "Time"
 
 path = "/".join(input_csv.split('/')[:-1])
 output_plot = f"{path}/Combined_CD_HHMM.png"
-hv_threshold = 900
+hv_threshold = 990
 smoothing_window = 15
 smoothing_polyorder = 3
 protein = "zeta"
@@ -27,15 +30,13 @@ labels = ["alpha", "gamma", "zeta"]
 colors = ["#75053b", "#136308", "#0721a6"]
 label_color_map = dict(zip(labels, colors))
 
-
-remove_between = (0,0)    # (23400, 46800 )e.g. (1000, 2000) to remove timepoints between 1000–2000 s
-modify_between = (0,0)   # (46800, 259200) e.g. (3000, 4000)
-modify_mode = "add"             # "add" or "scale"
-modify_value = 0.25                # number to add OR coefficient to multiply
-
+remove_between = (0, 0)    # e.g. (1000, 2000)
+modify_between = (0, 0)    # e.g. (3000, 4000)
+modify_mode = "add"        # "add" or "scale"
+modify_value = 0           # number to add OR coefficient to multiply
 
 # Plot 2
-target_wavelength = 222
+target_wavelength = 217
 fit_model = "double"
 
 # Plot 3
@@ -47,11 +48,12 @@ baseline_correction = False
 baseline_wavelength = 250.0
 
 # Manual transpose
-transpose_data = False
+transpose_data = True
 
 print("\n🔧 Parameters:")
 print(f"  input_csv = {input_csv}")
 print(f"  native_spectrum_path = {native_spectrum_path}")
+print(f"  time_mode = {time_mode}")
 
 # === Helpers ===
 def extract_section(lines, section_name):
@@ -90,78 +92,67 @@ hv_lines = extract_section(lines, "HV")
 
 cd_df = pd.read_csv(StringIO(''.join(cd_lines)), skipinitialspace=True)
 hv_df = pd.read_csv(StringIO(''.join(hv_lines)), skipinitialspace=True)
-# Rename first column to "Wavelength"
-cd_df.rename(columns={cd_df.columns[0]: "Wavelength"}, inplace=True)
 
-# Drop completely empty columns
+cd_df.rename(columns={cd_df.columns[0]: "Wavelength"}, inplace=True)
 cd_df.dropna(axis=1, how='all', inplace=True)
 
-# Build col_map safely, skipping 'Wavelength'
-cd_col_map = {
-    float(col): col
-    for col in cd_df.columns
-    if col != "Wavelength" and not col.startswith("Unnamed")
-}
 hv_df.rename(columns={hv_df.columns[0]: "Wavelength"}, inplace=True)
 hv_df.dropna(axis=1, how='all', inplace=True)
-hv_col_map = {
-    float(col): col
-    for col in hv_df.columns
-    if col != "Wavelength" and not col.startswith("Unnamed")
-}
-
-# print("📋 CD usable columns:", list(cd_col_map.keys()))
 
 if transpose_data:
     print("🔄 Transposing CD and HV dataframes (special reshaping)")
 
     # --- Transpose CD ---
-    cd_times = pd.to_numeric(cd_df.iloc[:, 0], errors='coerce')
+    cd_times_raw = pd.to_numeric(cd_df.iloc[:, 0], errors='coerce')
     cd_wavelengths = pd.to_numeric(cd_df.columns[1:], errors='coerce')
     cd_values = cd_df.iloc[:, 1:].apply(pd.to_numeric, errors='coerce').values
 
-    cd_df = pd.DataFrame(cd_values.T, index=cd_wavelengths, columns=cd_times).reset_index()
+    cd_df = pd.DataFrame(cd_values.T, index=cd_wavelengths, columns=cd_times_raw).reset_index()
     cd_df.rename(columns={'index': 'Wavelength'}, inplace=True)
-    cd_df = cd_df.dropna(subset=['Wavelength'])  # drop NaN wavelengths
-    cd_df = cd_df.sort_values('Wavelength').reset_index(drop=True)
-
-    wavelengths = cd_df['Wavelength'].values
+    cd_df = cd_df.dropna(subset=['Wavelength']).sort_values('Wavelength').reset_index(drop=True)
 
     # --- Transpose HV ---
-    hv_times = pd.to_numeric(hv_df.iloc[:, 0], errors='coerce')
+    hv_times_raw = pd.to_numeric(hv_df.iloc[:, 0], errors='coerce')
     hv_wavelengths = pd.to_numeric(hv_df.columns[1:], errors='coerce')
     hv_values = hv_df.iloc[:, 1:].apply(pd.to_numeric, errors='coerce').values
 
-    hv_df = pd.DataFrame(hv_values.T, index=hv_wavelengths, columns=hv_times).reset_index()
+    hv_df = pd.DataFrame(hv_values.T, index=hv_wavelengths, columns=hv_times_raw).reset_index()
     hv_df.rename(columns={'index': 'Wavelength'}, inplace=True)
-    hv_df = hv_df.dropna(subset=['Wavelength'])  # drop NaN wavelengths here too
-    hv_df = hv_df.sort_values('Wavelength').reset_index(drop=True)
+    hv_df = hv_df.dropna(subset=['Wavelength']).sort_values('Wavelength').reset_index(drop=True)
 
     # --- Align wavelength axes ---
     common_wavelengths = np.intersect1d(cd_df['Wavelength'].values, hv_df['Wavelength'].values)
-
     cd_df = cd_df[cd_df['Wavelength'].isin(common_wavelengths)].reset_index(drop=True)
     hv_df = hv_df[hv_df['Wavelength'].isin(common_wavelengths)].reset_index(drop=True)
-    wavelengths = cd_df['Wavelength'].values  # update global wavelengths again
+    wavelengths = cd_df['Wavelength'].values
 
-    # --- Time mappings ---
+# ==================== TIME MODE LOGIC ====================
+if time_mode == "Repeats":
+    print(f"⏱️ Calculating times based on repeats: (n-1) * {sec_per_spectrum}s")
+    # Generate new time column mapping based on repeat indices (1, 2, 3...)
+    old_cd_cols = [c for c in cd_df.columns if c != 'Wavelength']
+    old_hv_cols = [c for c in hv_df.columns if c != 'Wavelength']
+
+    # Map column positions to repeat index -> time in seconds
+    cd_col_map = {(i) * sec_per_spectrum: col for i, col in enumerate(old_cd_cols)}
+    hv_col_map = {(i) * sec_per_spectrum: col for i, col in enumerate(old_hv_cols)}
+
+elif time_mode == "Time":
+    print("⏱️ Reading time points directly from CSV headers/timestamps")
     cd_col_map = {float(col): col for col in cd_df.columns if col != 'Wavelength'}
     hv_col_map = {float(col): col for col in hv_df.columns if col != 'Wavelength'}
-
 else:
-    cd_col_map = {float(col): col for col in cd_df.columns[1:]}
-    hv_col_map = {float(col): col for col in hv_df.columns[1:]}
+    raise ValueError(f"Invalid time_mode: '{time_mode}'. Use 'Repeats' or 'Time'.")
 
 cd_times = sorted(cd_col_map.keys())
 hv_times = sorted(hv_col_map.keys())
-wavelengths = cd_df.iloc[:, 0].values
-
+wavelengths = cd_df['Wavelength'].values
+# =========================================================
 
 def apply_data_editing(cd_df, hv_df, cd_col_map, hv_col_map):
     global cd_times, hv_times
 
-    # --- 1) Remove section ---
-    if remove_between[0] is not None and remove_between[1] is not None:
+    if remove_between[0] is not None and remove_between[1] is not None and remove_between != (0, 0):
         t0, t1 = remove_between
         to_remove = [t for t in cd_col_map if t0 <= t <= t1]
         print(f"🗑 Removing {len(to_remove)} CD timepoints between {t0}–{t1} s")
@@ -178,8 +169,7 @@ def apply_data_editing(cd_df, hv_df, cd_col_map, hv_col_map):
             del hv_col_map[t]
         hv_times = sorted(hv_col_map.keys())
 
-    # --- 2) Modify section ---
-    if modify_between[0] is not None and modify_between[1] is not None:
+    if modify_between[0] is not None and modify_between[1] is not None and modify_between != (0, 0):
         t0, t1 = modify_between
         to_modify = [t for t in cd_col_map if t0 <= t <= t1]
         print(f"✏️ Modifying CD values between {t0}–{t1} s with {modify_mode} {modify_value}")
@@ -193,7 +183,6 @@ def apply_data_editing(cd_df, hv_df, cd_col_map, hv_col_map):
     return cd_df, hv_df, cd_col_map, hv_col_map
 
 cd_df, hv_df, cd_col_map, hv_col_map = apply_data_editing(cd_df, hv_df, cd_col_map, hv_col_map)
-
 
 # === Native spectrum ===
 native_wl, native_cd = None, None
@@ -240,11 +229,9 @@ for idx, (cd_time, shifted_cd_time_hr) in enumerate(zip(cd_times, shifted_cd_tim
         baseline_idx = np.argmin(np.abs(x - baseline_wavelength))
         baseline_val = y[baseline_idx]
         y = y - baseline_val
-    plt.margins(0.02)
-    plt.tight_layout()
+
     plt.plot(x, y, color=cmap(norm(shifted_cd_time_hr)))
 
-# === Native spectrum smoothed and baseline corrected ===
 if native_spectrum_path:
     native_y = native_cd.copy()
     if len(native_y) >= smoothing_window:
@@ -257,14 +244,11 @@ if native_spectrum_path:
 
 plt.xlabel("Wavelength [nm]", fontsize=16)
 plt.ylabel("Ellipticity [mdeg]", fontsize=16)
-# plt.title(f"CD Kinetics (HV ≤ {hv_threshold} V, Savitzky-Golay)")
 cbar = plt.colorbar(sm, ax=plt.gca(), format="%.1f")
 cbar.set_label("Time [h]", fontsize=16)
 cbar.ax.tick_params(labelsize=14, length=6, width=1.5)
-# plt.colorbar(sm, label="Time [h]", ax=plt.gca(), format="%.1f", labelsize=16)
 plt.tick_params(axis='x', labelsize=15)
 plt.tick_params(axis='y', labelsize=15)
-#plt.grid(True)
 plt.tight_layout()
 plt.savefig(output_plot)
 plt.show()
@@ -279,7 +263,6 @@ if np.isnan(wavelengths[closest_idx]):
 else:
     actual_wavelength = wavelengths[closest_idx]
 
-from math import log
 extra_dead_time = (baseline_wavelength - actual_wavelength) / nm_per_sec
 effective_dead_time = dead_time + extra_dead_time
 
@@ -330,8 +313,6 @@ color = label_color_map.get(protein, 'darkred')
 plt.scatter(valid_times_hr, cd_values_at_wl, marker='o', label=f"{protein}", color=color)
 plt.xlabel("Time [h]", fontsize=16)
 plt.ylabel(f"Ellipticity at {target_wavelength} nm [mdeg]", fontsize=16)
-#plt.title(f"CD at {actual_wavelength:.1f} nm vs Time")
-#plt.grid(True)
 
 # === Fit in seconds ===
 def linear(t, k, b): return k * t + b
@@ -370,7 +351,6 @@ except Exception as e:
 
 plt.xticks(fontsize=15)
 plt.yticks(fontsize=15)
-# plt.legend(fontsize=14, frameon=False)
 plt.tight_layout()
 try:
     plt.savefig(f"{path}/CD_at_{int(actual_wavelength)}_nm_vs_time.png", dpi=600)
@@ -378,12 +358,10 @@ except Exception as e:
     print(f"❌ Failed to save Plot 2: {e}")
 plt.show()
 
-
 # === Plot 3: Integrated CD ===
 print("📊 Plot 3: Integrated CD")
 lambda_min, lambda_max = integration_range
 sign = integration_sign.lower()
-in_range_mask = (wavelengths >= lambda_min) & (wavelengths <= lambda_max)
 
 integrated_cd_values = []
 integration_times_s = []
@@ -455,9 +433,8 @@ plt.plot(integration_times_hr, integrated_cd_values, marker='o', color='blue', l
 plt.xlabel("Time [h]", fontsize=16)
 plt.ylabel("Integrated CD [mdeg·nm]", fontsize=16)
 plt.title(f"Integrated {sign} CD ({lambda_min}-{lambda_max} nm) vs Time")
-#plt.grid(True)
 
-t_fit = np.array(integration_times_s)  # seconds
+t_fit = np.array(integration_times_s)
 y_fit = np.array(integrated_cd_values)
 
 try:
@@ -487,4 +464,3 @@ plt.legend()
 plt.tight_layout()
 plt.savefig(f"{path}/CD_integrated_{sign}_{lambda_min}_{lambda_max}_vs_time.png")
 plt.show()
-
