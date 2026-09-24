@@ -2,9 +2,9 @@ import os
 import re
 import urllib.request
 import matplotlib.gridspec as gridspec
+from matplotlib.patches import Patch
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap, Normalize
-from matplotlib.lines import Line2D
 import numpy as np
 
 # ==============================================================================
@@ -133,7 +133,7 @@ ax1.plot(
     zorder=4,
 )
 ax1.scatter(
-    [c1_start, c1_end], [c1_start, c1_end], color="#084594", s=22, zorder=5
+    [c1_start, c1_end], [c1_start, c1_end], color="#084594", s=10, zorder=5
 )
 
 # Endpoint residue numbers
@@ -141,7 +141,7 @@ ax1.text(
     c1_start + 4,
     c1_start - 2,
     str(c1_start),
-    fontsize=7,
+    fontsize=9,
     color="#084594",
     va="bottom",
     ha="left",
@@ -151,7 +151,7 @@ ax1.text(
     c1_end + 4,
     c1_end,
     str(c1_end),
-    fontsize=7,
+    fontsize=9,
     color="#084594",
     va="center",
     ha="left",
@@ -172,20 +172,20 @@ ax1.annotate(
         shrinkB=3,
         connectionstyle="arc3,rad=-0.15",
     ),
-    fontsize=7,
+    fontsize=9,
     color="#084594",
     ha="center",
     va="bottom",
 )
 
-ax1.set_title(r"$\mathit{Cn}$TrmD ($3_1$)", fontsize=9.5, pad=6)
-ax1.set_xlabel("N-terminal cut (residue)", fontsize=8)
-ax1.set_ylabel("C-terminal cut (residue)", fontsize=8)
+ax1.set_title(r"$\mathit{Cn}$TrmD ($3_1$)", fontsize=12, pad=6)
+ax1.set_xlabel("N-terminal cut (residue)", fontsize=10)
+ax1.set_ylabel("C-terminal cut (residue)", fontsize=10)
 ax1.set_xlim(1, 240)
 ax1.set_ylim(240, 1)
 ax1.set_xticks([1, 50, 100, 150, 200])
 ax1.set_yticks([1, 50, 100, 150, 200])
-ax1.tick_params(labelsize=7)
+ax1.tick_params(labelsize=8)
 
 # ------------------------------------------------------------------------------
 # Subplot 2: CnTm1570 (Rescaled 1 - 193)
@@ -238,7 +238,7 @@ ax2.scatter(
     [c2_start, c2_end],
     [c2_start, c2_end],
     color="#d94801",
-    s=22,
+    s=10,
     zorder=5,
 )
 
@@ -247,7 +247,7 @@ ax2.text(
     c2_start + 4,
     c2_start - 2,
     str(c2_start),
-    fontsize=7,
+    fontsize=9,
     color="#d94801",
     va="bottom",
     ha="left",
@@ -257,7 +257,7 @@ ax2.text(
     c2_end + 4,
     c2_end,
     str(c2_end),
-    fontsize=7,
+    fontsize=9,
     color="#d94801",
     va="center",
     ha="left",
@@ -278,19 +278,19 @@ ax2.annotate(
         shrinkB=3,
         connectionstyle="arc3,rad=-0.15",
     ),
-    fontsize=7,
+    fontsize=9,
     color="#d94801",
     ha="center",
     va="bottom",
 )
 
-ax2.set_title(r"$\mathit{Cn}$Tm1570 ($3_1$)", fontsize=9.5, pad=6)
-ax2.set_xlabel("N-terminal cut (residue)", fontsize=8)
+ax2.set_title(r"$\mathit{Cn}$Tm1570 ($3_1$)", fontsize=12, pad=6)
+ax2.set_xlabel("N-terminal cut (residue)", fontsize=10)
 ax2.set_xlim(1, 193)
 ax2.set_ylim(193, 1)
 ax2.set_xticks([1, 50, 100, 150])
 ax2.set_yticks([1, 50, 100, 150])
-ax2.tick_params(labelsize=7)
+ax2.tick_params(labelsize=8)
 
 # ------------------------------------------------------------------------------
 # Subplot 3: CnTrmD-Tm1570 Fusion (1 - 433)
@@ -327,14 +327,13 @@ ax3.imshow(
 ax3.plot([1, 433], [1, 433], color="#999999", linestyle=":", linewidth=0.7)
 
 # Domain boundary at residue 240
-ax3.axvline(240, color="#555555", linestyle="--", linewidth=0.75)
-ax3.axhline(240, color="#555555", linestyle="--", linewidth=0.75)
+ax3.axvline(240.5, color="#555555", linestyle="--", linewidth=0.75)
+ax3.axhline(240.5, color="#555555", linestyle="--", linewidth=0.75)
 
 # Composite knot core boundaries: 85 - 397
 c3_start, c3_end = 85, 397
 
-# --- AXIS PROJECTION LINES (Knot core boundary origins) ---
-# 1. Horizontal: from left Y-axis (x=1) to diagonal endpoint (x=397, y=397)
+# --- AXIS PROJECTION LINES ---
 ax3.plot(
     [1, c3_end],
     [c3_end, c3_end],
@@ -343,9 +342,6 @@ ax3.plot(
     linewidth=0.75,
     alpha=0.85,
 )
-
-# 2. Vertical: from diagonal start point (x=85, y=85) down to bottom X-axis (y=433)
-# (If you prefer connecting to the top border instead, change [c3_start, 433] to [1, c3_start])
 ax3.plot(
     [c3_start, c3_start],
     [c3_start, 433],
@@ -365,7 +361,7 @@ ax3.plot(
     zorder=4,
 )
 ax3.scatter(
-    [c3_start, c3_end], [c3_start, c3_end], color="#2b2b2b", s=22, zorder=5
+    [c3_start, c3_end], [c3_start, c3_end], color="#2b2b2b", s=10, zorder=5
 )
 
 # Endpoint residue numbers
@@ -373,7 +369,7 @@ ax3.text(
     c3_start + 6,
     c3_start - 3,
     str(c3_start),
-    fontsize=7,
+    fontsize=9,
     color="#2b2b2b",
     va="bottom",
     ha="left",
@@ -383,7 +379,7 @@ ax3.text(
     c3_end + 6,
     c3_end,
     str(c3_end),
-    fontsize=7,
+    fontsize=9,
     color="#2b2b2b",
     va="center",
     ha="left",
@@ -395,7 +391,7 @@ mid3 = (c3_start + c3_end) / 2.0  # 241.0
 ax3.annotate(
     r"$3_1\#3_1$ core",
     xy=(mid3, mid3),
-    xytext=(320, 150),
+    xytext=(320, 170),
     arrowprops=dict(
         arrowstyle="->",
         color="#2b2b2b",
@@ -404,57 +400,33 @@ ax3.annotate(
         shrinkB=3,
         connectionstyle="arc3,rad=-0.12",
     ),
-    fontsize=7,
+    fontsize=9,
     color="#2b2b2b",
     ha="center",
     va="bottom",
 )
 
-ax3.set_title(r"$\mathit{Cn}$TrmD-Tm1570 ($3_1\#3_1$)", fontsize=9.5, pad=6)
-ax3.set_xlabel("N-terminal cut (residue)", fontsize=8)
+ax3.set_title(r"$\mathit{Cn}$TrmD-Tm1570 ($3_1\#3_1$)", fontsize=12, pad=6)
+ax3.set_xlabel("N-terminal cut (residue)", fontsize=10)
 ax3.set_xlim(1, 433)
 ax3.set_ylim(433, 1)
 ax3.set_xticks([1, 100, 200, 300, 400])
 ax3.set_yticks([1, 100, 200, 300, 400])
-ax3.tick_params(labelsize=7)
+ax3.tick_params(labelsize=9)
 
-# Legend for Subplot 3
+# --- Legend for Subplot 3 with solid squares (Patch) ---
 legend_elements = [
-    Line2D(
-        [0],
-        [0],
-        marker="s",
-        color="w",
-        label=r"TrmD $3_1$",
-        markerfacecolor="#1f77b4",
-        markersize=6,
-    ),
-    Line2D(
-        [0],
-        [0],
-        marker="s",
-        color="w",
-        label=r"Tm1570 $3_1$",
-        markerfacecolor="#ff7f0e",
-        markersize=6,
-    ),
-    Line2D(
-        [0],
-        [0],
-        marker="s",
-        color="w",
-        label=r"$3_1\#3_1$",
-        markerfacecolor="#2b2b2b",
-        markersize=6,
-    ),
+    Patch(facecolor="#1f77b4", edgecolor="none", label=r"TrmD $3_1$"),
+    Patch(facecolor="#ff7f0e", edgecolor="none", label=r"Tm1570 $3_1$"),
+    Patch(facecolor="#2b2b2b", edgecolor="none", label=r"$3_1\#3_1$"),
 ]
 ax3.legend(
     handles=legend_elements,
     loc="upper right",
-    fontsize=6.2,
-    frameon=True,
-    facecolor="#ffffff",
-    edgecolor="#cccccc",
+    fontsize=7.5,
+    frameon=False,
+    handlelength=1.0,
+    handleheight=1.0,
 )
 
 # ------------------------------------------------------------------------------
@@ -473,7 +445,7 @@ cb1 = plt.colorbar(
 )
 cb1.set_ticks([0.0, 1.0])
 cb1.ax.tick_params(labelsize=6)
-ax_cb1.set_ylabel(r"$3_1\#3_1$", fontsize=6.8, labelpad=2)
+ax_cb1.set_ylabel(r"$3_1\#3_1$", fontsize=9, labelpad=2)
 
 ax_cb2 = fig.add_subplot(gs_cbar[1])
 cb2 = plt.colorbar(
@@ -483,7 +455,7 @@ cb2 = plt.colorbar(
 )
 cb2.set_ticks([0.0, 1.0])
 cb2.ax.tick_params(labelsize=6)
-ax_cb2.set_ylabel(r"TrmD $3_1$", fontsize=6.8, labelpad=2)
+ax_cb2.set_ylabel(r"TrmD $3_1$", fontsize=9, labelpad=2)
 
 ax_cb3 = fig.add_subplot(gs_cbar[2])
 cb3 = plt.colorbar(
@@ -493,7 +465,7 @@ cb3 = plt.colorbar(
 )
 cb3.set_ticks([0.0, 1.0])
 cb3.ax.tick_params(labelsize=6)
-ax_cb3.set_ylabel(r"Tm1570 $3_1$", fontsize=6.8, labelpad=2)
+ax_cb3.set_ylabel(r"Tm1570 $3_1$", fontsize=9, labelpad=2)
 
 # ==============================================================================
 # 4. EXPORT
@@ -505,4 +477,4 @@ png_path = os.path.join(output_dir, "panel_D_knot_matrices.png")
 plt.savefig(pdf_path, bbox_inches="tight")
 plt.savefig(png_path, dpi=300, bbox_inches="tight")
 print(f"Successfully generated:\n -> {pdf_path}\n -> {png_path}")
-plt.show()
+# plt.show()

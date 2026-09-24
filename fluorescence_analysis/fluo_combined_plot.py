@@ -138,7 +138,7 @@ def process_and_visualize_combined_with_smoothing(folder_path, smoothing_method=
     if baseline_wavelength:
         title_text += f" - Baseline Corrected at {baseline_wavelength} nm"
 
-    ax.set_ylim(-50, 62500)
+    # ax.set_ylim(-50, 62500)
     # ax.set_title(title_text)
     ax.set_xlabel("Wavelength (nm)", fontsize=16)
     ax.set_ylabel(y_axis_label, fontsize=16)
@@ -160,7 +160,7 @@ def process_and_visualize_combined_with_smoothing(folder_path, smoothing_method=
 
 
 # Example usage
-folder_path = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/fluorimetry/TrmD/seria2_1"
+folder_path = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/fluorimetry/Fuzja/3/2uM/28.07.26/csv"
 
 # Note: I added data_type="Fluorescence".
 # Ensure your CSV columns are actually named "Ellipticity (mdeg)".
@@ -168,7 +168,7 @@ folder_path = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/eq
 process_and_visualize_combined_with_smoothing(
     folder_path,
     smoothing_method="savitzky_golay",
-    range_interval=35,
+    range_interval=25,
     poly_order=3,
     save_plot=True,
     output="output_plot_lim2.png",

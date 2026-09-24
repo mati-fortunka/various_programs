@@ -250,20 +250,20 @@ def main():
 
         'wl1': 330,  # For Ratio
         'wl2': 350,  # For Ratio
-        'target_wl': 330,  # For Single Wavelength
+        'target_wl': 335,  # For Single Wavelength
 
         # Method options: "csm", "ratio", "single_wavelength", "all"
-        'method': "all"
+        'method': "single_wavelength"
     }
 
     # Define paths
-    base_path = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/fluorimetry/Tm1570"
+    base_path = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/fluorimetry/"
 
-    path_series1 = os.path.join(base_path, "seria1_1")
+    path_series1 = os.path.join(base_path, "Tm1570/3/2uM/28.07.26/csv")
     conc_series1 = os.path.join(path_series1, "concentrations.txt")
 
     # UPDATE THIS to your actual series 2 path
-    path_series2 = os.path.join(base_path, "seria1_2")
+    path_series2 = os.path.join(base_path, "TrmD/3/2uM/28.07.26/csv")
     conc_series2 = os.path.join(path_series2, "concentrations.txt")
 
     # Load Concentration Maps
@@ -275,8 +275,8 @@ def main():
         return
 
     # Extract Data
-    data1 = extract_series_data(path_series1, conc_map1, config, "seria1_1")
-    data2 = extract_series_data(path_series2, conc_map2, config, "seria1_2")
+    data1 = extract_series_data(path_series1, conc_map1, config, "Tm1570")
+    data2 = extract_series_data(path_series2, conc_map2, config, "TrmD")
 
     # Generate Comparison Plots based on chosen method
     if config['method'] in ["all", "csm"]:

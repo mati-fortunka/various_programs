@@ -7,7 +7,30 @@ from scipy.interpolate import UnivariateSpline
 from scipy.signal import savgol_filter
 from scipy.optimize import curve_fit
 
-RT = 0.592  # RT constant kcal/mol
+RT = 0.592  # kcal/mol at 298.15 K
+
+# --- PUBLICATION PALETTE & STYLES ---
+# Consistent styling across all figures in your paper
+PROTEIN_STYLES = {
+    'TrmD': {
+        'color': '#1F77B4',       # Deep Royal Blue
+        'marker': 'o',
+        'linestyle': '-',
+        'label': 'TrmD'
+    },
+    'Tm1570': {
+        'color': '#D95F02',       # Warm Vermilion / Rust
+        'marker': 's',
+        'linestyle': '--',
+        'label': 'Tm1570'
+    },
+    'TrmD-Tm1570': {
+        'color': '#7570B3',       # Muted Purple / Orchid (for your 3rd fusion protein)
+        'marker': '^',
+        'linestyle': '-.',
+        'label': 'TrmD-Tm1570'
+    }
+}
 
 
 # --- MODEL DEFINITIONS ---
@@ -53,11 +76,10 @@ def guess_initial_params(x, y, model="two_state"):
 
 # --- UTILITIES ---
 def calculate_window_points(wavelength_array, nm_interval):
-    """Converts a nanometer interval (e.g., 10nm) into number of data points."""
+    """Converts a nanometer interval into number of data points."""
     step_size = wavelength_array.diff().median()
     if pd.isna(step_size) or step_size == 0:
         return 5
-
     window_points = int(np.ceil(nm_interval / step_size))
     if window_points % 2 == 0:
         window_points += 1
@@ -66,7 +88,6 @@ def calculate_window_points(wavelength_array, nm_interval):
 
 def smooth_data(x, y, method, window_nm, spline_smoothing_factor, poly_order):
     window_size = calculate_window_points(x, window_nm)
-
     if method == "moving_average":
         return pd.Series(y).rolling(window=window_size, center=True).mean().to_numpy()
     elif method == "spline":
@@ -82,10 +103,7 @@ def extract_sample_number(name):
 
 
 def load_concentrations(filepath, min_conc=None, max_conc=None):
-    """
-    Loads concentrations from file and filters out samples outside [min_conc, max_conc].
-    Omitted samples will be skipped during file reading, plotting, and fitting.
-    """
+    """Loads concentrations and filters by optional min/max limits."""
     try:
         try:
             conc_df = pd.read_csv(filepath, sep=r'\s+')
@@ -97,20 +115,10 @@ def load_concentrations(filepath, min_conc=None, max_conc=None):
         conc_df.dropna(subset=["Sample_number", "den_concentration"], inplace=True)
         conc_df["Sample_number"] = conc_df["Sample_number"].astype(int)
 
-        initial_len = len(conc_df)
-
         if min_conc is not None:
             conc_df = conc_df[conc_df["den_concentration"] >= min_conc]
         if max_conc is not None:
             conc_df = conc_df[conc_df["den_concentration"] <= max_conc]
-
-        omitted = initial_len - len(conc_df)
-        folder_label = os.path.basename(os.path.dirname(filepath))
-        if omitted > 0:
-            print(f"[{folder_label}] Concentration filter [{min_conc}, {max_conc}] M: "
-                  f"kept {len(conc_df)}, omitted {omitted} sample(s).")
-        else:
-            print(f"[{folder_label}] Loaded all {len(conc_df)} sample concentrations.")
 
         return dict(zip(conc_df["Sample_number"], conc_df["den_concentration"]))
     except Exception as e:
@@ -122,7 +130,6 @@ def load_and_preprocess(fname, folder, config):
     try:
         path = os.path.join(folder, fname)
         df = pd.read_csv(path, header=1, usecols=[0, 1], names=["Wavelength", "Intensity"])
-
         df["Wavelength"] = pd.to_numeric(df["Wavelength"], errors='coerce')
         df["Intensity"] = pd.to_numeric(df["Intensity"], errors='coerce')
         df.dropna(inplace=True)
@@ -133,7 +140,6 @@ def load_and_preprocess(fname, folder, config):
         df['Smoothed'] = smooth_data(df['Wavelength'], df['Intensity'],
                                      config['smoothing'], config['window'],
                                      config['spline_s'], config['poly'])
-
         df.dropna(subset=['Smoothed'], inplace=True)
 
         if config['baseline']:
@@ -150,7 +156,6 @@ def load_and_preprocess(fname, folder, config):
 
 
 # --- ANALYSIS MODULES ---
-
 def extract_series_data(folder, conc_map, config, series_name):
     """Extracts CSM, Ratio, and Single Wavelength data for a given folder in one pass."""
     csm_results = []
@@ -158,24 +163,17 @@ def extract_series_data(folder, conc_map, config, series_name):
     single_wl_results = []
 
     print(f"Extracting data for {series_name} from {folder}...")
-    processed_count = 0
-    omitted_count = 0
 
     for fname in sorted(os.listdir(folder)):
         if not fname.endswith(".csv"):
             continue
         sn = extract_sample_number(fname)
-
-        # Omit files if sample number is not in the filtered concentration map
         if sn is None or sn not in conc_map:
-            omitted_count += 1
             continue
 
         df = load_and_preprocess(fname, folder, config)
         if df is None:
             continue
-
-        processed_count += 1
 
         # 1. CSM Calculation
         csm_min = config.get('csm_min', 320)
@@ -202,8 +200,6 @@ def extract_series_data(folder, conc_map, config, series_name):
         except IndexError:
             pass
 
-    print(f"  -> Processed: {processed_count} files, Omitted (outside limits): {omitted_count} files.")
-
     df_csm = pd.DataFrame(csm_results, columns=['den_concentration', 'Value']).sort_values('den_concentration')
     df_ratio = pd.DataFrame(ratio_results, columns=['den_concentration', 'Value']).sort_values('den_concentration')
     df_single = pd.DataFrame(single_wl_results, columns=['den_concentration', 'Value']).sort_values('den_concentration')
@@ -211,56 +207,50 @@ def extract_series_data(folder, conc_map, config, series_name):
     return {'CSM': df_csm, 'Ratio': df_ratio, 'SingleWL': df_single}
 
 
-def compare_and_plot(df1, df2, df3, title, ylabel, save_name, base_path, config):
-    plt.figure(figsize=(8, 6))
+def compare_and_plot(series_list, title, ylabel, save_name, base_path, config):
+    """
+    Plots a publication-quality figure panel.
+    series_list: list of tuples -> [('Tm1570', df1), ('TrmD', df2)]
+    """
+    fig, ax = plt.subplots(figsize=(6.2, 5.0), dpi=300)
 
-    def plot_series(df, name, color, marker, linestyle):
+    for name, df in series_list:
         if df is None or df.empty:
             print(f"No data available for {name} ({title}).")
-            return
+            continue
+
+        style = PROTEIN_STYLES.get(name, {
+            'color': '#333333', 'marker': 'o', 'linestyle': '-', 'label': name
+        })
 
         x = df['den_concentration'].values
         y = df['Value'].values
 
-        # Scatter plot of all loaded data points
-        plt.scatter(x, y, label=f'{name} Data', color=color, marker=marker, s=40, edgecolors='white')
+        # Plot raw experimental data points
+        ax.scatter(x, y, label=f"{style['label']}",
+                   color=style['color'], marker=style['marker'],
+                   s=55, alpha=0.9, edgecolors=None, linewidths=0, zorder=3)
 
-        if config.get('fit_model', "None") != "None":
+        # Fit model and plot high-resolution smooth sigmoidal curve
+        if config.get('fit_model', 'None') != "None":
             try:
-                # Apply fitting concentration limits if specified
-                fit_mask = np.ones(len(x), dtype=bool)
-                if config.get('fit_min_conc') is not None:
-                    fit_mask &= (x >= config['fit_min_conc'])
-                if config.get('fit_max_conc') is not None:
-                    fit_mask &= (x <= config['fit_max_conc'])
-
-                x_fit_data = x[fit_mask]
-                y_fit_data = y[fit_mask]
-
-                min_pts_required = 4 if config['fit_model'] == "two_state" else 7
-                if len(x_fit_data) < min_pts_required:
-                    print(f"Not enough points ({len(x_fit_data)}) to fit {name} ({title}) within fit range.")
-                    return
-
-                guess = guess_initial_params(x_fit_data, y_fit_data, config['fit_model'])
-
-                # High-resolution x array for drawing smooth curve
-                x_fit = np.linspace(np.min(x_fit_data), np.max(x_fit_data), 500)
+                guess = guess_initial_params(x, y, config['fit_model'])
+                x_fit = np.linspace(np.min(x), np.max(x), 400)
 
                 if config['fit_model'] == "two_state":
-                    param_names = ["a_n", "a_u", "m", "d"]
-                    popt, pcov = curve_fit(G, x_fit_data, y_fit_data, p0=guess, maxfev=5000)
+                    param_names = ["a_n", "a_u", "m", "C_mid"]
+                    popt, pcov = curve_fit(G, x, y, p0=guess, maxfev=10000)
                     y_fit = G(x_fit, *popt)
-
                 elif config['fit_model'] == "three_state":
-                    param_names = ["a_n", "a_i", "a_u", "m1", "d1", "m2", "d2"]
-                    popt, pcov = curve_fit(G_three_state_weighted, x_fit_data, y_fit_data, p0=guess, maxfev=5000)
+                    param_names = ["a_n", "a_i", "a_u", "m1", "C_mid1", "m2", "C_mid2"]
+                    popt, pcov = curve_fit(G_three_state_weighted, x, y, p0=guess, maxfev=10000)
                     y_fit = G_three_state_weighted(x_fit, *popt)
 
-                plt.plot(x_fit, y_fit, label=f'{name} Fit', color=color, linestyle=linestyle, linewidth=2)
+                ax.plot(x_fit, y_fit, color=style['color'],
+                        linestyle=style['linestyle'], linewidth=2.2, zorder=2)
 
                 perr = np.sqrt(np.diag(pcov))
-                print(f"\n--- Fitted parameters for {title} [{name}] ---")
+                print(f"\n--- Fit parameters for {title} [{name}] ---")
                 for i, (val, err) in enumerate(zip(popt, perr)):
                     p_name = param_names[i] if i < len(param_names) else f"Param {i + 1}"
                     print(f"  {p_name}: {val:.4f} ± {err:.4f}")
@@ -268,27 +258,34 @@ def compare_and_plot(df1, df2, df3, title, ylabel, save_name, base_path, config)
             except Exception as e:
                 print(f"Fitting failed for {name} ({title}): {e}")
 
-    # Plot series
-    plot_series(df1, 'series1', 'blue', 'o', '-')
-    plot_series(df2, 'series2', 'red', 's', '--')
-    plot_series(df3, 'series3', 'green', '^', ':')
+    # Publication-Grade Panel Typography & Axis Formatting
+    ax.set_xlabel('[GuCl] (M)', fontsize=16, labelpad=8, fontweight='medium')
+    ax.set_ylabel(ylabel, fontsize=16, labelpad=8, fontweight='medium')
 
-    plt.tick_params(axis='x', labelsize=15)
-    plt.tick_params(axis='y', labelsize=15)
-    plt.margins(0.02)
+    ax.tick_params(axis='both', which='major', labelsize=14, length=6, width=1.2, direction='in')
+    ax.tick_params(axis='both', which='minor', length=3.5, width=1.0, direction='in')
 
-    # Optional plot axis range
-    if config.get('xlim_min') is not None or config.get('xlim_max') is not None:
-        plt.xlim(left=config.get('xlim_min'), right=config.get('xlim_max'))
+    # Despine: standard clean top/right spine removal for biochemistry panels
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_linewidth(1.3)
+    ax.spines['bottom'].set_linewidth(1.3)
 
-    plt.xlabel('Denaturant Concentration (M)', fontsize=16)
-    plt.ylabel(ylabel, fontsize=16)
+    # Optional subtle horizontal grid or leave blank for crisp aesthetic
+    # ax.grid(True, linestyle=':', alpha=0.4, color='gray')
+
+    # Legend formatting
+    legend = ax.legend(frameon=False, framealpha=0.9, edgecolor='none',
+                       fontsize=13, loc='best')
+
     plt.tight_layout()
 
-    save_path = os.path.join(base_path, f"{save_name}_comparison.png")
-    plt.savefig(save_path, dpi=300)
-    print(f"\nPlot saved to {save_path}")
-    print("-" * 40)
+    # Save both 300 DPI raster PNG and vector PDF for multi-panel assembly
+    save_base = os.path.join(base_path, save_name)
+    plt.savefig(f"{save_base}.png", dpi=300)
+    plt.savefig(f"{save_base}.pdf", format="pdf")
+    print(f"\nSaved panel figures:\n  -> {save_base}.png\n  -> {save_base}.pdf")
+    print("-" * 50)
     plt.show()
 
 
@@ -296,81 +293,81 @@ def main():
     config = {
         # Smoothing
         'smoothing': "savitzky_golay",
-        'window': 11,
+        'window': 25,
         'spline_s': 0.5,
         'poly': 3,
 
-        # Analysis
+        # Baseline & Fitting
         'baseline': 400,
         'fit_model': "two_state",  # "two_state", "three_state", or "None"
 
-        # --- CONCENTRATION LIMITS ---
-        # Data inclusion limits: files outside this range in concentrations.txt are omitted
-        'min_conc': None,  # e.g., 0.5 (set to None for no lower limit)
-        'max_conc': None,  # e.g., 6.0 (set to None for no upper limit)
+        # Concentration limits (Set to None for full range)
+        'min_conc': None,
+        'max_conc': None,
 
-        # Optional fit-only limits: subset of plotted points to use in curve fitting
-        # If set to None, curve_fit uses all plotted points
-        'fit_min_conc': None,  # e.g., 1.0
-        'fit_max_conc': None,  # e.g., 5.5
-
-        # CSM Parameters
-        'csm_min': 325,
+        # CSM Bounds
+        'csm_min': 320,
         'csm_max': 400,
 
         # Wavelengths
         'wl1': 330,
-        'wl2': 342,
+        'wl2': 350,
         'target_wl': 335,
 
         # Method options: "csm", "ratio", "single_wavelength", "all"
-        'method': "ratio"
+        'method': "single_wavelength"
     }
 
-    # Define paths
-    base_path = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/fluorimetry/TrmD/3/3uM"
+    base_path = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/fluorimetry/"
 
-    path_series1 = os.path.join(base_path, "28.07.26/csv")
-    conc_series1 = os.path.join(path_series1, "concentrations.txt")
+    path_tm1570 = os.path.join(base_path, "Tm1570/3/2uM/28.07.26/csv")
+    conc_tm1570 = os.path.join(path_tm1570, "concentrations.txt")
 
-    path_series2 = os.path.join(base_path, "29.07.26/csv")
-    conc_series2 = os.path.join(path_series2, "concentrations.txt")
+    path_trmd = os.path.join(base_path, "TrmD/3/2uM/28.07.26/csv")
+    conc_trmd = os.path.join(path_trmd, "concentrations.txt")
 
-    path_series3 = os.path.join(base_path, "31.07.26/csv")
-    conc_series3 = os.path.join(path_series3, "concentrations.txt")
+    # Load Concentration Maps
+    conc_map_tm1570 = load_concentrations(conc_tm1570, config['min_conc'], config['max_conc'])
+    conc_map_trmd = load_concentrations(conc_trmd, config['min_conc'], config['max_conc'])
 
-    # Load Concentration Maps with applied min/max limits
-    conc_map1 = load_concentrations(conc_series1, min_conc=config['min_conc'], max_conc=config['max_conc'])
-    conc_map2 = load_concentrations(conc_series2, min_conc=config['min_conc'], max_conc=config['max_conc'])
-    conc_map3 = load_concentrations(conc_series3, min_conc=config['min_conc'], max_conc=config['max_conc'])
-
-    if not conc_map1 or not conc_map2 or not conc_map3:
-        print("Missing concentration files or all points filtered out. Please check paths/limits. Exiting.")
+    if not conc_map_tm1570 or not conc_map_trmd:
+        print("Missing concentration files or no valid data loaded. Check paths. Exiting.")
         return
 
-    # Extract Data (omits CSV files not present in the filtered conc_map)
-    data1 = extract_series_data(path_series1, conc_map1, config, "seria2_1")
-    data2 = extract_series_data(path_series2, conc_map2, config, "seria2_2")
-    data3 = extract_series_data(path_series3, conc_map3, config, "seria2_3")
+    # Extract Datasets
+    data_tm1570 = extract_series_data(path_tm1570, conc_map_tm1570, config, "Tm1570")
+    data_trmd = extract_series_data(path_trmd, conc_map_trmd, config, "TrmD")
+
+    # When you add the fusion later, simply extract it here:
+    # data_fusion = extract_series_data(path_fusion, conc_map_fusion, config, "TrmD-Tm1570")
 
     # Generate Comparison Plots
     if config['method'] in ["all", "csm"]:
-        compare_and_plot(data1['CSM'], data2['CSM'], data3['CSM'],
-                         title='Center of Spectral Mass (CSM) Comparison',
-                         ylabel='Average Emission Wavelength (nm)',
-                         save_name='CSM_lim', base_path=base_path, config=config)
+        compare_and_plot(
+            [('Tm1570', data_tm1570['CSM']), ('TrmD', data_trmd['CSM'])],
+            title='Center of Spectral Mass (CSM)',
+            ylabel='Emission CSM (nm)',
+            save_name='CSM_TrmD_vs_Tm1570',
+            base_path=base_path, config=config
+        )
 
     if config['method'] in ["all", "ratio"]:
-        compare_and_plot(data1['Ratio'], data2['Ratio'], data3['Ratio'],
-                         title=f'Fluorescence Ratio ({config["wl1"]}/{config["wl2"]} nm) Comparison',
-                         ylabel=f'Ratio {config["wl1"]}/{config["wl2"]}',
-                         save_name=f'Ratio_{config["wl1"]}_{config["wl2"]}', base_path=base_path, config=config)
+        compare_and_plot(
+            [('Tm1570', data_tm1570['Ratio']), ('TrmD', data_trmd['Ratio'])],
+            title=f'Fluorescence Ratio ({config["wl1"]}/{config["wl2"]} nm)',
+            ylabel=f'$I_{{{config["wl1"]}}} / I_{{{config["wl2"]}}}$',
+            save_name='Ratio_TrmD_vs_Tm1570',
+            base_path=base_path, config=config
+        )
 
     if config['method'] in ["all", "single_wavelength"]:
-        compare_and_plot(data1['SingleWL'], data2['SingleWL'], data3['SingleWL'],
-                         title=f'Single Wavelength Intensity ({config["target_wl"]} nm) Comparison',
-                         ylabel='Intensity (a.u.)',
-                         save_name='Single_Wavelength', base_path=base_path, config=config)
+        compare_and_plot(
+            [('Tm1570', data_tm1570['SingleWL']), ('TrmD', data_trmd['SingleWL'])],
+            title=f'Intensity at {config["target_wl"]} nm',
+            ylabel=f'Intensity at {config["target_wl"]} nm (a.u.)',
+            save_name='Single_WL_TrmD_vs_Tm1570',
+            base_path=base_path, config=config
+        )
 
 
 if __name__ == "__main__":
