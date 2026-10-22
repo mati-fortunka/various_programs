@@ -68,7 +68,7 @@ def plot_all_traces_with_fit(
     y_limits=None,
 ):
     protein_colors = {
-        '6_3': '#75053b',
+        'alpha': '#75053b',
         'gamma': '#136308',
         'zeta': '#0721a6'
     }
@@ -80,7 +80,7 @@ def plot_all_traces_with_fit(
             continue
 
         file_path = os.path.join(folder_path, filename)
-        match = re.search(r'(6_3|gamma|zeta)', filename)
+        match = re.search(r'(alpha|gamma|zeta)', filename)
         if not match:
             print(f"Skipping file without known protein label: {filename}")
             continue
@@ -141,13 +141,13 @@ def plot_all_traces_with_fit(
     plt.tight_layout()
     plt.xticks(fontsize=15)
     plt.yticks(fontsize=15)
-    plt.savefig(f"{folder_path}/phase_D_SI.svg", format='svg', dpi=600, bbox_inches='tight')
-    plt.savefig(f"{folder_path}/phase_D_SI.png", format='png', dpi=600, bbox_inches='tight')
+    # plt.savefig(f"{folder_path}/phase_D_SI.svg", format='svg', dpi=600, bbox_inches='tight')
+    # plt.savefig(f"{folder_path}/phase_D_SI.png", format='png', dpi=600, bbox_inches='tight')
     plt.show()
 
 # phase A
 plot_all_traces_with_fit(
-    folder_path="/home/matifortunka/Documents/JS/data_Cambridge/8_3/paper/SI_plots/SF_kinetics/phase_A",
+    folder_path="/home/matifortunka/Documents/JS/kinetics_stability/data_Cambridge/8_3/paper/SI_plots/SF_kinetics/phase_A",
     model='exponential',
     fit_start=0.1,
     fit_end=1,

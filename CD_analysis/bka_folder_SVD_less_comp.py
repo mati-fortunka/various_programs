@@ -8,7 +8,7 @@ from scipy.signal import savgol_filter
 from sklearn.decomposition import TruncatedSVD
 
 # === Settings ===
-input_folder = "/home/matifortunka/Documents/JS/data_Cambridge/8_3/Maciek_CD/unfolding_SAV"  # Change to your actual folder path
+input_folder = "/home/matifortunka/Documents/JS/kinetics_stability/data_Cambridge/Tm1570/equilibrium/CD/urea/tm_unfold_SAV"  # Change to your actual folder path
 output_plot = os.path.join(input_folder, "CD_spectra_comparison.png")
 svd_plot = os.path.join(input_folder, "SVD_structure_content_vs_concentration.png")
 svd_components_plot = os.path.join(input_folder, "SVD_first_6_components.png")

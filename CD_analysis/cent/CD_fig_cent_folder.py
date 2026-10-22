@@ -2,7 +2,7 @@ import os
 import matplotlib.pyplot as plt
 
 # Define the folder containing .bka files and the output folder
-input_folder = '/home/matifortunka/Documents/JS/data_Cambridge/MateuszF/fuzja_16_01'  # Current directory
+input_folder = '/home/matifortunka/Documents/JS/kinetics_stability/data_Cambridge/Tm1570/equilibrium/CD/GuCl/tm_unfold'  # Current directory
 output_folder = input_folder + '/output'
 
 # Create the output folder if it doesn't exist
