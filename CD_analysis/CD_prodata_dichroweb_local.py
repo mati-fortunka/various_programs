@@ -14,17 +14,17 @@ from scipy.signal import savgol_filter
 DATASETS_BASE_DIR = "/home/matifortunka/Programs/DichroWebGit/Datasets"
 
 # Ścieżka do analizowanego folderu z plikami ProData (.csv) oraz concentrations.txt
-SERIES_FOLDER = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/biofizyka_CD/fuzja/3/2uM/28_07_26"
+SERIES_FOLDER = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/biofizyka_CD/trmd/3/2uM/28_07_26"
 CONCENTRATION_FILE = os.path.join(SERIES_FOLDER, "concentrations.txt")
 
 OUTPUT_JSON_PATH = os.path.join(SERIES_FOLDER, "local_dichroweb_results.json")
 ERROR_LOG_PATH = os.path.join(SERIES_FOLDER, "error_log.txt")
 
 # Parametry próbki białka (fuzja TrmD-Tm1570, n = 455 reszt, c = 2.0 µM w kuwecie 1.0 mm)
-PROTEIN_CONC_UM = 2.0         # Stężenie w µM (µmol/L)
-RESIDUE_COUNT = 455           # 455 dla fuzji, 224 dla Tm1570
+PROTEIN_CONC_UM = 1.0         # Stężenie w µM (µmol/L)
+RESIDUE_COUNT = 447           # 455 dla fuzji, 224 dla Tm1570
 PATH_LENGTH_MM = 1.0          # Grubość kuwety w mm (np. 1.0 mm = 0.1 cm)
-MRW = 114.45                  # Średnia masa reszty (Da)
+MRW = 112.28                  # Średnia masa reszty (Da)
 
 # Zakres spektralny dla baz DichroWebGit
 MIN_WAVELENGTH = 210.0        # nm (dolne odcięcie dla denaturantu)
@@ -227,7 +227,8 @@ def run_prodata_dichroweb():
         return
 
     conc_mapping = load_concentration_mapping(CONCENTRATION_FILE)
-    file_pattern = re.compile(r"(\d{5})\.csv$")
+    # file_pattern = re.compile(r"(\d{5})\.csv$")
+    file_pattern = re.compile(r"(\d+)\.csv$", re.IGNORECASE)
 
     # Wczytanie i mapowanie widm
     spectra_by_conc = {}

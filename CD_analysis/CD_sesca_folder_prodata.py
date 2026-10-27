@@ -15,9 +15,9 @@ sesca_script = "/home/matifortunka/Programs/SESCA/scripts/SESCA_deconv.py"
 libs_dir = "/home/matifortunka/Programs/SESCA/libs"
 
 # Folder z plikami ProData (.csv) oraz concentrations.txt
-series_folder = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/biofizyka_CD/fuzja/3/2uM/28_07_26"
+series_folder = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/biofizyka_CD/trmd/3/2uM/28_07_26"
 concentration_file = os.path.join(series_folder, "concentrations.txt")
-denaturant_label = "GuCl"
+denaturant_label = "GdmCl"
 
 # Zestaw map bazowych do przetestowania
 maps_to_test = [
@@ -110,7 +110,8 @@ def read_prodata_csv(filepath, hv_threshold=700.0):
 def load_prodata_series(folder, conc_file, hv_threshold=700.0):
     """Wczytuje wszystkie pliki serii ProData i przypisuje stężenia."""
     conc_map = load_concentration_mapping(conc_file)
-    file_pattern = re.compile(r"(\d{5})\.csv$")
+    # file_pattern = re.compile(r"(\d{5})\.csv$")
+    file_pattern = re.compile(r"(\d+)\.csv$", re.IGNORECASE)
     spectra_by_conc = {}
 
     for fname in sorted(os.listdir(folder)):

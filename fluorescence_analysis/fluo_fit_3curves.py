@@ -301,7 +301,7 @@ def main():
         'poly': 3,
 
         # Analysis
-        'baseline': 400,
+        'baseline': None,
         'fit_model': "two_state",  # "two_state", "three_state", or "None"
 
         # --- CONCENTRATION LIMITS ---
@@ -328,7 +328,7 @@ def main():
     }
 
     # Define paths
-    base_path = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/fluorimetry/TrmD/3/3uM"
+    base_path = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/fluorimetry/Fuzja/3/2uM"
 
     path_series1 = os.path.join(base_path, "28.07.26/csv")
     conc_series1 = os.path.join(path_series1, "concentrations.txt")

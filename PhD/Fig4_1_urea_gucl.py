@@ -482,9 +482,10 @@ def generate_summary_figure():
     print(f"[✓] Parametry dopasowań zapisano do: {OUTPUT_FIT_PATH}")
 
     fig.savefig(OUTPUT_FIGURE_PATH, dpi=300)
+    pdf_path = os.path.splitext(OUTPUT_FIGURE_PATH)[0] + ".pdf"
+    fig.savefig(pdf_path, format="pdf")
     print(f"[✓] Gotowa figura została zapisana do: {OUTPUT_FIGURE_PATH}")
     # plt.show()
-
 
 if __name__ == "__main__":
     generate_summary_figure()

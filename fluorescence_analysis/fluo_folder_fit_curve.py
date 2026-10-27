@@ -46,7 +46,7 @@ def guess_initial_params(x, y, model="two_state"):
         transition_indices = np.argsort(np.abs(dy_dx))[-2:]
         d1, d2 = sorted(x_sorted[transition_indices])
         m1 = m2 = 5 / max(np.ptp(x), 1e-6)
-        return [a_n, a_i, a_u, m1, d1, m2, d2]
+        return [a_n, a_i, a_u, m1, 1.5, m2, 2.5]
     else:
         raise ValueError("Invalid model")
 
@@ -242,24 +242,24 @@ def fit_and_plot(df, col, config, ylabel):
 
 def main():
     config = {
-        'folder': "/home/matifortunka/Downloads/seria5-20260310T154724Z-3-001/seria5",
-        'concentration_file': "/home/matifortunka/Downloads/seria4-20260310T155407Z-3-001/seria4/concentrations.txt",
+        'folder': "/home/matifortunka/Documents/JS/kinetics_stability/data_Cambridge/fusions/F8E4N/equilibrium/unfolding/2nd_set/fluo/spectra_F8_22h_26_04",
+        'concentration_file': "/home/matifortunka/Documents/JS/kinetics_stability/data_Cambridge/fusions/F8E4N/equilibrium/unfolding/2nd_set/fluo/spectra_F8_22h_26_04/concentrations.txt",
 
         # Smoothing
         'smoothing': "savitzky_golay",
-        'window': 21,  # 10 nm interval
+        'window': 15,  # 10 nm interval
         'spline_s': 0.5,
         'poly': 3,
 
         # Analysis
         'baseline': None,  # Set to e.g., 400 if needed
-        'fit_model': "two_state",
+        'fit_model': "three_state",
         'wl1': 330,  # For Ratio
         'wl2': 350,  # For Ratio
-        'target_wl': 330,  # For Single Wavelength
+        'target_wl': 335,  # For Single Wavelength
 
         # Method options: "csm" (was ew), "ratio", "single_wavelength", "all"
-        'method': "all"
+        'method': "csm"
     }
 
     # Load concentrations
