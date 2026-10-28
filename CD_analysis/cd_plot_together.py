@@ -7,12 +7,12 @@ from scipy.signal import savgol_filter
 # User-defined settings
 HV_THRESHOLD = 995
 SMOOTHING_METHOD = "savgol"  # Options: "savgol", "moving_average", None
-SMOOTHING_WINDOW = 25        # Must be odd
+SMOOTHING_WINDOW = 15        # Must be odd
 SMOOTHING_POLYORDER = 3      # Only used for Savitzky-Golay
-BASELINE_WAVELENGTH = None    # Set to None to disable baseline correction
+BASELINE_WAVELENGTH = None   # Set to None to disable baseline correction
 
 # Paths
-input_folder = os.path.expanduser("/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/kinetyka/CD/comparison/all")      # Change this to your input directory
+input_folder = os.path.expanduser("/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/biofizyka_CD/refolding/old")      # Change this to your input directory
 output_folder = os.path.expanduser(input_folder)    # Change this to your output directory
 range_type = ""
 

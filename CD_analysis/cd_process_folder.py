@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 HV_THRESHOLD = 990  # Change this value as needed
 
 # Path to your input folder and output folder
-input_folder = "/home/matifortunka/Documents/JS/kinetics_stability/biofizyka_CD/fuzja"  # Replace with your folder path
+input_folder = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/biofizyka_CD/refolding/Tm1570"  # Replace with your folder path
 output_folder = os.path.join(input_folder, "output")
 
 # Create the output folder if it doesn't exist
