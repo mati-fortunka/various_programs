@@ -11,7 +11,7 @@ TELEGRAM_BOT_TOKEN = "8560988995:AAEqMnsdMsuQFpDiUoZN0BOtwt3bg_tn3So"
 TELEGRAM_CHAT_ID = "2075949423"
 
 # Maksymalna data egzaminu (YYYY-MM-DD)
-MAX_TARGET_DATE = "2026-12-05"
+MAX_TARGET_DATE = "2026-12-14"
 # 'organizationId': [26, 25, 31, 31001, 32004],
 CENTERS = {
     26: "Warszawa Bemowo",
@@ -88,7 +88,7 @@ def main():
         print("[*] Rozpoczynam stały monitoring oparty na realnych akcjach UI...")
 
         payload = {
-            'startDate': '2026-11-02',
+            'startDate': '2026-11-04',
             'organizationId': [26],
             'category': 5,
             'profileNumber': '72501092495855042122',

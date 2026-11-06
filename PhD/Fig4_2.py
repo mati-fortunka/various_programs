@@ -8,7 +8,6 @@ from matplotlib.colors import Normalize, LinearSegmentedColormap
 from scipy.signal import savgol_filter
 from scipy.optimize import curve_fit
 import matplotlib as mpl
-import matplotlib.pyplot as plt
 
 # 1. Konfiguracja czcionki głównej i matematycznej
 mpl.rcParams["font.family"] = "DejaVu Sans"
@@ -44,9 +43,10 @@ DIR_CD_TM1570 = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/
 DIR_FLUO_TRMD = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/fluorimetry/TrmD/3/2uM/28.07.26/csv"
 DIR_FLUO_TM1570 = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/fluorimetry/Tm1570/3/2uM/28.07.26/csv"
 
-OUTPUT_DIR = "/home/matifortunka/Downloads/PhD/rozdział_IV"
+# Zaktualizowane ścieżki wyjściowe
+OUTPUT_DIR = "/home/matifortunka/PycharmProjects/various_programs/PhD/figures/ch04"
 OUTPUT_FIGURE_PATH = os.path.join(OUTPUT_DIR, "Figura_4_2_Izolowane_Domeny.png")
-CSV_OUTPUT_PATH = "tables/thermo_fits_summary.csv"
+CSV_OUTPUT_PATH = "/home/matifortunka/PycharmProjects/various_programs/PhD/tables/thermo_fits_summary.csv"
 
 # Master Palette projektu
 COLOR_TRMD = "#1F77B4"    # Classic Marine Blue
@@ -120,7 +120,7 @@ def load_concentrations_file(filepath):
     return dict(zip(df['Sample_number'].astype(int), df['den_concentration'].astype(float)))
 
 
-def load_cd_spectra_prodata(folder_path, residues, hv_cutoff=900.0):
+def load_cd_spectra_prodata(folder_path, residues, hv_cutoff=875):
     conc_file = os.path.join(folder_path, "concentrations.txt")
     conc_map = load_concentrations_file(conc_file)
     spectra_by_conc = {}
@@ -255,6 +255,7 @@ def generate_figure_4_2():
 
     # --------------------------------------------------------------------------
     # PANEL A: Krzywe denaturacji CD przy 217 nm (TrmD vs Tm1570)
+    # Skala: -14000 do -1000, mnożnik * 10^-3 (oś: -14 do -1)
     # --------------------------------------------------------------------------
     y_cd_trmd = np.array([np.interp(217.0, cd_trmd[c][0], cd_trmd[c][1]) for c in concs_cd_trmd])
     y_cd_tm1570 = np.array([np.interp(217.0, cd_tm1570[c][0], cd_tm1570[c][1]) for c in concs_cd_tm1570])
@@ -275,29 +276,33 @@ def generate_figure_4_2():
     export_fit_row(FIGURE_ID, "CnTm1570", "CD_217nm", TIME_H, CONC_UM, "2-state",
                    popt_cd_tm1570[3], perr_cd_tm1570[3], popt_cd_tm1570[2], perr_cd_tm1570[2], r2_cd_tm1570)
 
-    # Punkty i krzywe
-    ax_a.scatter(concs_cd_trmd, y_cd_trmd, color=COLOR_TRMD, marker='o', s=55, edgecolors='none', zorder=3,
+    # Punkty i krzywe (przeskalowane / 1000.0)
+    ax_a.scatter(concs_cd_trmd, y_cd_trmd / 1000.0, color=COLOR_TRMD, marker='o', s=55, edgecolors='none', zorder=3,
                  label=r"$Cn$TrmD")
-    ax_a.scatter(concs_cd_tm1570, y_cd_tm1570, color=COLOR_TM1570, marker='s', s=50, edgecolors='none', zorder=3,
+    ax_a.scatter(concs_cd_tm1570, y_cd_tm1570 / 1000.0, color=COLOR_TM1570, marker='s', s=50, edgecolors='none', zorder=3,
                  label=r"$Cn$Tm1570")
 
     x_dense_a_trmd = np.linspace(concs_cd_trmd.min(), concs_cd_trmd.max(), 300)
     x_dense_a_tm = np.linspace(concs_cd_tm1570.min(), concs_cd_tm1570.max(), 300)
-    ax_a.plot(x_dense_a_trmd, two_state_model(x_dense_a_trmd, *popt_cd_trmd), color=COLOR_TRMD, lw=2.2, zorder=2)
-    ax_a.plot(x_dense_a_tm, two_state_model(x_dense_a_tm, *popt_cd_tm1570), color=COLOR_TM1570, lw=2.2, zorder=2)
+    ax_a.plot(x_dense_a_trmd, two_state_model(x_dense_a_trmd, *popt_cd_trmd) / 1000.0, color=COLOR_TRMD, lw=2.2, zorder=2)
+    ax_a.plot(x_dense_a_tm, two_state_model(x_dense_a_tm, *popt_cd_tm1570) / 1000.0, color=COLOR_TM1570, lw=2.2, zorder=2)
 
     ax_a.set_xlim(-0.2, 7.8)
-    ax_a.set_xlabel("[GdmCl] (M)", fontsize=12)
-    ax_a.set_ylabel(r"$[\theta]_{\mathrm{MRW}}\ \mathrm{(deg\cdot cm^2\cdot dmol^{-1})}$", fontsize=12)
-    ax_a.tick_params(labelsize=10.5)
+    ax_a.set_ylim(-14.0, -1.0)
+    ax_a.set_xlabel("[GdmCl] (M)", fontsize=15)
+    ax_a.set_ylabel(r"$[\theta]_{\mathrm{MRW}} \times 10^{-3}\ \mathrm{(deg\cdot cm^2\cdot dmol^{-1})}$", fontsize=15)
+    ax_a.tick_params(labelsize=13)
     ax_a.grid(True, linestyle=":", alpha=0.5)
-    ax_a.legend(loc="lower right", bbox_to_anchor=(0.96, 0.05), fontsize=10, frameon=True,
+
+    # Legenda po prawej na środku
+    ax_a.legend(loc="center right", bbox_to_anchor=(0.98, 0.50), fontsize=11.5, frameon=True,
                 facecolor="white", framealpha=0.9, edgecolor="none", markerfirst=False)
-    ax_a.text(0.04, 0.95, "A", transform=ax_a.transAxes, fontsize=14, fontweight="bold", va="top")
+    ax_a.text(0.04, 0.95, "A", transform=ax_a.transAxes, fontsize=14.5, fontweight="bold", va="top")
     ax_a.set_title("CD Equilibrium Unfolding (217 nm)", fontsize=12.5, fontweight="bold", pad=8)
 
     # --------------------------------------------------------------------------
     # PANEL B: Krzywe denaturacji Fluorescencji przy 335 nm (TrmD vs Tm1570)
+    # Skala: 30000 do 85000, mnożnik * 10^-4 (oś: 3 do 8.5)
     # --------------------------------------------------------------------------
     y_fl_trmd = np.array([np.interp(335.0, fluo_trmd[c][0], fluo_trmd[c][1]) for c in concs_fl_trmd])
     y_fl_tm1570 = np.array([np.interp(335.0, fluo_tm1570[c][0], fluo_tm1570[c][1]) for c in concs_fl_tm1570])
@@ -318,126 +323,149 @@ def generate_figure_4_2():
     export_fit_row(FIGURE_ID, "CnTm1570", "Fluo_335nm", TIME_H, CONC_UM, "2-state",
                    popt_fl_tm1570[3], perr_fl_tm1570[3], popt_fl_tm1570[2], perr_fl_tm1570[2], r2_fl_tm1570)
 
-    # Punkty i krzywe
-    ax_b.scatter(concs_fl_trmd, y_fl_trmd, color=COLOR_TRMD, marker='o', s=55, edgecolors='none', zorder=3,
+    # Punkty i krzywe (przeskalowane / 10000.0)
+    ax_b.scatter(concs_fl_trmd, y_fl_trmd / 10000.0, color=COLOR_TRMD, marker='o', s=55, edgecolors='none', zorder=3,
                  label=r"$Cn$TrmD")
-    ax_b.scatter(concs_fl_tm1570, y_fl_tm1570, color=COLOR_TM1570, marker='s', s=50, edgecolors='none', zorder=3,
+    ax_b.scatter(concs_fl_tm1570, y_fl_tm1570 / 10000.0, color=COLOR_TM1570, marker='s', s=50, edgecolors='none', zorder=3,
                  label=r"$Cn$Tm1570")
 
     x_dense_b_trmd = np.linspace(concs_fl_trmd.min(), concs_fl_trmd.max(), 300)
     x_dense_b_tm = np.linspace(concs_fl_tm1570.min(), concs_fl_tm1570.max(), 300)
-    ax_b.plot(x_dense_b_trmd, two_state_model(x_dense_b_trmd, *popt_fl_trmd), color=COLOR_TRMD, lw=2.2, zorder=2)
-    ax_b.plot(x_dense_b_tm, two_state_model(x_dense_b_tm, *popt_fl_tm1570), color=COLOR_TM1570, lw=2.2, zorder=2)
+    ax_b.plot(x_dense_b_trmd, two_state_model(x_dense_b_trmd, *popt_fl_trmd) / 10000.0, color=COLOR_TRMD, lw=2.2, zorder=2)
+    ax_b.plot(x_dense_b_tm, two_state_model(x_dense_b_tm, *popt_fl_tm1570) / 10000.0, color=COLOR_TM1570, lw=2.2, zorder=2)
 
     ax_b.set_xlim(-0.2, 7.8)
-    ax_b.set_xlabel("[GdmCl] (M)", fontsize=12)
-    ax_b.set_ylabel(r"Fluorescence Intensity $I_{335}$ (a.u.)", fontsize=12)
-    ax_b.tick_params(labelsize=10.5)
+    ax_b.set_ylim(3.0, 8.5)
+    ax_b.set_xlabel("[GdmCl] (M)", fontsize=15)
+    ax_b.set_ylabel(r"Fluorescence Intensity $I_{335} \times 10^{-4}$ (a.u.)", fontsize=15)
+    ax_b.tick_params(labelsize=13)
     ax_b.grid(True, linestyle=":", alpha=0.5)
-    ax_b.legend(loc="upper right", bbox_to_anchor=(0.96, 0.95), fontsize=10, frameon=True,
+
+    # Legenda po prawej na środku
+    ax_b.legend(loc="center right", bbox_to_anchor=(0.98, 0.50), fontsize=11.5, frameon=True,
                 facecolor="white", framealpha=0.9, edgecolor="none", markerfirst=False)
-    ax_b.text(0.04, 0.95, "B", transform=ax_b.transAxes, fontsize=14, fontweight="bold", va="top")
+    ax_b.text(0.04, 0.95, "B", transform=ax_b.transAxes, fontsize=14.5, fontweight="bold", va="top")
     ax_b.set_title("Fluorescence Unfolding (335 nm)", fontsize=12.5, fontweight="bold", pad=8)
 
     # --------------------------------------------------------------------------
-    # PANEL C: Widma CD dla CnTrmD (200 - 250 nm, gradient plasma)
+    # PANEL C: Widma CD dla CnTrmD (210 - 250 nm, gradient plasma)
+    # Skala: -14000 do 1000, mnożnik * 10^-3 (oś: -14 do 1)
     # --------------------------------------------------------------------------
-    norm_cd_trmd = Normalize(vmin=concs_cd_trmd.min(), vmax=concs_cd_trmd.max())
+    norm_c = Normalize(vmin=0.0, vmax=max(concs_cd_trmd.max(), 6.0))
     for c in concs_cd_trmd:
         w, mre = cd_trmd[c]
         mask = (w >= 210.0) & (w <= 250.0)
-        ax_c.plot(w[mask], mre[mask], color=plasma_trimmed(norm_cd_trmd(c)), lw=1.35)
+        ax_c.plot(w[mask], mre[mask] / 1000.0, color=plasma_trimmed(norm_c(c)), lw=1.35)
 
     ax_c.set_xlim(210.0, 250.0)
-    ax_c.set_xlabel("Wavelength (nm)", fontsize=12)
-    ax_c.set_ylabel(r"$[\theta]_{\mathrm{MRW}}\ \mathrm{(deg\cdot cm^2\cdot dmol^{-1})}$", fontsize=12)
-    ax_c.tick_params(labelsize=10.5)
+    ax_c.set_ylim(-14.0, 1.0)
+    ax_c.set_xlabel("Wavelength (nm)", fontsize=15)
+    ax_c.set_ylabel(r"$[\theta]_{\mathrm{MRW}} \times 10^{-3}\ \mathrm{(deg\cdot cm^2\cdot dmol^{-1})}$", fontsize=15)
+    ax_c.tick_params(labelsize=13)
     ax_c.grid(True, linestyle=":", alpha=0.5)
-    ax_c.text(0.04, 0.95, "C", transform=ax_c.transAxes, fontsize=14, fontweight="bold", va="top")
+    ax_c.text(0.04, 0.95, "C", transform=ax_c.transAxes, fontsize=14.5, fontweight="bold", va="top")
     ax_c.set_title(r"$\mathsf{Cn}$TrmD – Far-UV CD Spectra", fontweight="bold", fontsize=12.5, pad=8)
 
-    # Inset colorbar w prawym dolnym rogu
-    cax_c = ax_c.inset_axes([0.82, 0.08, 0.035, 0.38])
-    sm_c = plt.cm.ScalarMappable(cmap=plasma_trimmed, norm=norm_cd_trmd)
+    # Powiększony colorbar w prawym dolnym rogu (tics: 0, 2, 4, 6)
+    cax_c = ax_c.inset_axes([0.82, 0.08, 0.048, 0.44])
+    sm_c = plt.cm.ScalarMappable(cmap=plasma_trimmed, norm=norm_c)
     sm_c.set_array([])
     cbar_c = fig.colorbar(sm_c, cax=cax_c, orientation="vertical")
-    cbar_c.ax.tick_params(labelsize=8.5)
-    cbar_c.set_label("[GdmCl] (M)", fontsize=8.5, labelpad=5)
+    cbar_c.solids.set_rasterized(True)
+    cbar_c.set_ticks([0, 2, 4, 6])
+    cbar_c.set_ticklabels(["0", "2", "4", "6"])
+    cbar_c.ax.tick_params(labelsize=10.5)
+    cbar_c.set_label("[GdmCl] (M)", fontsize=11, labelpad=5)
 
     # --------------------------------------------------------------------------
     # PANEL D: Widma Fluo dla CnTrmD (300 - 400 nm, gradient plasma)
+    # Skala: -1000 do 85000, mnożnik * 10^-4 (oś: -0.1 do 8.5)
     # --------------------------------------------------------------------------
-    norm_fl_trmd = Normalize(vmin=concs_fl_trmd.min(), vmax=concs_fl_trmd.max())
+    norm_d = Normalize(vmin=0.0, vmax=max(concs_fl_trmd.max(), 6.0))
     for c in concs_fl_trmd:
         w, inten = fluo_trmd[c]
         mask = (w >= 300.0) & (w <= 400.0)
-        ax_d.plot(w[mask], inten[mask], color=plasma_trimmed(norm_fl_trmd(c)), lw=1.35)
+        ax_d.plot(w[mask], inten[mask] / 10000.0, color=plasma_trimmed(norm_d(c)), lw=1.35)
 
     ax_d.set_xlim(300.0, 400.0)
-    ax_d.set_xlabel("Wavelength (nm)", fontsize=12)
-    ax_d.set_ylabel("Fluorescence Intensity (a.u.)", fontsize=12)
-    ax_d.tick_params(labelsize=10.5)
+    ax_d.set_ylim(-0.1, 8.5)
+    ax_d.set_xlabel("Wavelength (nm)", fontsize=15)
+    ax_d.set_ylabel(r"Fluorescence Intensity $\times 10^{-4}$ (a.u.)", fontsize=15)
+    ax_d.tick_params(labelsize=13)
     ax_d.grid(True, linestyle=":", alpha=0.5)
-    ax_d.text(0.04, 0.95, "D", transform=ax_d.transAxes, fontsize=14, fontweight="bold", va="top")
+    ax_d.text(0.04, 0.95, "D", transform=ax_d.transAxes, fontsize=14.5, fontweight="bold", va="top")
     ax_d.set_title(r"$\mathsf{Cn}$TrmD – Fluorescence Emission Spectra", fontweight="bold", fontsize=12.5, pad=8)
 
-     # Inset colorbar w prawym górnym rogu
-    cax_d = ax_d.inset_axes([0.82, 0.54, 0.035, 0.38])
-    sm_d = plt.cm.ScalarMappable(cmap=plasma_trimmed, norm=norm_fl_trmd)
+    # Powiększony colorbar w prawym górnym rogu (tics: 0, 2, 4, 6)
+    cax_d = ax_d.inset_axes([0.82, 0.50, 0.048, 0.44])
+    sm_d = plt.cm.ScalarMappable(cmap=plasma_trimmed, norm=norm_d)
     sm_d.set_array([])
     cbar_d = fig.colorbar(sm_d, cax=cax_d, orientation="vertical")
-    cbar_d.ax.tick_params(labelsize=8.5)
-    cbar_d.set_label("[GdmCl] (M)", fontsize=8.5, labelpad=5)
+    cbar_d.solids.set_rasterized(True)
+    cbar_d.set_ticks([0, 2, 4, 6])
+    cbar_d.set_ticklabels(["0", "2", "4", "6"])
+    cbar_d.ax.tick_params(labelsize=10.5)
+    cbar_d.set_label("[GdmCl] (M)", fontsize=11, labelpad=5)
 
     # --------------------------------------------------------------------------
-    # PANEL E: Widma CD dla CnTm1570 (200 - 250 nm, gradient plasma)
+    # PANEL E: Widma CD dla CnTm1570 (210 - 250 nm, gradient plasma)
+    # Skala: -14000 do 1000, mnożnik * 10^-3 (oś: -14 do 1)
     # --------------------------------------------------------------------------
-    norm_cd_tm = Normalize(vmin=concs_cd_tm1570.min(), vmax=concs_cd_tm1570.max())
+    norm_e = Normalize(vmin=0.0, vmax=max(concs_cd_tm1570.max(), 6.0))
     for c in concs_cd_tm1570:
         w, mre = cd_tm1570[c]
         mask = (w >= 210.0) & (w <= 250.0)
-        ax_e.plot(w[mask], mre[mask], color=plasma_trimmed(norm_cd_tm(c)), lw=1.35)
+        ax_e.plot(w[mask], mre[mask] / 1000.0, color=plasma_trimmed(norm_e(c)), lw=1.35)
 
     ax_e.set_xlim(210.0, 250.0)
-    ax_e.set_xlabel("Wavelength (nm)", fontsize=12)
-    ax_e.set_ylabel(r"$[\theta]_{\mathrm{MRW}}\ \mathrm{(deg\cdot cm^2\cdot dmol^{-1})}$", fontsize=12)
-    ax_e.tick_params(labelsize=10.5)
+    ax_e.set_ylim(-14.0, 1.0)
+    ax_e.set_xlabel("Wavelength (nm)", fontsize=15)
+    ax_e.set_ylabel(r"$[\theta]_{\mathrm{MRW}} \times 10^{-3}\ \mathrm{(deg\cdot cm^2\cdot dmol^{-1})}$", fontsize=15)
+    ax_e.tick_params(labelsize=13)
     ax_e.grid(True, linestyle=":", alpha=0.5)
-    ax_e.text(0.04, 0.95, "E", transform=ax_e.transAxes, fontsize=14, fontweight="bold", va="top")
+    ax_e.text(0.04, 0.95, "E", transform=ax_e.transAxes, fontsize=14.5, fontweight="bold", va="top")
     ax_e.set_title(r"$\mathsf{Cn}$Tm1570 – Far-UV CD Spectra", fontweight="bold", fontsize=12.5, pad=8)
 
-    # Inset colorbar w prawym dolnym rogu
-    cax_e = ax_e.inset_axes([0.82, 0.08, 0.035, 0.38])
-    sm_e = plt.cm.ScalarMappable(cmap=plasma_trimmed, norm=norm_cd_tm)
+    # Powiększony colorbar w prawym dolnym rogu (tics: 0, 2, 4, 6)
+    cax_e = ax_e.inset_axes([0.82, 0.08, 0.048, 0.44])
+    sm_e = plt.cm.ScalarMappable(cmap=plasma_trimmed, norm=norm_e)
     sm_e.set_array([])
     cbar_e = fig.colorbar(sm_e, cax=cax_e, orientation="vertical")
-    cbar_e.ax.tick_params(labelsize=8.5)
-    cbar_e.set_label("[GdmCl] (M)", fontsize=8.5, labelpad=5)
+    cbar_e.solids.set_rasterized(True)
+    cbar_e.set_ticks([0, 2, 4, 6])
+    cbar_e.set_ticklabels(["0", "2", "4", "6"])
+    cbar_e.ax.tick_params(labelsize=10.5)
+    cbar_e.set_label("[GdmCl] (M)", fontsize=11, labelpad=5)
 
     # --------------------------------------------------------------------------
     # PANEL F: Widma Fluo dla CnTm1570 (300 - 400 nm, gradient plasma)
+    # Skala: -1000 do 85000, mnożnik * 10^-4 (oś: -0.1 do 8.5)
     # --------------------------------------------------------------------------
-    norm_fl_tm = Normalize(vmin=concs_fl_tm1570.min(), vmax=concs_fl_tm1570.max())
+    norm_f = Normalize(vmin=0.0, vmax=max(concs_fl_tm1570.max(), 6.0))
     for c in concs_fl_tm1570:
         w, inten = fluo_tm1570[c]
         mask = (w >= 300.0) & (w <= 400.0)
-        ax_f.plot(w[mask], inten[mask], color=plasma_trimmed(norm_fl_tm(c)), lw=1.35)
+        ax_f.plot(w[mask], inten[mask] / 10000.0, color=plasma_trimmed(norm_f(c)), lw=1.35)
 
     ax_f.set_xlim(300.0, 400.0)
-    ax_f.set_xlabel("Wavelength (nm)", fontsize=12)
-    ax_f.set_ylabel("Fluorescence Intensity (a.u.)", fontsize=12)
-    ax_f.tick_params(labelsize=10.5)
+    ax_f.set_ylim(-0.1, 8.5)
+    ax_f.set_xlabel("Wavelength (nm)", fontsize=15)
+    ax_f.set_ylabel(r"Fluorescence Intensity $\times 10^{-4}$ (a.u.)", fontsize=15)
+    ax_f.tick_params(labelsize=13)
     ax_f.grid(True, linestyle=":", alpha=0.5)
-    ax_f.text(0.04, 0.95, "F", transform=ax_f.transAxes, fontsize=14, fontweight="bold", va="top")
-    ax_f.set_title(r"$\mathsf{Cn}$Tm1570 – Fluorescence Emission Spectra",fontweight="bold", fontsize=12.5, pad=8)
+    ax_f.text(0.04, 0.95, "F", transform=ax_f.transAxes, fontsize=14.5, fontweight="bold", va="top")
+    ax_f.set_title(r"$\mathsf{Cn}$Tm1570 – Fluorescence Emission Spectra", fontweight="bold", fontsize=12.5, pad=8)
 
-    # Inset colorbar w prawym górnym rogu
-    cax_f = ax_f.inset_axes([0.82, 0.54, 0.035, 0.38])
-    sm_f = plt.cm.ScalarMappable(cmap=plasma_trimmed, norm=norm_fl_tm)
+    # Powiększony colorbar w prawym górnym rogu (tics: 0, 2, 4, 6)
+    cax_f = ax_f.inset_axes([0.82, 0.50, 0.048, 0.44])
+    sm_f = plt.cm.ScalarMappable(cmap=plasma_trimmed, norm=norm_f)
     sm_f.set_array([])
     cbar_f = fig.colorbar(sm_f, cax=cax_f, orientation="vertical")
-    cbar_f.ax.tick_params(labelsize=8.5)
-    cbar_f.set_label("[GdmCl] (M)", fontsize=8.5, labelpad=5)
+    cbar_f.solids.set_rasterized(True)
+    cbar_f.set_ticks([0, 2, 4, 6])
+    cbar_f.set_ticklabels(["0", "2", "4", "6"])
+    cbar_f.ax.tick_params(labelsize=10.5)
+    cbar_f.set_label("[GdmCl] (M)", fontsize=11, labelpad=5)
 
     # Zapis figury w formatach PNG (300 DPI) i wektorowym PDF
     fig.savefig(OUTPUT_FIGURE_PATH, dpi=300)
@@ -446,7 +474,6 @@ def generate_figure_4_2():
 
     print(f"\n[✓] Gotowa Figura 4.2 została zapisana do:\n  -> {OUTPUT_FIGURE_PATH}\n  -> {pdf_path}")
     print(f"[✓] Zbiorcze parametry dopasowań zaktualizowano w: {CSV_OUTPUT_PATH}")
-    # plt.show()
 
 
 if __name__ == "__main__":

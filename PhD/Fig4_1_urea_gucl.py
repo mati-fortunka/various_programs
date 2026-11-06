@@ -19,7 +19,7 @@ EXPERIMENTS = [
         "denaturant": "Urea",
         "type": "bka_legacy",
         "path": "/home/matifortunka/Documents/JS/kinetics_stability/data_Cambridge/Tm1570/equilibrium/CD/urea/tm_unfold_SAV",
-        "conc_uM": 40.0,
+        "conc_uM": 30.0,
         "path_mm": 0.1,
         "residues": 224,
         "model": "2-state",
@@ -40,7 +40,7 @@ EXPERIMENTS = [
         "denaturant": "GdmCl",
         "type": "bka_channels",
         "path": "/home/matifortunka/Documents/JS/kinetics_stability/data_Cambridge/Tm1570/equilibrium/CD/GuCl/tm_unfold",
-        "conc_uM": 40.0,
+        "conc_uM": 25.0,
         "path_mm": 0.1,
         "residues": 224,
         "model": "2-state",
@@ -99,12 +99,14 @@ EXPERIMENTS = [
     },
 ]
 
-OUTPUT_DIR = "/home/matifortunka/Downloads/PhD/rozdział_IV"
-OUTPUT_FIGURE_PATH = os.path.join(OUTPUT_DIR, "CD_equilibrium_unfolding_summary_4x3.png")
-OUTPUT_FIT_PATH = os.path.join(OUTPUT_DIR, "fit.txt")
+# Ścieżki wyjściowe
+OUTPUT_DIR = "/home/matifortunka/PycharmProjects/various_programs/PhD/figures/ch04"
+OUTPUT_FIGURE_PATH = os.path.join(OUTPUT_DIR, "Figura_4_1_CD_equilibrium_unfolding_summary_4x3.png")
+OUTPUT_FIT_PATH = os.path.join("/home/matifortunka/PycharmProjects/various_programs/PhD/tables", "fit_fig4_1.txt")
+CSV_PATH = "/home/matifortunka/PycharmProjects/various_programs/PhD/tables/thermo_fits_summary.csv"
 
 RT = 0.592
-HV_CUTOFF = 900.0
+HV_CUTOFF = 850
 
 # Standardized X-axis parameters for Columns 1 and 3
 COMMON_XLIM = (-0.3, 9.7)
@@ -112,7 +114,7 @@ COMMON_XTICKS = np.arange(0, 11, 2)
 
 
 # ==============================================================================
-# 2. Thermodynamic Models & K2D
+# 2. Thermodynamic Models, K2D & Export
 # ==============================================================================
 def two_state_model(x, a_n, a_u, m, d):
     exp_term = np.exp(np.clip((m * (x - d)) / RT, -100, 100))
@@ -123,6 +125,39 @@ def three_state_model(x, a_n, a_i, a_u, m1, d1, m2, d2):
     sig1 = 1.0 / (1.0 + np.exp(np.clip(-(m1 * (x - d1)) / RT, -100, 100)))
     sig2 = 1.0 / (1.0 + np.exp(np.clip(-(m2 * (x - d2)) / RT, -100, 100)))
     return a_n * (1.0 - sig1) + a_i * (sig1 - sig2) + a_u * sig2
+
+
+def calc_r_squared(y_true, y_pred):
+    ss_res = np.sum((y_true - y_pred) ** 2)
+    ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
+    return 1.0 - (ss_res / ss_tot) if ss_tot > 0 else 0.0
+
+
+def export_fit_row(fig_id, construct, probe, time_cond, conc_uM, model_name,
+                   cm_val, cm_se, m_val, m_se, r2_val):
+    dG_val = (m_val * cm_val) if (m_val is not None and cm_val is not None) else None
+    row = {
+        "Figure": fig_id,
+        "Construct": construct,
+        "Probe": probe,
+        "Condition_Time": str(time_cond),
+        "Condition_Conc_uM": conc_uM,
+        "Model": model_name,
+        "Cm_M": round(cm_val, 3) if cm_val is not None else None,
+        "Cm_SE": round(cm_se, 3) if cm_se is not None else None,
+        "m_kcal_mol_M": round(m_val, 3) if m_val is not None else None,
+        "m_SE": round(m_se, 3) if m_se is not None else None,
+        "dG_H2O_kcal_mol": round(dG_val, 2) if dG_val is not None else None,
+        "R_squared": round(r2_val, 4) if r2_val is not None else None
+    }
+    os.makedirs(os.path.dirname(CSV_PATH), exist_ok=True)
+    df_row = pd.DataFrame([row])
+    if not os.path.exists(CSV_PATH):
+        df_row.to_csv(CSV_PATH, index=False)
+    else:
+        df_row.to_csv(CSV_PATH, mode="a", header=False, index=False)
+
+    print(f"[{fig_id}] {construct} | {probe} ({model_name}): Cm={cm_val:.3f} ± {cm_se:.3f} M | m={m_val:.3f} ± {m_se:.3f} | R²={r2_val:.4f}")
 
 
 def solve_k2d(wavelengths, y_delta_eps):
@@ -140,7 +175,7 @@ def solve_k2d(wavelengths, y_delta_eps):
 
 
 def mdeg_to_mre(mdeg, conc_uM, path_mm, residues):
-    return (mdeg * 100.0) / (conc_uM * 1e-3 * (path_mm / 10.0) * residues)
+    return (mdeg * 1e6) / (conc_uM * path_mm * residues)
 
 
 def mdeg_to_delta_epsilon(mdeg, conc_uM, path_mm, residues):
@@ -291,6 +326,8 @@ def load_experiment_data(cfg):
 # ==============================================================================
 def generate_summary_figure():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
+    os.makedirs(os.path.dirname(OUTPUT_FIT_PATH), exist_ok=True)
+
     fig, axes = plt.subplots(4, 3, figsize=(14, 16), constrained_layout=True, dpi=300)
     panel_letters = [
         ["A1", "A2", "A3"],
@@ -320,15 +357,17 @@ def generate_summary_figure():
             continue
 
         # ----------------------------------------------------------------------
-        # COLUMN 1: Transition Curves
+        # COLUMN 1: Transition Curves (Przeskalowanie * 10^-3)
         # ----------------------------------------------------------------------
         y_trans = [np.interp(cfg["target_wl"], data[c][0], data[c][1]) for c in concs]
         y_trans = np.array(y_trans)
 
+        scatter_label = f"{cfg['protein']} ({cfg['denaturant']})"
+
         facecolor = cfg["color"] if cfg["fill"] == "full" else "none"
-        ax_col1.scatter(concs, y_trans, color=cfg["color"], facecolors=facecolor,
+        ax_col1.scatter(concs, y_trans / 1000.0, color=cfg["color"], facecolors=facecolor,
                         marker=cfg["marker"], s=55, lw=1.6, zorder=3,
-                        label=f"{cfg['protein']} ({cfg['denaturant']})")
+                        label=scatter_label)
 
         x_dense = np.linspace(concs.min(), concs.max(), 300)
         fit_success = False
@@ -340,9 +379,20 @@ def generate_summary_figure():
                 popt, pcov = curve_fit(three_state_model, concs, y_trans, p0=p0, bounds=bounds, maxfev=15000)
                 perr = np.sqrt(np.diag(pcov))
                 y_fit = three_state_model(x_dense, *popt)
+                r2_3s = calc_r_squared(y_trans, three_state_model(concs, *popt))
 
-                ax_col1.plot(x_dense, y_fit, color=cfg["color"], ls=cfg["linestyle"], lw=2.4, label="Fit 3-state", zorder=2)
+                fit_label = f"Fit 3-state ($R^2={r2_3s:.3f}$)"
+
+                ax_col1.plot(x_dense, y_fit / 1000.0, color=cfg["color"], ls=cfg["linestyle"], lw=2.4,
+                             label=fit_label, zorder=2)
                 fit_success = True
+
+                export_fit_row("Fig_4.1", cfg["protein"], f"CD_217nm_{cfg['denaturant']}_Step1",
+                               cfg["denaturant"], cfg["conc_uM"], "3-state_trans1",
+                               popt[4], perr[4], popt[3], perr[3], r2_3s)
+                export_fit_row("Fig_4.1", cfg["protein"], f"CD_217nm_{cfg['denaturant']}_Step2",
+                               cfg["denaturant"], cfg["conc_uM"], "3-state_trans2",
+                               popt[6], perr[6], popt[5], perr[5], r2_3s)
 
                 report = (
                     f"--- {cfg['label']} [3-State Model] ---\n"
@@ -354,7 +404,8 @@ def generate_summary_figure():
                     f"dG1 = {popt[3]*popt[4]:.2f} kcal/mol\n"
                     f"m2  = {popt[5]:.2f} ± {perr[5]:.2f} kcal/(mol*M)\n"
                     f"Cm2 = {popt[6]:.2f} ± {perr[6]:.2f} M\n"
-                    f"dG2 = {popt[5]*popt[6]:.2f} kcal/mol\n\n"
+                    f"dG2 = {popt[5]*popt[6]:.2f} kcal/mol\n"
+                    f"R^2 = {r2_3s:.4f}\n\n"
                 )
                 fit_report_lines.append(report)
             except Exception as e:
@@ -366,8 +417,16 @@ def generate_summary_figure():
                 popt, pcov = curve_fit(two_state_model, concs, y_trans, p0=p0, maxfev=10000)
                 perr = np.sqrt(np.diag(pcov))
                 y_fit = two_state_model(x_dense, *popt)
+                r2_2s = calc_r_squared(y_trans, two_state_model(concs, *popt))
 
-                ax_col1.plot(x_dense, y_fit, color=cfg["color"], ls=cfg["linestyle"], lw=2.4, label="Fit 2-state", zorder=2)
+                fit_label = f"Fit 2-state ($R^2={r2_2s:.3f}$)"
+
+                ax_col1.plot(x_dense, y_fit / 1000.0, color=cfg["color"], ls=cfg["linestyle"], lw=2.4,
+                             label=fit_label, zorder=2)
+
+                export_fit_row("Fig_4.1", cfg["protein"], f"CD_217nm_{cfg['denaturant']}",
+                               cfg["denaturant"], cfg["conc_uM"], "2-state",
+                               popt[3], perr[3], popt[2], perr[2], r2_2s)
 
                 report = (
                     f"--- {cfg['label']} [2-State Model] ---\n"
@@ -375,53 +434,84 @@ def generate_summary_figure():
                     f"a_u = {popt[1]:.2f} ± {perr[1]:.2f} deg*cm^2/dmol\n"
                     f"m   = {popt[2]:.2f} ± {perr[2]:.2f} kcal/(mol*M)\n"
                     f"Cm  = {popt[3]:.2f} ± {perr[3]:.2f} M\n"
-                    f"dG  = {popt[2]*popt[3]:.2f} kcal/mol\n\n"
+                    f"dG  = {popt[2]*popt[3]:.2f} kcal/mol\n"
+                    f"R^2 = {r2_2s:.4f}\n\n"
                 )
                 fit_report_lines.append(report)
             except Exception as e:
                 print(f"2-state fit failed for {cfg['label']}: {e}")
 
+        # Skalowanie osi Y dla Col 1
+        if row_idx in [0, 1]:
+            ax_col1.set_ylim(-12.5, -2.75)
+        else:
+            ax_col1.set_ylim(-15.5, -1)
+
         ax_col1.set_xlim(COMMON_XLIM)
         ax_col1.set_xticks(COMMON_XTICKS)
-        ax_col1.set_ylabel(r"$[\theta]_{\mathrm{MRW}}\ \mathrm{(deg\cdot cm^2\cdot dmol^{-1})}$", fontsize=12)
-        ax_col1.set_xlabel(f"[{cfg['denaturant']}] (M)", fontsize=12)
-        ax_col1.legend(
-            loc="lower right",
-            bbox_to_anchor=(1, 0.02),
-            fontsize=9.5,
+        ax_col1.set_ylabel(r"$[\theta]_{\mathrm{MRW}} \times 10^{-3}\ \mathrm{(deg\cdot cm^2\cdot dmol^{-1})}$", fontsize=15)
+        ax_col1.set_xlabel(f"[{cfg['denaturant']}] (M)", fontsize=15)
+
+        # W panelach A1 (row 0) i C1 (row 2) symbole po lewej (markerfirst=True) i wyrównanie do lewej
+        if row_idx in [0, 2]:
+            leg_loc = "upper left"
+            leg_bbox = (0.02, 0.87)
+            m_first = True
+        else:
+            leg_loc = "lower right"
+            leg_bbox = (1, 0.02)
+            m_first = False
+
+        leg1 = ax_col1.legend(
+            loc=leg_loc,
+            bbox_to_anchor=leg_bbox,
+            fontsize=11.5,
             frameon=True,
             facecolor="white",
             framealpha=0.85,
             edgecolor="none",
-            markerfirst=False,  # <--- puts text on the left, marker/line handle on the right
+            markerfirst=m_first,
         )
+
+        if row_idx in [0, 2]:
+            for text_obj in leg1.get_texts():
+                text_obj.set_ha("left")
+
         ax_col1.grid(True, linestyle=":", alpha=0.5)
 
         # ----------------------------------------------------------------------
-        # COLUMN 2: Equilibrium CD Spectra
+        # COLUMN 2: Equilibrium CD Spectra (Przeskalowanie * 10^-3)
         # ----------------------------------------------------------------------
-        norm = Normalize(vmin=concs.min(), vmax=concs.max())
+        norm = Normalize(vmin=0.0, vmax=max(concs.max(), 7.5))
         cmap = plt.cm.inferno
 
         for c in concs:
             wls, mre, _ = data[c]
             mask = (wls >= 200.0) & (wls <= 250.0)
             norm_val = 0.05 + 0.80 * norm(c)
-            ax_col2.plot(wls[mask], mre[mask], color=cmap(norm_val), lw=1.35)
+            ax_col2.plot(wls[mask], mre[mask] / 1000.0, color=cmap(norm_val), lw=1.35)
+
+        # Skalowanie osi Y dla Col 2
+        if row_idx in [0, 1]:
+            ax_col2.set_ylim(-12.5, 0.5)
+        else:
+            ax_col2.set_ylim(-15.5, 0.5)
 
         ax_col2.set_xlim(200.0, 250.0)
-        ax_col2.set_xlabel("Wavelength (nm)", fontsize=12)
-        ax_col2.set_ylabel(r"$[\theta]_{\mathrm{MRW}}\ \mathrm{(deg\cdot cm^2\cdot dmol^{-1})}$", fontsize=12)
+        ax_col2.set_xlabel("Wavelength (nm)", fontsize=15)
+        ax_col2.set_ylabel(r"$[\theta]_{\mathrm{MRW}} \times 10^{-3}\ \mathrm{(deg\cdot cm^2\cdot dmol^{-1})}$", fontsize=15)
         ax_col2.grid(True, linestyle=":", alpha=0.5)
 
-        # Native inset axes for colorbar (robust against layout engines)
-        cax = ax_col2.inset_axes([0.78, 0.08, 0.04, 0.38])
+        # Proporcjonalnie powiększony colorbar z podziałkami w punktach 0, 2.5, 5, 7.5
+        cax = ax_col2.inset_axes([0.74, 0.08, 0.048, 0.44])
         sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
         sm.set_array([])
         cbar = fig.colorbar(sm, cax=cax, orientation="vertical")
         cbar.solids.set_rasterized(True)
-        cbar.ax.tick_params(labelsize=8.5)
-        cbar.set_label(f"[{cfg['denaturant']}] (M)", fontsize=8.5, labelpad=5)
+        cbar.set_ticks([0, 2.5, 5, 7.5])
+        cbar.set_ticklabels(["0", "2.5", "5", "7.5"])
+        cbar.ax.tick_params(labelsize=10.5)
+        cbar.set_label(f"[{cfg['denaturant']}] (M)", fontsize=11, labelpad=5)
 
         # ----------------------------------------------------------------------
         # COLUMN 3: K2D Secondary Structure
@@ -441,23 +531,25 @@ def generate_summary_figure():
         ax_col3.set_xlim(COMMON_XLIM)
         ax_col3.set_xticks(COMMON_XTICKS)
         ax_col3.set_ylim(-0.05, 1.05)
-        ax_col3.set_ylabel("Secondary Structure Fraction", fontsize=12)
-        ax_col3.set_xlabel(f"[{cfg['denaturant']}] (M)", fontsize=12)
+        ax_col3.set_ylabel("Secondary Structure Fraction", fontsize=15)
+        ax_col3.set_xlabel(f"[{cfg['denaturant']}] (M)", fontsize=15)
         ax_col3.grid(True, linestyle=":", alpha=0.5)
+
+        # Przerzucenie legendy w A3 w prawy górny róg
         if row_idx == 0:
-            ax_col3.legend(loc="center right", fontsize=9.5, frameon=True, framealpha=0.85)
+            ax_col3.legend(loc="upper right", fontsize=11.5, frameon=True, framealpha=0.85)
 
         # ----------------------------------------------------------------------
         # Panel Tags (A1-D3) & Row Titles
         # ----------------------------------------------------------------------
         for col_idx, ax in enumerate([ax_col1, ax_col2, ax_col3]):
-            ax.tick_params(labelsize=10.5)
+            ax.tick_params(labelsize=13)
             ax.text(
                 0.03,
                 0.95,
                 panel_letters[row_idx][col_idx],
                 transform=ax.transAxes,
-                fontsize=13,
+                fontsize=14.5,
                 fontweight="bold",
                 va="top",
                 zorder=10,
@@ -480,12 +572,13 @@ def generate_summary_figure():
     with open(OUTPUT_FIT_PATH, "w", encoding="utf-8") as f:
         f.writelines(fit_report_lines)
     print(f"[✓] Parametry dopasowań zapisano do: {OUTPUT_FIT_PATH}")
+    print(f"[✓] Zbiorcze parametry dopasowań zaktualizowano w: {CSV_PATH}")
 
     fig.savefig(OUTPUT_FIGURE_PATH, dpi=300)
     pdf_path = os.path.splitext(OUTPUT_FIGURE_PATH)[0] + ".pdf"
     fig.savefig(pdf_path, format="pdf")
-    print(f"[✓] Gotowa figura została zapisana do: {OUTPUT_FIGURE_PATH}")
-    # plt.show()
+    print(f"[✓] Gotowa figura została zapisana do:\n  -> {OUTPUT_FIGURE_PATH}\n  -> {pdf_path}")
+
 
 if __name__ == "__main__":
     generate_summary_figure()
