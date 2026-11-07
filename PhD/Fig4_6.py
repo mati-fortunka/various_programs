@@ -3,21 +3,32 @@ import re
 from io import StringIO
 import numpy as np
 import pandas as pd
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
+from matplotlib.gridspec import GridSpec
 from scipy.signal import savgol_filter
 from scipy.optimize import curve_fit
+
+# Konfiguracja czcionek DejaVu Sans dla spójności typograficznej
+mpl.rcParams["font.family"] = "DejaVu Sans"
+mpl.rcParams["mathtext.fontset"] = "custom"
+mpl.rcParams["mathtext.rm"] = "DejaVu Sans"
+mpl.rcParams["mathtext.it"] = "DejaVu Sans:italic"
+mpl.rcParams["mathtext.bf"] = "DejaVu Sans:bold"
+mpl.rcParams["mathtext.sf"] = "DejaVu Sans:bold:italic"
+mpl.rcParams["mathtext.cal"] = "DejaVu Sans"
+mpl.rcParams["mathtext.tt"] = "DejaVu Sans Mono"
 
 # ==============================================================================
 # 1. Konfiguracja Ścieżek, Parametrów i Palety Projektowej
 # ==============================================================================
-FIGURE_ID = "Fig_4.5"
+FIGURE_ID = "Fig_4.6"
 PATH_LENGTH_MM = 1.0
 TARGET_WL = 217.0
 RT = 0.592  # kcal/mol przy 298.15 K
 HV_CUTOFF = 900.0
 
-# Zaktualizowana liczba reszt aminokwasowych
 RESIDUES = {
     "TrmD": 262,
     "Tm1570": 224,
@@ -33,6 +44,7 @@ CONC_SERIES = [
         "marker": "o",
         "fill": "none",
         "ls": ":",
+        "dashes": (1.5, 2.0),
         "trmd_color": "#6BAED6",
         "tm1570_color": "#FDBE85",
         "fusion_color": "#BCBDDC"
@@ -44,6 +56,7 @@ CONC_SERIES = [
         "marker": "s",
         "fill": "full",
         "ls": "--",
+        "dashes": (4.0, 2.5),
         "trmd_color": "#1F77B4",
         "tm1570_color": "#FF7F0E",
         "fusion_color": "#7570B3"
@@ -55,6 +68,7 @@ CONC_SERIES = [
         "marker": "^",
         "fill": "full",
         "ls": "-",
+        "dashes": None,
         "trmd_color": "#08306B",
         "tm1570_color": "#D95F02",
         "fusion_color": "#4A148C"
@@ -63,9 +77,9 @@ CONC_SERIES = [
 
 BASE_CD_DIR = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/biofizyka_CD"
 
-OUTPUT_DIR = "/home/matifortunka/Downloads/PhD/rozdział_IV"
-OUTPUT_FIGURE_PATH = os.path.join(OUTPUT_DIR, "Figura_4_5_Wplyw_Stezenia_Bialka_1x3.png")
-CSV_OUTPUT_PATH = "tables/thermo_fits_summary.csv"
+OUTPUT_DIR = "/home/matifortunka/PycharmProjects/various_programs/PhD/figures/ch04"
+OUTPUT_FIGURE_PATH = os.path.join(OUTPUT_DIR, "Figura_4_6_Wplyw_Stezenia_Bialka_2x2_center.png")
+CSV_OUTPUT_PATH = "/home/matifortunka/PycharmProjects/various_programs/PhD/tables/thermo_fits_summary.csv"
 
 # Wstępne parametry 3-stanowe dla fuzji (m1, d1, m2, d2)
 INITIAL_GUESSES_3STATE_CONC = {
@@ -142,7 +156,6 @@ def load_concentrations_file(filepath):
 
 
 def resolve_folder_path(construct_subfolder, folder_token):
-    """Odnajduje właściwą ścieżkę uwzględniając podfoldery i formaty dat."""
     candidates = [
         os.path.join(BASE_CD_DIR, construct_subfolder, folder_token),
         os.path.join(BASE_CD_DIR, construct_subfolder, folder_token.replace("_", ".")),
@@ -155,7 +168,6 @@ def resolve_folder_path(construct_subfolder, folder_token):
 
 
 def load_single_series(construct_subfolder, folder_token, residues, conc_uM):
-    """Zwraca tablice (concs, mre_at_target_wl)."""
     folder_path = resolve_folder_path(construct_subfolder, folder_token)
     conc_file = os.path.join(folder_path, "concentrations.txt")
 
@@ -195,7 +207,6 @@ def load_single_series(construct_subfolder, folder_token, residues, conc_uM):
             cd_arr = np.array(cd_lines)
             wls, mdeg = cd_arr[:, 0], cd_arr[:, 1]
 
-            # HV Cutoff
             hv_idx = next((i for i in range(len(lines) - 1)
                            if lines[i].strip().startswith("Wavelength") and lines[i + 1].strip().startswith("HV")), None)
             if hv_idx is not None:
@@ -232,12 +243,19 @@ def load_single_series(construct_subfolder, folder_token, residues, conc_uM):
 
 
 # ==============================================================================
-# 4. Generator Figury 4.5 (Układ 1 x 3 w skali f_U)
+# 4. Generator Figury 4.6 (Siatka 2 rzędy, Panel C wyśrodkowany)
 # ==============================================================================
-def generate_figure_4_5():
+def generate_figure_4_6():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    fig, axes = plt.subplots(1, 3, figsize=(15, 4.8), constrained_layout=True, dpi=300)
-    ax_a, ax_b, ax_c = axes[0], axes[1], axes[2]
+    os.makedirs(os.path.dirname(CSV_OUTPUT_PATH), exist_ok=True)
+
+    fig = plt.figure(figsize=(13, 11), constrained_layout=True, dpi=300)
+    gs = GridSpec(2, 4, figure=fig)
+
+    # Układ: A i B w górnym rzędzie, C wyśrodkowany w dolnym rzędzie
+    ax_a = fig.add_subplot(gs[0, 0:2])
+    ax_b = fig.add_subplot(gs[0, 2:4])
+    ax_c = fig.add_subplot(gs[1, 1:3])
 
     x_dense_trmd = np.linspace(0.0, 6.0, 300)
     x_dense_tm = np.linspace(0.0, 7.5, 300)
@@ -261,39 +279,48 @@ def generate_figure_4_5():
             r2 = calc_r_squared(y, two_state_model(c, *popt))
             a_n, a_u = popt[0], popt[1]
 
-            # Normalizacja do pozornej frakcji f_U
             f_u_exp = (y - a_n) / (a_u - a_n)
             f_u_fit = (two_state_model(x_dense_trmd, *popt) - a_n) / (a_u - a_n)
 
-            facecolor = col if item["fill"] == "full" else "none"
+            facecolor = col if item["fill"] == "full" else "white"
             ax_a.scatter(c, f_u_exp, color=col, facecolors=facecolor, marker=item["marker"],
-                         s=32, lw=0.9, zorder=3)
-            ax_a.plot(x_dense_trmd, f_u_fit, color=col, ls=item["ls"], lw=1.8, zorder=2)
+                         s=45, lw=1.2, zorder=3)
+
+            line_kw = {"color": col, "lw": 2.2, "zorder": 2, "ls": item["ls"]}
+            if item["dashes"]:
+                line_kw["dashes"] = item["dashes"]
+            ax_a.plot(x_dense_trmd, f_u_fit, **line_kw)
 
             export_fit_row(FIGURE_ID, "CnTrmD", "CD_217nm", 84, c_uM, "2-state",
                            popt[3], perr[3], popt[2], perr[2], r2)
         except Exception as e:
             print(f"Fit failed for CnTrmD ({c_uM} uM): {e}")
 
-        handle = Line2D(
-            [0], [0],
-            color=col, linestyle=item["ls"], linewidth=1.35,
-            marker=item["marker"], markersize=4.5,
-            markerfacecolor=col if item["fill"] == "full" else "none",
-            markeredgecolor=col, markeredgewidth=0.9
-        )
-        handles_a.append(handle)
+        h_kw = {
+            "color": col, "linestyle": item["ls"], "linewidth": 2.0,
+            "marker": item["marker"], "markersize": 7.0,
+            "markerfacecolor": facecolor, "markeredgecolor": col, "markeredgewidth": 1.2
+        }
+        if item["dashes"]:
+            h_kw["dashes"] = item["dashes"]
+        handles_a.append(Line2D([0], [0], **h_kw))
         labels_a.append(item["label"])
 
     ax_a.set_xlim(-0.2, 6.2)
-    ax_a.set_ylim(-0.08, 1.08)
-    ax_a.set_xlabel("[GdmCl] (M)", fontsize=12)
-    ax_a.set_ylabel(r"Apparent Unfolded Fraction ($f_U$)", fontsize=12)
-    ax_a.tick_params(labelsize=10.5)
+    ax_a.set_ylim(-0.1, 1.12)
+    ax_a.set_xlabel("[GdmCl] (M)", fontsize=15)
+    ax_a.set_ylabel(r"Apparent Unfolded Fraction ($f_U$)", fontsize=15)
+    ax_a.tick_params(labelsize=13)
     ax_a.grid(True, linestyle=":", alpha=0.5)
-    ax_a.legend(handles_a, labels_a, loc="lower right", bbox_to_anchor=(0.96, 0.05),
-                fontsize=10, frameon=True, facecolor="white", framealpha=0.9,
-                edgecolor="none", markerfirst=False, handlelength=1.9, handletextpad=0.7)
+
+    leg_a = ax_a.legend(
+        handles_a, labels_a, loc="lower right", bbox_to_anchor=(0.98, 0.04),
+        fontsize=11.5, frameon=True, facecolor="white", framealpha=0.9,
+        edgecolor="none", markerfirst=False, handlelength=2.6, handletextpad=0.8
+    )
+    for text_obj in leg_a.get_texts():
+        text_obj.set_ha("right")
+
     ax_a.text(0.04, 0.94, "A", transform=ax_a.transAxes, fontsize=15, fontweight="bold", va="top")
     ax_a.set_title(r"$\boldsymbol{Cn}$" + r"$\bf{TrmD\ (84\ h)}$", fontsize=13, pad=8)
 
@@ -318,35 +345,45 @@ def generate_figure_4_5():
             f_u_exp = (y - a_n) / (a_u - a_n)
             f_u_fit = (two_state_model(x_dense_tm, *popt) - a_n) / (a_u - a_n)
 
-            facecolor = col if item["fill"] == "full" else "none"
+            facecolor = col if item["fill"] == "full" else "white"
             ax_b.scatter(c, f_u_exp, color=col, facecolors=facecolor, marker=item["marker"],
-                         s=32, lw=0.9, zorder=3)
-            ax_b.plot(x_dense_tm, f_u_fit, color=col, ls=item["ls"], lw=1.8, zorder=2)
+                         s=45, lw=1.2, zorder=3)
+
+            line_kw = {"color": col, "lw": 2.2, "zorder": 2, "ls": item["ls"]}
+            if item["dashes"]:
+                line_kw["dashes"] = item["dashes"]
+            ax_b.plot(x_dense_tm, f_u_fit, **line_kw)
 
             export_fit_row(FIGURE_ID, "CnTm1570", "CD_217nm", 84, c_uM, "2-state",
                            popt[3], perr[3], popt[2], perr[2], r2)
         except Exception as e:
             print(f"Fit failed for CnTm1570 ({c_uM} uM): {e}")
 
-        handle = Line2D(
-            [0], [0],
-            color=col, linestyle=item["ls"], linewidth=1.35,
-            marker=item["marker"], markersize=4.5,
-            markerfacecolor=col if item["fill"] == "full" else "none",
-            markeredgecolor=col, markeredgewidth=0.9
-        )
-        handles_b.append(handle)
+        h_kw = {
+            "color": col, "linestyle": item["ls"], "linewidth": 2.0,
+            "marker": item["marker"], "markersize": 7.0,
+            "markerfacecolor": facecolor, "markeredgecolor": col, "markeredgewidth": 1.2
+        }
+        if item["dashes"]:
+            h_kw["dashes"] = item["dashes"]
+        handles_b.append(Line2D([0], [0], **h_kw))
         labels_b.append(item["label"])
 
     ax_b.set_xlim(-0.2, 7.8)
-    ax_b.set_ylim(-0.08, 1.08)
-    ax_b.set_xlabel("[GdmCl] (M)", fontsize=12)
-    ax_b.set_ylabel(r"Apparent Unfolded Fraction ($f_U$)", fontsize=12)
-    ax_b.tick_params(labelsize=10.5)
+    ax_b.set_ylim(-0.1, 1.12)
+    ax_b.set_xlabel("[GdmCl] (M)", fontsize=15)
+    ax_b.set_ylabel(r"Apparent Unfolded Fraction ($f_U$)", fontsize=15)
+    ax_b.tick_params(labelsize=13)
     ax_b.grid(True, linestyle=":", alpha=0.5)
-    ax_b.legend(handles_b, labels_b, loc="lower right", bbox_to_anchor=(0.96, 0.05),
-                fontsize=10, frameon=True, facecolor="white", framealpha=0.9,
-                edgecolor="none", markerfirst=False, handlelength=1.9, handletextpad=0.7)
+
+    leg_b = ax_b.legend(
+        handles_b, labels_b, loc="lower right", bbox_to_anchor=(0.98, 0.04),
+        fontsize=11.5, frameon=True, facecolor="white", framealpha=0.9,
+        edgecolor="none", markerfirst=False, handlelength=2.6, handletextpad=0.8
+    )
+    for text_obj in leg_b.get_texts():
+        text_obj.set_ha("right")
+
     ax_b.text(0.04, 0.94, "B", transform=ax_b.transAxes, fontsize=15, fontweight="bold", va="top")
     ax_b.set_title(r"$\boldsymbol{Cn}$" + r"$\bf{Tm1570\ (84\ h)}$", fontsize=13, pad=8)
 
@@ -385,10 +422,14 @@ def generate_figure_4_5():
             f_u_exp = (y - a_n) / (a_u - a_n)
             f_u_fit = (three_state_model(x_dense_fus, *popt) - a_n) / (a_u - a_n)
 
-            facecolor = col if item["fill"] == "full" else "none"
+            facecolor = col if item["fill"] == "full" else "white"
             ax_c.scatter(c, f_u_exp, color=col, facecolors=facecolor, marker=item["marker"],
-                         s=32, lw=0.9, zorder=3)
-            ax_c.plot(x_dense_fus, f_u_fit, color=col, ls=item["ls"], lw=1.8, zorder=2)
+                         s=45, lw=1.2, zorder=3)
+
+            line_kw = {"color": col, "lw": 2.2, "zorder": 2, "ls": item["ls"]}
+            if item["dashes"]:
+                line_kw["dashes"] = item["dashes"]
+            ax_c.plot(x_dense_fus, f_u_fit, **line_kw)
 
             export_fit_row(FIGURE_ID, "CnTrmD-Tm1570", "CD_217nm_Step1", 84, c_uM, "3-state_trans1",
                            popt[4], perr[4], popt[3], perr[3], r2)
@@ -404,33 +445,43 @@ def generate_figure_4_5():
             f_u_exp = (y - a_n) / (a_u - a_n)
             f_u_fit = (two_state_model(x_dense_fus, *popt_2s) - a_n) / (a_u - a_n)
 
-            facecolor = col if item["fill"] == "full" else "none"
+            facecolor = col if item["fill"] == "full" else "white"
             ax_c.scatter(c, f_u_exp, color=col, facecolors=facecolor, marker=item["marker"],
-                         s=32, lw=0.9, zorder=3)
-            ax_c.plot(x_dense_fus, f_u_fit, color=col, ls=item["ls"], lw=1.6, zorder=2)
+                         s=45, lw=1.2, zorder=3)
+
+            line_kw = {"color": col, "lw": 2.0, "zorder": 2, "ls": item["ls"]}
+            if item["dashes"]:
+                line_kw["dashes"] = item["dashes"]
+            ax_c.plot(x_dense_fus, f_u_fit, **line_kw)
 
             export_fit_row(FIGURE_ID, "CnTrmD-Tm1570", "CD_217nm_Fallback", 84, c_uM, "2-state",
                            popt_2s[3], perr_2s[3], popt_2s[2], perr_2s[2], r2_2s)
 
-        handle = Line2D(
-            [0], [0],
-            color=col, linestyle=item["ls"], linewidth=1.35,
-            marker=item["marker"], markersize=4.5,
-            markerfacecolor=col if item["fill"] == "full" else "none",
-            markeredgecolor=col, markeredgewidth=0.9
-        )
-        handles_c.append(handle)
+        h_kw = {
+            "color": col, "linestyle": item["ls"], "linewidth": 2.0,
+            "marker": item["marker"], "markersize": 7.0,
+            "markerfacecolor": facecolor, "markeredgecolor": col, "markeredgewidth": 1.2
+        }
+        if item["dashes"]:
+            h_kw["dashes"] = item["dashes"]
+        handles_c.append(Line2D([0], [0], **h_kw))
         labels_c.append(item["label"])
 
     ax_c.set_xlim(-0.2, 7.8)
-    ax_c.set_ylim(-0.08, 1.08)
-    ax_c.set_xlabel("[GdmCl] (M)", fontsize=12)
-    ax_c.set_ylabel(r"Apparent Unfolded Fraction ($f_U$)", fontsize=12)
-    ax_c.tick_params(labelsize=10.5)
+    ax_c.set_ylim(-0.1, 1.12)
+    ax_c.set_xlabel("[GdmCl] (M)", fontsize=15)
+    ax_c.set_ylabel(r"Apparent Unfolded Fraction ($f_U$)", fontsize=15)
+    ax_c.tick_params(labelsize=13)
     ax_c.grid(True, linestyle=":", alpha=0.5)
-    ax_c.legend(handles_c, labels_c, loc="lower right", bbox_to_anchor=(0.96, 0.05),
-                fontsize=10, frameon=True, facecolor="white", framealpha=0.9,
-                edgecolor="none", markerfirst=False, handlelength=1.9, handletextpad=0.7)
+
+    leg_c = ax_c.legend(
+        handles_c, labels_c, loc="lower right", bbox_to_anchor=(0.98, 0.04),
+        fontsize=11.5, frameon=True, facecolor="white", framealpha=0.9,
+        edgecolor="none", markerfirst=False, handlelength=2.6, handletextpad=0.8
+    )
+    for text_obj in leg_c.get_texts():
+        text_obj.set_ha("right")
+
     ax_c.text(0.04, 0.94, "C", transform=ax_c.transAxes, fontsize=15, fontweight="bold", va="top")
     ax_c.set_title(r"$\bf{Fusion\ }$" + r"$\boldsymbol{Cn}$" + r"$\bf{TrmD–Tm1570\ (84\ h)}$", fontsize=13, pad=8)
 
@@ -439,10 +490,9 @@ def generate_figure_4_5():
     pdf_path = os.path.splitext(OUTPUT_FIGURE_PATH)[0] + ".pdf"
     fig.savefig(pdf_path, format="pdf")
 
-    print(f"\n[✓] Gotowa Figura 4.5 zapisana do:\n  -> {OUTPUT_FIGURE_PATH}\n  -> {pdf_path}")
+    print(f"\n[✓] Gotowa Figura 4.6 zapisana do:\n  -> {OUTPUT_FIGURE_PATH}\n  -> {pdf_path}")
     print(f"[✓] Zbiorcze parametry dopasowań zaktualizowano w: {CSV_OUTPUT_PATH}")
-    # plt.show()
 
 
 if __name__ == "__main__":
-    generate_figure_4_5()
+    generate_figure_4_6()

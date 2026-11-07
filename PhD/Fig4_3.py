@@ -3,11 +3,21 @@ import re
 from io import StringIO
 import numpy as np
 import pandas as pd
+import matplotlib as mpl
 import matplotlib.pyplot as plt
-from matplotlib.colors import Normalize
-from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.colors import Normalize, LinearSegmentedColormap
 from scipy.signal import savgol_filter
 from scipy.optimize import curve_fit
+
+# Konfiguracja czcionek DejaVu Sans dla spójności typograficznej
+mpl.rcParams["font.family"] = "DejaVu Sans"
+mpl.rcParams["mathtext.fontset"] = "custom"
+mpl.rcParams["mathtext.rm"] = "DejaVu Sans"
+mpl.rcParams["mathtext.it"] = "DejaVu Sans:italic"
+mpl.rcParams["mathtext.bf"] = "DejaVu Sans:bold"
+mpl.rcParams["mathtext.sf"] = "DejaVu Sans:bold:italic"
+mpl.rcParams["mathtext.cal"] = "DejaVu Sans"
+mpl.rcParams["mathtext.tt"] = "DejaVu Sans Mono"
 
 # ==============================================================================
 # 1. Konfiguracja Ścieżek, Parametrów i Palety Barw
@@ -27,16 +37,16 @@ BASE_DIR_FLUO = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/
 CONC_FILE_CD = os.path.join(BASE_DIR_CD, "concentrations.txt")
 CONC_FILE_FLUO = os.path.join(BASE_DIR_FLUO, "concentrations.txt")
 
-OUTPUT_DIR = "/home/matifortunka/Downloads/PhD/rozdział_IV"
+OUTPUT_DIR = "/home/matifortunka/PycharmProjects/various_programs/PhD/figures/ch04"
 OUTPUT_FIGURE_PATH = os.path.join(OUTPUT_DIR, "Figura_4_3_Fuzja_2uM_12h.png")
-CSV_OUTPUT_PATH = "tables/thermo_fits_summary.csv"
+CSV_OUTPUT_PATH = "/home/matifortunka/PycharmProjects/various_programs/PhD/tables/thermo_fits_summary.csv"
 
 # Paleta projektowa
 COLOR_FUSION = "#7570B3"  # Fuzja CnTrmD-Tm1570
 COLOR_TM1570 = "#D95F02"  # Domena Tm1570 (Ciepły cynober / pomarańcz)
-COLOR_TRMD = "#1F77B4"  # Domena TrmD (Marine Blue)
+COLOR_TRMD = "#1F77B4"    # Domena TrmD (Marine Blue)
 
-# Utworzenie obciętej palety plasma (zakres 0.05 - 0.85 eliminuje wyblakłą żółć)
+# Obcięta paleta plasma (0.05 - 0.85)
 plasma_full = plt.cm.plasma
 plasma_trimmed = LinearSegmentedColormap.from_list(
     "plasma_trimmed",
@@ -125,7 +135,7 @@ def load_concentrations_file(filepath):
     return dict(zip(df['Sample_number'].astype(int), df['den_concentration'].astype(float)))
 
 
-def load_prodata_cd(folder_path, conc_file, hv_cutoff=900.0):
+def load_prodata_cd(folder_path, conc_file, hv_cutoff=850.0):
     conc_map = load_concentrations_file(conc_file)
     spectra_by_conc = {}
     pattern = re.compile(r"(\d{5})\.csv$")
@@ -144,8 +154,7 @@ def load_prodata_cd(folder_path, conc_file, hv_cutoff=900.0):
             lines = f.readlines()
 
         cd_idx = next((i for i in range(len(lines) - 1)
-                       if lines[i].strip().startswith("Wavelength") and lines[i + 1].strip().startswith(
-            "CircularDichroism")), None)
+                       if lines[i].strip().startswith("Wavelength") and lines[i + 1].strip().startswith("CircularDichroism")), None)
         if cd_idx is None:
             continue
 
@@ -177,7 +186,6 @@ def load_prodata_cd(folder_path, conc_file, hv_cutoff=900.0):
         s_idx = np.argsort(wls)
         wls, mdeg = wls[s_idx], mdeg[s_idx]
 
-        # Wygładzenie i przeliczenie jednostek
         if len(mdeg) >= 11:
             mdeg = savgol_filter(mdeg, 11, 3)
         mre = mdeg_to_mre(mdeg)
@@ -249,32 +257,32 @@ def generate_figure_4_3():
     # --------------------------------------------------------------------------
     cd_data = load_prodata_cd(BASE_DIR_CD, CONC_FILE_CD)
     concs_cd = np.array(sorted(cd_data.keys()))
-
     y_217 = np.array([np.interp(217.0, cd_data[c][0], cd_data[c][1]) for c in concs_cd])
 
-    # Rysowanie punktów doświadczalnych
+    # Punkty doświadczalne (przeskalowane / 1000.0)
     ax_a.scatter(
-        concs_cd, y_217, color=COLOR_FUSION, marker='^', s=60,
-        edgecolors='none', zorder=4, label=f"CnTrmD–Tm1570 (217 nm)"
+        concs_cd, y_217 / 1000.0, color=COLOR_FUSION, marker='^', s=60,
+        edgecolors='none', zorder=4, label=r"$\mathit{Cn}$TrmD–Tm1570 (217 nm)"
     )
 
     x_dense = np.linspace(concs_cd.min(), concs_cd.max(), 300)
 
-    # Dopasowanie 1: Model 2-stanowy (nieudany)
+    # Dopasowanie 1: Model 2-stanowy
     p0_2s = [y_217[0], y_217[-1], 2.0, np.median(concs_cd)]
     popt_2s, pcov_2s = curve_fit(two_state_model, concs_cd, y_217, p0=p0_2s, maxfev=10000)
     perr_2s = np.sqrt(np.diag(pcov_2s))
     y_fit_2s = two_state_model(x_dense, *popt_2s)
     r2_2s = calc_r_squared(y_217, two_state_model(concs_cd, *popt_2s))
 
-    ax_a.plot(
-        x_dense, y_fit_2s, color=COLOR_FUSION, ls="--", lw=2.0,
+    # dashes=(4.0, 2.5) gwarantuje domknięcie linii przerywanej pełną kreską w legendzie
+    line_2s, = ax_a.plot(
+        x_dense, y_fit_2s / 1000.0, color=COLOR_FUSION, ls="--", dashes=(4.0, 2.5), lw=2.0,
         label=f"2-state fit ($R^2 = {r2_2s:.3f}$)", zorder=2
     )
     export_fit_row(FIGURE_ID, CONSTRUCT, "CD_217nm", TIME_H, CONC_UM, "2-state",
                    popt_2s[3], perr_2s[3], popt_2s[2], perr_2s[2], r2_2s)
 
-    # Dopasowanie 2: Model 3-stanowy (poprawny)
+    # Dopasowanie 2: Model 3-stanowy
     p0_3s = [y_217[0], (y_217[0] + y_217[-1]) / 2.0, y_217[-1], 2.5, 2.2, 2.5, 3.8]
     bounds_3s = ([-np.inf, -np.inf, -np.inf, 0, 0, 0, 0], [np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf])
     popt_3s, pcov_3s = curve_fit(three_state_model, concs_cd, y_217, p0=p0_3s, bounds=bounds_3s, maxfev=15000)
@@ -282,50 +290,63 @@ def generate_figure_4_3():
     y_fit_3s = three_state_model(x_dense, *popt_3s)
     r2_3s = calc_r_squared(y_217, three_state_model(concs_cd, *popt_3s))
 
-    ax_a.plot(
-        x_dense, y_fit_3s, color=COLOR_FUSION, ls="-", lw=2.4,
+    line_3s, = ax_a.plot(
+        x_dense, y_fit_3s / 1000.0, color=COLOR_FUSION, ls="-", lw=2.4,
         label=f"3-state fit ($R^2 = {r2_3s:.3f}$)", zorder=3
     )
-    # Eksport obu składowych modelu 3-stanowego
     export_fit_row(FIGURE_ID, CONSTRUCT, "CD_217nm_Step1", TIME_H, CONC_UM, "3-state_trans1",
                    popt_3s[4], perr_3s[4], popt_3s[3], perr_3s[3], r2_3s)
     export_fit_row(FIGURE_ID, CONSTRUCT, "CD_217nm_Step2", TIME_H, CONC_UM, "3-state_trans2",
                    popt_3s[6], perr_3s[6], popt_3s[5], perr_3s[5], r2_3s)
 
     ax_a.set_xlim(-0.2, 7.8)
-    ax_a.set_xlabel("[GdmCl] (M)", fontsize=13)
-    ax_a.set_ylabel(r"$[\theta]_{\mathrm{MRW}}\ \mathrm{(deg\cdot cm^2\cdot dmol^{-1})}$", fontsize=13)
-    ax_a.tick_params(labelsize=11)
+    ax_a.set_ylim(-15.5, 0.5)
+    ax_a.set_xlabel("[GdmCl] (M)", fontsize=15)
+    ax_a.set_ylabel(r"$[\theta]_{\mathrm{MRW}} \times 10^{-3}\ \mathrm{(deg\cdot cm^2\cdot dmol^{-1})}$", fontsize=15)
+    ax_a.tick_params(labelsize=13)
     ax_a.grid(True, linestyle=":", alpha=0.5)
-    ax_a.legend(loc="lower right", bbox_to_anchor=(1, 0.02), fontsize=10.5,
-                frameon=True, facecolor="white", framealpha=0.9, edgecolor="none", markerfirst=False)
-    ax_a.text(0.04, 0.95, "A", transform=ax_a.transAxes, fontsize=15, fontweight="bold", va="top")
+
+    # Ujednolicenie geometrii legendy z panelem C (handlelength=2.6, handletextpad=0.8)
+    leg_a = ax_a.legend(
+        loc="lower right", bbox_to_anchor=(1, 0.02), fontsize=11.5,
+        frameon=True, facecolor="white", framealpha=0.9, edgecolor="none",
+        markerfirst=False, handlelength=2.6, handletextpad=0.8
+    )
+    for text_obj in leg_a.get_texts():
+        text_obj.set_ha("right")
+
+    ax_a.text(0.04, 0.95, "A", transform=ax_a.transAxes, fontsize=14.5, fontweight="bold", va="top")
     ax_a.set_title("Equilibrium CD Unfolding (217 nm)", fontsize=13, fontweight="bold", pad=8)
 
     # --------------------------------------------------------------------------
     # PANEL B: Widma CD fuzji (210 - 250 nm, gradient plasma)
+    # Skala: -15500 do 500, mnożnik * 10^-3 (oś: -15.5 do 0.5)
     # --------------------------------------------------------------------------
-    norm_cd = Normalize(vmin=concs_cd.min(), vmax=concs_cd.max())
+    norm_cd = Normalize(vmin=0.0, vmax=max(concs_cd.max(), 6.0))
     for c in concs_cd:
         wls, mre = cd_data[c]
         mask = (wls >= 210.0) & (wls <= 250.0)
-        ax_b.plot(wls[mask], mre[mask], color=plasma_trimmed(norm_cd(c)), lw=1.35)
+        ax_b.plot(wls[mask], mre[mask] / 1000.0, color=plasma_trimmed(norm_cd(c)), lw=1.35)
 
     ax_b.set_xlim(210.0, 250.0)
-    ax_b.set_xlabel("Wavelength (nm)", fontsize=13)
-    ax_b.set_ylabel(r"$[\theta]_{\mathrm{MRW}}\ \mathrm{(deg\cdot cm^2\cdot dmol^{-1})}$", fontsize=13)
-    ax_b.tick_params(labelsize=11)
+    ax_b.set_ylim(-15.5, 0.5)
+    ax_b.set_xlabel("Wavelength (nm)", fontsize=15)
+    ax_b.set_ylabel(r"$[\theta]_{\mathrm{MRW}} \times 10^{-3}\ \mathrm{(deg\cdot cm^2\cdot dmol^{-1})}$", fontsize=15)
+    ax_b.tick_params(labelsize=13)
     ax_b.grid(True, linestyle=":", alpha=0.5)
-    ax_b.text(0.04, 0.95, "B", transform=ax_b.transAxes, fontsize=15, fontweight="bold", va="top")
+    ax_b.text(0.04, 0.95, "B", transform=ax_b.transAxes, fontsize=14.5, fontweight="bold", va="top")
     ax_b.set_title("Far-UV CD Spectra Series", fontsize=13, fontweight="bold", pad=8)
 
-    # Panel B: Prawy dolny róg (y0 = 0.08)
-    cax_b = ax_b.inset_axes([0.82, 0.08, 0.035, 0.38])
+    # Powiększony colorbar w prawym dolnym rogu (tics: 0, 2, 4, 6)
+    cax_b = ax_b.inset_axes([0.82, 0.08, 0.048, 0.44])
     sm_b = plt.cm.ScalarMappable(cmap=plasma_trimmed, norm=norm_cd)
     sm_b.set_array([])
     cbar_b = fig.colorbar(sm_b, cax=cax_b, orientation="vertical")
-    cbar_b.ax.tick_params(labelsize=9)
-    cbar_b.set_label("[GdmCl] (M)", fontsize=9, labelpad=5)
+    cbar_b.solids.set_rasterized(True)
+    cbar_b.set_ticks([0, 2, 4, 6])
+    cbar_b.set_ticklabels(["0", "2", "4", "6"])
+    cbar_b.ax.tick_params(labelsize=10.5)
+    cbar_b.set_label("[GdmCl] (M)", fontsize=11, labelpad=5)
 
     # --------------------------------------------------------------------------
     # PANEL C: Dual-ratio Fluorescencji (Dwa etapy na podwójnej osi Y)
@@ -333,7 +354,6 @@ def generate_figure_4_3():
     fluo_data = load_fluo_spectra(BASE_DIR_FLUO, CONC_FILE_FLUO)
     concs_fluo = np.array(sorted(fluo_data.keys()))
 
-    # Wyznaczenie stosunków spektralnych
     r1_list, concs_r1 = [], []
     r2_list, concs_r2 = [], []
 
@@ -362,87 +382,101 @@ def generate_figure_4_3():
     ax_c1 = ax_c
     ax_c2 = ax_c1.twinx()
 
-    handles_c, labels_c = [], []
-
-    # Lewa oś: Etap 1 (Fioletowe koła)
-    sc1 = ax_c1.scatter(concs_r1, r1_vals, color=COLOR_TRMD, marker='o', s=55,
-                        edgecolors='none', zorder=4)
+    # Lewa oś: Etap 1
+    ax_c1.scatter(concs_r1, r1_vals, color=COLOR_TRMD, marker='o', s=55,
+                  edgecolors='none', zorder=4)
     popt_r1, pcov_r1 = curve_fit(two_state_model, concs_r1, r1_vals,
                                  p0=[r1_vals[0], r1_vals[-1], 2.0, 2.2], maxfev=10000)
     perr_r1 = np.sqrt(np.diag(pcov_r1))
     x_dense_r1 = np.linspace(concs_r1.min(), concs_r1.max(), 200)
-    line1, = ax_c1.plot(x_dense_r1, two_state_model(x_dense_r1, *popt_r1),
-                        color=COLOR_TRMD, lw=2.2, ls='-', zorder=3)
+    ax_c1.plot(x_dense_r1, two_state_model(x_dense_r1, *popt_r1),
+               color=COLOR_TRMD, lw=2.2, ls='-', zorder=3)
     r2_r1 = calc_r_squared(r1_vals, two_state_model(concs_r1, *popt_r1))
     export_fit_row(FIGURE_ID, CONSTRUCT, "Fluo_DualRatio_Step1_TrmD", TIME_H, CONC_UM, "2-state",
                    popt_r1[3], perr_r1[3], popt_r1[2], perr_r1[2], r2_r1)
 
-    handles_c.append((sc1, line1))
-    labels_c.append(r"Step 1: $I_{310}/I_{332}$ (TrmD)")
-
-    # Prawa oś: Etap 2 (Pomarańczowe trójkąty)
-    sc2 = ax_c2.scatter(concs_r2, r2_vals, color=COLOR_TM1570, marker='^', s=55,
-                        edgecolors='none', zorder=4)
+    # Prawa oś: Etap 2
+    ax_c2.scatter(concs_r2, r2_vals, color=COLOR_TM1570, marker='^', s=55,
+                  edgecolors='none', zorder=4)
     popt_r2, pcov_r2 = curve_fit(two_state_model, concs_r2, r2_vals,
                                  p0=[r2_vals[0], r2_vals[-1], 2.0, 3.8], maxfev=10000)
     perr_r2 = np.sqrt(np.diag(pcov_r2))
     x_dense_r2 = np.linspace(concs_r2.min(), concs_r2.max(), 200)
-    line2, = ax_c2.plot(x_dense_r2, two_state_model(x_dense_r2, *popt_r2),
-                        color=COLOR_TM1570, lw=2.2, ls='--', zorder=3)
+    ax_c2.plot(x_dense_r2, two_state_model(x_dense_r2, *popt_r2),
+               color=COLOR_TM1570, lw=2.2, ls='--', zorder=3)
     r2_r2 = calc_r_squared(r2_vals, two_state_model(concs_r2, *popt_r2))
     export_fit_row(FIGURE_ID, CONSTRUCT, "Fluo_DualRatio_Step2_Tm1570", TIME_H, CONC_UM, "2-state",
                    popt_r2[3], perr_r2[3], popt_r2[2], perr_r2[2], r2_r2)
 
-    handles_c.append((sc2, line2))
-    labels_c.append(r"Step 2: $I_{342}/I_{330}$ (Tm1570)")
+    # Zintegrowane proxy artists eliminujące rozbieżność wysokości punkt vs linia
+    # oraz wyrównujące geometryczną długość linii ciągłej i przerywanej
+    from matplotlib.lines import Line2D
+    h1 = Line2D([0], [0], color=COLOR_TRMD, marker='o', markersize=7.5,
+                markeredgecolor='none', linestyle='-', linewidth=1.8)
+
+    # dashes=(4.0, 2.5) gwarantuje domknięcie linii przerywanej pełną kreską na obu końcach
+    h2 = Line2D([0], [0], color=COLOR_TM1570, marker='^', markersize=7.5,
+                markeredgecolor='none', linestyle='--', dashes=(4.0, 2.5), linewidth=1.8)
+
+    handles_c = [h1, h2]
+    labels_c = [r"Step 1: $I_{310}/I_{332}$", r"Step 2: $I_{342}/I_{330}$"]
 
     ax_c1.set_xlim(-0.2, 7.8)
-    ax_c1.set_xlabel("[GdmCl] (M)", fontsize=13)
-    ax_c1.set_ylabel(r"Emission Ratio $I_{310} / I_{332}$", fontsize=13, color=COLOR_FUSION)
-    ax_c2.set_ylabel(r"Emission Ratio $I_{342} / I_{330}$", fontsize=13, color=COLOR_TM1570)
+    ax_c1.set_xlabel("[GdmCl] (M)", fontsize=15)
+    ax_c1.set_ylabel(r"Emission Ratio $I_{310} / I_{332}$", fontsize=15, color=COLOR_TRMD)
+    ax_c2.set_ylabel(r"Emission Ratio $I_{342} / I_{330}$", fontsize=15, color=COLOR_TM1570)
 
-    ax_c1.tick_params(axis='y', colors=COLOR_FUSION, labelsize=11)
-    ax_c2.tick_params(axis='y', colors=COLOR_TM1570, labelsize=11)
-    ax_c1.tick_params(axis='x', labelsize=11)
+    ax_c1.tick_params(axis='y', colors=COLOR_TRMD, labelsize=13)
+    ax_c2.tick_params(axis='y', colors=COLOR_TM1570, labelsize=13)
+    ax_c1.tick_params(axis='x', labelsize=13)
     ax_c1.grid(True, linestyle=":", alpha=0.5)
 
-    # Formatowanie brzegów dla prawej i lewej osi
-    ax_c1.spines['left'].set_color(COLOR_FUSION)
+    ax_c1.spines['left'].set_color(COLOR_TRMD)
     ax_c1.spines['left'].set_linewidth(1.4)
     ax_c2.spines['right'].set_color(COLOR_TM1570)
     ax_c2.spines['right'].set_linewidth(1.4)
     ax_c1.spines['top'].set_visible(False)
     ax_c2.spines['top'].set_visible(False)
 
-    ax_c1.legend(handles_c, labels_c, loc="lower right", bbox_to_anchor=(1, 0.02),
-                 fontsize=10.5, frameon=True, facecolor="white", framealpha=0.9, edgecolor="none")
-    ax_c1.text(0.04, 0.95, "C", transform=ax_c1.transAxes, fontsize=15, fontweight="bold", va="top")
+    # handlelength=2.6 oraz handletextpad=0.8 stabilizują identyczną szerokość wizualną obu próbek
+    leg_c = ax_c1.legend(handles_c, labels_c, loc="lower right", bbox_to_anchor=(1, 0.02),
+                         fontsize=11.5, frameon=True, facecolor="white", framealpha=0.9,
+                         edgecolor="none", markerfirst=False, handlelength=2.6, handletextpad=0.8)
+    for text_obj in leg_c.get_texts():
+        text_obj.set_ha("right")
+
+    ax_c1.text(0.04, 0.95, "C", transform=ax_c1.transAxes, fontsize=14.5, fontweight="bold", va="top")
     ax_c1.set_title("Dual-Ratio Fluorescence Unfolding", fontsize=13, fontweight="bold", pad=8)
 
     # --------------------------------------------------------------------------
     # PANEL D: Widma emisji fluorescencji fuzji (300 - 400 nm, gradient plasma)
+    # Skala podzielona przez 10000 (oś: -0.5 do 13.0)
     # --------------------------------------------------------------------------
-    norm_fluo = Normalize(vmin=concs_fluo.min(), vmax=concs_fluo.max())
+    norm_fluo = Normalize(vmin=0.0, vmax=max(concs_fluo.max(), 6.0))
     for c in concs_fluo:
         w_f, int_f = fluo_data[c]
         mask_f = (w_f >= 300.0) & (w_f <= 400.0)
-        ax_d.plot(w_f[mask_f], int_f[mask_f], color=plasma_trimmed(norm_fluo(c)), lw=1.35)
+        ax_d.plot(w_f[mask_f], int_f[mask_f] / 10000.0, color=plasma_trimmed(norm_fluo(c)), lw=1.35)
 
     ax_d.set_xlim(300.0, 400.0)
-    ax_d.set_xlabel("Wavelength (nm)", fontsize=13)
-    ax_d.set_ylabel("Fluorescence Intensity (a.u.)", fontsize=13)
-    ax_d.tick_params(labelsize=11)
+    ax_d.set_ylim(-0.5, 13.0)
+    ax_d.set_xlabel("Wavelength (nm)", fontsize=15)
+    ax_d.set_ylabel(r"Fluorescence Intensity $\times 10^{-4}$ (a.u.)", fontsize=15)
+    ax_d.tick_params(labelsize=13)
     ax_d.grid(True, linestyle=":", alpha=0.5)
-    ax_d.text(0.04, 0.95, "D", transform=ax_d.transAxes, fontsize=15, fontweight="bold", va="top")
+    ax_d.text(0.04, 0.95, "D", transform=ax_d.transAxes, fontsize=14.5, fontweight="bold", va="top")
     ax_d.set_title("Fluorescence Emission Spectra", fontsize=13, fontweight="bold", pad=8)
 
-    # Panel D: Prawy górny róg (y0 = 0.54)
-    cax_d = ax_d.inset_axes([0.82, 0.54, 0.035, 0.38])
+    # Powiększony colorbar w prawym górnym rogu (tics: 0, 2, 4, 6)
+    cax_d = ax_d.inset_axes([0.82, 0.50, 0.048, 0.44])
     sm_d = plt.cm.ScalarMappable(cmap=plasma_trimmed, norm=norm_fluo)
     sm_d.set_array([])
     cbar_d = fig.colorbar(sm_d, cax=cax_d, orientation="vertical")
-    cbar_d.ax.tick_params(labelsize=9)
-    cbar_d.set_label("[GdmCl] (M)", fontsize=9, labelpad=5)
+    cbar_d.solids.set_rasterized(True)
+    cbar_d.set_ticks([0, 2, 4, 6])
+    cbar_d.set_ticklabels(["0", "2", "4", "6"])
+    cbar_d.ax.tick_params(labelsize=10.5)
+    cbar_d.set_label("[GdmCl] (M)", fontsize=11, labelpad=5)
 
     # Zapis figury w formatach publikacyjnych PNG i PDF
     fig.savefig(OUTPUT_FIGURE_PATH, dpi=300)
@@ -450,7 +484,6 @@ def generate_figure_4_3():
     fig.savefig(pdf_path, format="pdf")
     print(f"\n[✓] Gotowa Figura 4.3 została zapisana do:\n  -> {OUTPUT_FIGURE_PATH}\n  -> {pdf_path}")
     print(f"[✓] Zbiorcze parametry dopasowań zaktualizowano w: {CSV_OUTPUT_PATH}")
-    # plt.show()
 
 
 if __name__ == "__main__":
