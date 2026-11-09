@@ -29,9 +29,9 @@ plasma_trimmed = LinearSegmentedColormap.from_list(
 # Ścieżki bazowe na dysku
 BASE_CD_DIR = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/biofizyka_CD"
 BASE_FLUO_DIR = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/fluorimetry"
-OUTPUT_DIR = "/home/matifortunka/Downloads/PhD/rozdział_IV/appendix"
+OUTPUT_DIR = "/home/matifortunka/PycharmProjects/various_programs/PhD/figures/appendix"
 
-HV_CUTOFF = 900.0
+HV_CUTOFF = 850.0
 PATH_LENGTH_MM = 1.0
 
 # ==============================================================================
@@ -269,7 +269,8 @@ def generate_supplementary_figure(protein_cfg, loader):
             for c in concs_cd:
                 wl, theta = cd_series[c]
                 mask = (wl >= 210.0) & (wl <= 250.0)
-                ax_cd.plot(wl[mask], theta[mask], color=plasma_trimmed(norm_cd(c)), lw=1.35)
+                # Wartości podzielone przez 1000
+                ax_cd.plot(wl[mask], theta[mask] / 1000.0, color=plasma_trimmed(norm_cd(c)), lw=1.35)
 
             # Miniaturowy, stabilny pionowy pasek barwny w prawej kolumnie
             if col_idx == 3:
@@ -277,17 +278,18 @@ def generate_supplementary_figure(protein_cfg, loader):
                 sm_cd = plt.cm.ScalarMappable(cmap=plasma_trimmed, norm=norm_cd)
                 sm_cd.set_array([])
                 cbar_cd = fig.colorbar(sm_cd, cax=cax_cd, orientation="vertical")
-                cbar_cd.ax.tick_params(labelsize=8)
-                cbar_cd.set_label("[GdmCl] (M)", fontsize=8, labelpad=4)
+                cbar_cd.ax.tick_params(labelsize=10)
+                cbar_cd.set_label("[GdmCl] (M)", fontsize=10, labelpad=4)
 
         ax_cd.set_xlim(210.0, 250.0)
-        ax_cd.set_xlabel("Wavelength (nm)", fontsize=11)
-        ax_cd.tick_params(labelsize=10)
+        ax_cd.set_xlabel("Wavelength (nm)", fontsize=14)
+        ax_cd.tick_params(labelsize=13)
         ax_cd.grid(True, linestyle=":", alpha=0.5)
         ax_cd.set_title(f"{cond['label']} – CD", fontsize=12, fontweight="bold", pad=8)
 
         if col_idx == 0:
-            ax_cd.set_ylabel(r"$[\theta]_{\mathrm{MRW}}\ \mathrm{(deg\cdot cm^2\cdot dmol^{-1})}$", fontsize=11)
+            # Jednostka mnożona przez 10^3
+            ax_cd.set_ylabel(r"$[\theta]_{\mathrm{MRW}}\ (10^3\ \mathrm{deg\cdot cm^2\cdot dmol^{-1}})$", fontsize=14)
 
         # ----------------------------------------------------------------------
         # WIERSZ 2: Widma Emisji Fluorescencji
@@ -300,7 +302,8 @@ def generate_supplementary_figure(protein_cfg, loader):
             for c in concs_fl:
                 wl, intens = fl_series[c]
                 mask = (wl >= 300.0) & (wl <= 400.0)
-                ax_fl.plot(wl[mask], intens[mask], color=plasma_trimmed(norm_fl(c)), lw=1.35)
+                # Wartości podzielone przez 10000
+                ax_fl.plot(wl[mask], intens[mask] / 10000.0, color=plasma_trimmed(norm_fl(c)), lw=1.35)
 
             # Miniaturowy pasek barwny w prawej kolumnie (prawy górny róg)
             if col_idx == 3:
@@ -308,20 +311,21 @@ def generate_supplementary_figure(protein_cfg, loader):
                 sm_fl = plt.cm.ScalarMappable(cmap=plasma_trimmed, norm=norm_fl)
                 sm_fl.set_array([])
                 cbar_fl = fig.colorbar(sm_fl, cax=cax_fl, orientation="vertical")
-                cbar_fl.ax.tick_params(labelsize=8)
-                cbar_fl.set_label("[GdmCl] (M)", fontsize=8, labelpad=4)
+                cbar_fl.ax.tick_params(labelsize=10)
+                cbar_fl.set_label("[GdmCl] (M)", fontsize=10, labelpad=4)
 
         ax_fl.set_xlim(300.0, 400.0)
-        ax_fl.set_xlabel("Wavelength (nm)", fontsize=11)
-        ax_fl.tick_params(labelsize=10)
+        ax_fl.set_xlabel("Wavelength (nm)", fontsize=14)
+        ax_fl.tick_params(labelsize=13)
         ax_fl.grid(True, linestyle=":", alpha=0.5)
         ax_fl.set_title(f"{cond['label']} – Fluo", fontsize=12, fontweight="bold", pad=8)
 
         if col_idx == 0:
-            ax_fl.set_ylabel("Fluorescence Intensity (a.u.)", fontsize=11)
+            # Jednostka mnożona przez 10^4
+            ax_fl.set_ylabel(r"Fluorescence Intensity ($\times 10^4\ \mathrm{a.u.})$", fontsize=14)
 
     # Nagłówek nadrzędny dla całej figury
-    fig.suptitle(f"{protein_cfg['name']} – Supplementary Equilibrium Spectra", fontsize=14, fontweight="bold", y=1.02)
+    fig.suptitle(f"{protein_cfg['name']} – Supplementary Equilibrium Spectra", fontsize=15, fontweight="bold", y=1.02)
 
     # Zapis w formatach wektorowym PDF i rastrowym 300 DPI PNG
     out_pdf = os.path.join(OUTPUT_DIR, f"{protein_cfg['fig_file']}.pdf")

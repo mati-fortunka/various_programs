@@ -261,9 +261,9 @@ def assemble_figure():
     print("Składanie zacieśnionej Figury 4.8...")
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    img_a = autocrop_border(mpimg.imread(TEMP_IMG_A), pad=2)
+    img_a = autocrop_border(mpimg.imread(TEMP_IMG_A), pad=3)
     img_b = autocrop_border(mpimg.imread(TEMP_IMG_B), pad=2)
-    img_c = autocrop_border(mpimg.imread(TEMP_IMG_C), pad=2)
+    img_c = autocrop_border(mpimg.imread(TEMP_IMG_C), pad=0)
     img_d = autocrop_border(mpimg.imread(TEMP_IMG_D), pad=2)
 
     h_row1 = max(img_a.shape[0], img_b.shape[0])
@@ -287,7 +287,7 @@ def assemble_figure():
         dpi=300
     )
 
-    plt.subplots_adjust(left=0.005, right=0.995, bottom=0.005, top=0.94, wspace=-0.25, hspace=0.03)
+    plt.subplots_adjust(left=0.005, right=0.995, bottom=0.005, top=0.98, wspace=-0.08, hspace=-0.28)
 
     panel_configs = [
         {"ax": axes[0, 0], "img": img_a, "tag": "A",
@@ -300,22 +300,28 @@ def assemble_figure():
          "title": r"$\mathsf{Fs}$" + "TrmD–Tm1570 Monomer (AlphaFold)\nLinker Substitution Glu237 (ex-Trp)"},
     ]
 
+    # Poziom wyrównania górnych krawędzi (Y_ALIGN) obniża tytuł o ~1.5 linii tekstu i zrównuje go z literą panelu
+    Y_ALIGN = 0.97
+
     for p in panel_configs:
         ax = p["ax"]
         ax.imshow(p["img"], aspect='equal')
         ax.set_anchor("N")
         ax.axis("off")
 
+        # Etykieta panelu A/B/C/D wyrównana do dokładnie tej samej górnej krawędzi (Y=0.97, va='top')
         ax.text(
-            0.12, 0.98, p["tag"],
+            0.04, Y_ALIGN, p["tag"],
             transform=ax.transAxes,
             fontsize=16, fontweight='bold',
             va='top', ha='left',
             bbox=dict(boxstyle='square,pad=0.15', facecolor='white', edgecolor='none', alpha=0.90)
         )
-        ax.set_title(p["title"], fontsize=11, pad=6, fontweight='bold')
 
-    # Legenda podziału domenowego w prawym górnym rogu Panelu B (axes[0, 1])
+        # Tytuł panelu obniżony o ~1.5 linii tekstu, z górną krawędzią (va='top') na poziomie Y=0.97
+        ax.set_title(p["title"], fontsize=11, fontweight='bold', y=Y_ALIGN, va='top')
+
+    # Legenda podziału domenowego w Panelu B (dostosowane Y na 0.93 pod obniżonym tytułem)
     domain_elements = [
         Line2D([0], [0], color='#1F77B4', lw=4, label=r'$\mathit{Cn}$TrmD (1–235)'),
         Line2D([0], [0], color='#B0B0B0', lw=4, label='Linker (236–245)'),
@@ -324,7 +330,7 @@ def assemble_figure():
     axes[0, 1].legend(
         handles=domain_elements,
         loc="upper right",
-        bbox_to_anchor=(0.98, 0.97),
+        bbox_to_anchor=(0.98, 0.93),
         frameon=True,
         facecolor="white",
         edgecolor="grey",
@@ -350,7 +356,7 @@ def assemble_figure():
     fig_pdf.savefig(OUTPUT_PDF, format='pdf', pad_inches=0.0)
     plt.close(fig_pdf)
 
-    print(f"\n[OK] Zapisano poprawioną Figurę 4.8:\n  -> {OUTPUT_PDF}\n  -> {OUTPUT_PNG}")
+    print(f"\n[OK] Zapisano idealnie wyrównaną Figurę 4.8:\n  -> {OUTPUT_PDF}\n  -> {OUTPUT_PNG}")
 
     for tmp in [TEMP_IMG_A, TEMP_IMG_B, TEMP_IMG_C, TEMP_IMG_D, TEMP_ASSEMBLED, "temp_AF_Fs.pdb"]:
         if os.path.exists(tmp):
