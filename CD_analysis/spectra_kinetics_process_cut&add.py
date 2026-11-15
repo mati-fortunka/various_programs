@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from biorun.convert import false
 from matplotlib import cm
 from matplotlib.colors import Normalize
 from scipy.signal import savgol_filter
@@ -12,7 +13,7 @@ from scipy.optimize import curve_fit
 from math import log
 
 # === User Settings ===
-input_csv = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/kinetyka/CD/Fuzja_kinetyka/10-12_08_26/spec_kin/Fusion_2uM_6M00001.csv"
+input_csv = "/home/matifortunka/Documents/JS/kinetics_stability/data_Cambridge/Tm1570/kinetcs/CD/GuCl/specra_kin/Tm1570_september/4/Tm_30sp_12h00000.csv"
 native_spectrum_path = None #"/home/matifortunka/Documents/JS/data_Cambridge/8_3/A/spectra_kinetics/8_3_A_5uM_nat00043_raw.txt"
 dead_time = 30  # seconds
 nm_per_sec = 0.4
@@ -21,7 +22,7 @@ time_mode = "Repeats"  # "Repeats" or "Time"
 
 path = "/".join(input_csv.split('/')[:-1])
 output_plot = f"{path}/Combined_CD_HHMM.png"
-hv_threshold = 990
+hv_threshold = 950
 smoothing_window = 15
 smoothing_polyorder = 3
 protein = "zeta"
@@ -30,17 +31,17 @@ labels = ["alpha", "gamma", "zeta"]
 colors = ["#75053b", "#136308", "#0721a6"]
 label_color_map = dict(zip(labels, colors))
 
-remove_between = (0, 0)    # e.g. (1000, 2000)
+remove_between = (4500, 50000)    # e.g. (1000, 2000)
 modify_between = (0, 0)    # e.g. (3000, 4000)
 modify_mode = "add"        # "add" or "scale"
 modify_value = 0           # number to add OR coefficient to multiply
 
 # Plot 2
-target_wavelength = 217
-fit_model = "double"
+target_wavelength = 222
+fit_model = "single"
 
 # Plot 3
-integration_range = (214, 250)
+integration_range = (215, 250)
 integration_sign = "negative"
 
 # Baseline
@@ -48,7 +49,7 @@ baseline_correction = False
 baseline_wavelength = 250.0
 
 # Manual transpose
-transpose_data = True
+transpose_data = False
 
 print("\n🔧 Parameters:")
 print(f"  input_csv = {input_csv}")

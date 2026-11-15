@@ -369,7 +369,7 @@ def plot_multiple_csvs_with_logging(folder_path,
 
 
 if __name__ == "__main__":
-    folder = "/home/matifortunka/Downloads/PhD/rozdział_V/TrmD/5µM"
+    folder = "/home/matifortunka/Downloads/PhD/rozdział_V/Tm1570/fluo"
 
     plot_multiple_csvs_with_logging(
         folder_path=folder,
@@ -379,9 +379,9 @@ if __name__ == "__main__":
         dead_time=30,
         fit_type='double_exponential',
         fit_start=0,
-        fit_end=2000,
+        fit_end=4000,
         output_plot="combined_kinetics_double.png",
         output_log=f"{folder}/fitted_parameters_double.txt",
         plot_residuals=True,
-        xlim=(0, 2000)
+        xlim=(0, 4000)
     )

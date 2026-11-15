@@ -300,7 +300,7 @@ def read_dead_times(file_path):
 
 # BATCH PROCESSING SCRIPT
 if __name__ == "__main__":
-    folder_path = "/home/matifortunka/Downloads/PhD/rozdział_V/F6/CD"
+    folder_path = "/home/matifortunka/Documents/JS/kinetics_stability/data_Cambridge/Tm1570/kinetcs/CD/GuCl/2000s/best"
 
     # You can change this to 'exponential' or 'single_exponential_with_drift'
     fit_type = "double_exponential"

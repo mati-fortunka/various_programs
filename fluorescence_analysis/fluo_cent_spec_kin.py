@@ -8,7 +8,7 @@ import os
 # --- KONFIGURACJA ---
 CONFIG = {
     # Ścieżka do pliku
-    'filename': '/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/kinetyka/fluo/TrmD/spectra_kin/MultipleEmScan1_TrmD_v1.csv',
+    'filename': '/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/kinetyka/fluo/Tm1570/spectra_kinetics/MultipleEmScan1.csv',
 
     'time_interval': 32,  # Czas w sekundach między skanami 32 sekundy 08.26, wcześniej 34 s
 
@@ -30,9 +30,9 @@ CONFIG = {
     # --- NOWE: DOPASOWANIE (FITTING) ---
     'fit_enable': True,
     # Dostępne modele: 'mono_exp', 'mono_exp_drift', 'double_exp', 'double_exp_drift'
-    'fit_model': 'double_exp_drift',
+    'fit_model': 'mono_exp_drift',
     # Zakres czasu do fitowania [start, koniec]. Ustaw [0, None] dla całości.
-    'fit_range': [0, 20000]
+    'fit_range': [0, 14500]
 }
 
 

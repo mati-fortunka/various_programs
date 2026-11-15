@@ -22,7 +22,7 @@ mpl.rcParams["mathtext.sf"] = "DejaVu Sans:bold:italic"
 mpl.rcParams["axes.linewidth"] = 1.1
 
 OUT_DIR = "/home/matifortunka/PycharmProjects/various_programs/PhD/figures/ch05"
-OUT_BASENAME = "Figura_5_4_6_3_CD_Kinetics"
+OUT_BASENAME = "Figura_5_6_63_CD_Kinetics"
 
 # Ścieżki wejściowe
 DIR_PANEL_A = "/home/matifortunka/Documents/JS/kinetics_stability/data_Cambridge/6_3/paper/CD/cd_kin_2000s_final/simple"

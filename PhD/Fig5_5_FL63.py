@@ -20,7 +20,7 @@ mpl.rcParams["mathtext.sf"] = "DejaVu Sans:bold:italic"
 mpl.rcParams["axes.linewidth"] = 1.1
 
 OUT_DIR = "/home/matifortunka/PycharmProjects/various_programs/PhD/figures/ch05"
-OUT_BASENAME = "Figura_5_3_6_3_Fluorescence_Kinetics"
+OUT_BASENAME = "Figura_5_5_63_Fluorescence_Kinetics"
 
 # =========================================================
 # 2. MODELE KINETYCZNE
