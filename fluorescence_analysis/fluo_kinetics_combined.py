@@ -234,7 +234,7 @@ def plot_multiple_csvs_with_logging(folder_path,
     print(f"Fit results and t_half values saved to: {output_log}")
 
 if __name__ == "__main__":
-    folder = "/home/matifortunka/Documents/JS/kinetics_stability/data_Cambridge/fusions/F8E4N/kinetics/fluo"
+    folder = "/home/matifortunka/Downloads/PhD/rozdział_V/F8"
 
     plot_multiple_csvs_with_logging(
         folder_path=folder,
@@ -244,7 +244,7 @@ if __name__ == "__main__":
         dead_time=0,
         fit_type="double_exponential",
         fit_start=0,
-        fit_end=2000,
+        fit_end=1300,
         output_plot="combined_kinetics_plot.png",
         output_log=f"{folder}/fitted_parameters.txt"
     )

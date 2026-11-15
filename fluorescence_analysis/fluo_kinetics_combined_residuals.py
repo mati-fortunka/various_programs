@@ -76,7 +76,6 @@ def fit_linear(time, intensity):
     return coeffs
 
 # ------------------- Plotting -------------------
-
 def plot_multiple_csvs_with_logging(folder_path,
                                     smooth_method='savitzky_golay',
                                     window_size=25,

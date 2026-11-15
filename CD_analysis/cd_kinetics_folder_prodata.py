@@ -387,7 +387,7 @@ def plot_all_folder_files(combined_curves, output_path):
 
 # BATCH PROCESSING SCRIPT
 if __name__ == "__main__":
-    folder_path = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/kinetyka/CD/comparison/CD"
+    folder_path = "/home/matifortunka/Downloads/PhD/rozdział_V/F6/CD"
 
     smooth_method = "savitzky_golay"
     window_size = 15
@@ -396,7 +396,7 @@ if __name__ == "__main__":
     dead_time_file = os.path.join(folder_path, "dead_times.txt")
     dead_times_dict = read_dead_times(dead_time_file)
 
-    fit_type = None
+    fit_type = 'double_exponential'
     fit_start = 0
     fit_end = 2000
 

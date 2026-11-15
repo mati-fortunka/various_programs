@@ -8,7 +8,7 @@ import os
 # --- KONFIGURACJA ---
 CONFIG = {
     # Ścieżka do pliku
-    'filename': '/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/kinetyka/fluo/fuzja/spectra_kin/MultipleEmScan1_fusion.csv',
+    'filename': '/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/kinetyka/fluo/TrmD/spectra_kin/MultipleEmScan1_TrmD_v1.csv',
 
     'time_interval': 32,  # Czas w sekundach między skanami 32 sekundy 08.26, wcześniej 34 s
 
@@ -29,14 +29,14 @@ CONFIG = {
 
     # --- NOWE: DOPASOWANIE (FITTING) ---
     'fit_enable': True,
-    # Dostępne modele: 'mono_exp', 'mono_exp_drift', 'double_exp'
-    'fit_model': 'double_exp',
+    # Dostępne modele: 'mono_exp', 'mono_exp_drift', 'double_exp', 'double_exp_drift'
+    'fit_model': 'double_exp_drift',
     # Zakres czasu do fitowania [start, koniec]. Ustaw [0, None] dla całości.
-    'fit_range': [0, 4000]
+    'fit_range': [0, 20000]
 }
 
 
-# --- MODELE MATEMATYCZNE (z Twoich poprzednich programów) ---
+# --- MODELE MATEMATYCZNE ---
 
 def mono_exp(t, A, k, c):
     return A * np.exp(-k * t) + c
@@ -48,6 +48,10 @@ def mono_exp_drift(t, A, k, c, m):
 
 def double_exp(t, A1, k1, A2, k2, c):
     return A1 * np.exp(-k1 * t) + A2 * np.exp(-k2 * t) + c
+
+
+def double_exp_drift(t, A1, k1, A2, k2, c, m):
+    return A1 * np.exp(-k1 * t) + A2 * np.exp(-k2 * t) + c + m * t
 
 
 # --- FUNKCJE POMOCNICZE ---
@@ -122,7 +126,7 @@ def perform_fitting(x_data, y_data, config):
     x_fit = x_data[mask]
     y_fit = y_data[mask]
 
-    if len(x_fit) < 5:
+    if len(x_fit) < 7:
         print("Za mało punktów do fitowania w zadanym zakresie.")
         return None, None, None
 
@@ -135,11 +139,11 @@ def perform_fitting(x_data, y_data, config):
         if model_name == 'mono_exp':
             p0 = [A0, k0, C0]
             popt, pcov = curve_fit(mono_exp, x_fit, y_fit, p0=p0, maxfev=5000)
-            perr = np.sqrt(np.diag(pcov))  # Calculate errors for parameters
+            perr = np.sqrt(np.diag(pcov))
             y_model = mono_exp(x_fit, *popt)
 
             t_half = np.log(2) / popt[1]
-            t_half_err = (np.log(2) / (popt[1] ** 2)) * perr[1]  # Error propagation
+            t_half_err = (np.log(2) / (popt[1] ** 2)) * perr[1]
 
             print(f"\n--- FIT RESULTS ({model_name}) ---")
             print(f"A = {popt[0]:.2f} ± {perr[0]:.2f}")
@@ -182,6 +186,26 @@ def perform_fitting(x_data, y_data, config):
             print(f"  -> t2/2 = {t_half2:.1f} ± {t_half2_err:.1f} s")
             print(f"C ={popt[4]:.2f} ± {perr[4]:.2f}")
 
+        elif model_name == 'double_exp_drift':
+            p0 = [A0 * 0.5, k0 * 10, A0 * 0.5, k0, C0, 0]
+            popt, pcov = curve_fit(double_exp_drift, x_fit, y_fit, p0=p0, maxfev=15000)
+            perr = np.sqrt(np.diag(pcov))
+            y_model = double_exp_drift(x_fit, *popt)
+
+            t_half1 = np.log(2) / popt[1]
+            t_half1_err = (np.log(2) / (popt[1] ** 2)) * perr[1]
+
+            t_half2 = np.log(2) / popt[3]
+            t_half2_err = (np.log(2) / (popt[3] ** 2)) * perr[3]
+
+            print(f"\n--- FIT RESULTS ({model_name}) ---")
+            print(f"A1={popt[0]:.2f} ± {perr[0]:.2f}, k1={popt[1]:.4e} ± {perr[1]:.4e}")
+            print(f"  -> t1/2 = {t_half1:.1f} ± {t_half1_err:.1f} s")
+            print(f"A2={popt[2]:.2f} ± {perr[2]:.2f}, k2={popt[3]:.4e} ± {perr[3]:.4e}")
+            print(f"  -> t2/2 = {t_half2:.1f} ± {t_half2_err:.1f} s")
+            print(f"C ={popt[4]:.2f} ± {perr[4]:.2f}")
+            print(f"m ={popt[5]:.4e} ± {perr[5]:.4e}")
+
         else:
             print("Nieznany model fitowania.")
             return None, None, None
@@ -220,7 +244,6 @@ def main():
         raw_intensities = df[col_name].values
 
         # --- 1. POPRAWIONA KOREKTA TŁA ---
-        # Jeśli zdefiniowano baseline_wl, znajdź wartość w tym punkcie i odejmij
         if CONFIG['baseline_wl'] and CONFIG['baseline_wl'] > 0:
             bl_idx = (np.abs(wavelengths - CONFIG['baseline_wl'])).argmin()
             baseline_val = raw_intensities[bl_idx]
