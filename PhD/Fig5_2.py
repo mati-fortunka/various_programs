@@ -32,10 +32,7 @@ plasma_trimmed = LinearSegmentedColormap.from_list(
 # ŚCIEŻKI I PARAMETRY KONSTRUKTU Tm1570 (CnTm1570)
 # ==============================================================================
 PATHS = {
-    "mm_cd_dirs": [
-        "/home/matifortunka/Downloads/PhD/rozdział_V/Tm1570/CD/2µM",
-        "/home/matifortunka/Downloads/PhD/rozdział_V/Tm1570/CD/5µM",
-    ],
+    "mm_cd_base_dir": "/home/matifortunka/Downloads/PhD/rozdział_V/Tm1570/CD",
     "cd_sk_dir": "/home/matifortunka/Downloads/PhD/rozdział_V/Tm1570/CD/SK",
     "mm_fl_cam_dir": "/home/matifortunka/Downloads/PhD/rozdział_V/Tm1570/fluo/cam",
     "mm_fl_waw_dir": "/home/matifortunka/Downloads/PhD/rozdział_V/Tm1570/fluo/waw",
@@ -56,7 +53,7 @@ PROTEIN_PARAMS = {
 # KONFIGURACJA POSZCZEGÓLNYCH TECHNIK
 # ==============================================================================
 
-# 1. Manual-Mixing Fluorescence (cam: indywidualne zakresy; waw: do 4000 s)
+# 1. Simple Kinetics Fluorescence (cam: indywidualne zakresy; waw: do 2000 s)
 MM_FL_CAM_MAX_TIMES = {
     "Tm_12h1": 3000.0,
     "Tm_12h2": 5000.0,
@@ -74,6 +71,7 @@ MM_FL_SETTINGS = {
     "fit_start": 0.0,
     "waw_fit_end": 2000.0,
     "cam_default_fit_end": 4000.0,
+    "plot_xlim": 2000.0,               # Zakres osi X na wykresie w Panelu A [s]
     "window_size": 15,
     "poly_order": 3,
     "color_cam": "#1F78B4",
@@ -82,7 +80,7 @@ MM_FL_SETTINGS = {
 
 # 2. Spectra-Kinetics Fluorescence (340 nm, model mono_exp_drift, zakres 0-14500 s)
 FL_SK_CONFIG = {
-    "label": "Scan #1 (0–14500 s)",
+    "label": "Scan #1",
     "time_interval": 32.0,
     "dead_time": 30.0,
     "fit_range": (0.0, 14500.0),
@@ -95,7 +93,7 @@ FL_SK_CONFIG = {
     "color": "#1F78B4",
 }
 
-# 3. Manual-Mixing Far-UV CD (2 uM i 5 uM, model double_exponential)
+# 3. Simple Kinetics Far-UV CD (wszystkie foldery xµM, model double_exponential)
 MM_CD_SETTINGS = {
     "default_dead_time": 0.0,
     "fit_start": 0.0,
@@ -103,24 +101,26 @@ MM_CD_SETTINGS = {
     "window_size": 21,
     "poly_order": 3,
     "conc_colors": {
-        2.0: "#1B9E77",
+        1.0: "#1B9E77",
+        2.0: "#66A61E",
+        3.0: "#7570B3",
         5.0: "#E7298A",
     },
+    "fallback_palette": ["#1B9E77", "#7570B3", "#E7298A", "#D95F02", "#0721A6", "#E6AB02"],
 }
 
 # 4. Spectra-Kinetics Far-UV CD (folder CD/SK)
 CD_SK_MAIN_SPECTRA_STEM = "Tm_1200003_clean"   # Plik pokazywany jako widma w Panelu E
 CD_SK_DEFAULT_CONC_UM = 5.0                    # Domyślne stężenie [uM] dla wszystkich plików SK CD
 
-# Nadpisania zakresu czasowego i stężenia dla konkretnych plików w CD/SK
-# (klucz = nazwa pliku bez rozszerzenia .csv; tutaj możesz zmienić conc_uM z 5.0 na 2.0)
 CD_SK_FILE_OVERRIDES = {
     "Tm_30sp_12h00000":            {"max_time_s": 4500.0, "conc_uM": 5.0},
     "Tm1570_2h_spectra_2min00001": {"max_time_s": 3000.0, "conc_uM": 5.0},
-    "Tm15_1200002_clean":          {"max_time_s": 5000.0, "conc_uM": 5.0},
-    "Tm_1200003_clean":            {"max_time_s": None,   "conc_uM": 5.0},
-    # Jeśli inny plik w folderze CD/SK ma stężenie 2.0 uM, dopisz go poniżej:
-    # "nazwa_pliku_bez_csv":       {"max_time_s": None,   "conc_uM": 2.0},
+    "Tm15_1200002_clean":          {"max_time_s": 4000.0, "conc_uM": 5.0},
+    "Tm_1200003_clean":            {"max_time_s": 2000.0, "conc_uM": 8.0},
+    "Tm15_12h0000000009":          {"max_time_s": None,   "conc_uM": 5.0},
+    "Tm15_12h00000":               {"max_time_s": None,   "conc_uM": 5.0},
+    "spectra_2h00000":             {"max_time_s": None,   "conc_uM": 4.0},
 }
 
 CD_SK_SETTINGS = {
@@ -128,6 +128,7 @@ CD_SK_SETTINGS = {
     "nm_per_sec": 0.4,
     "sec_per_spectrum": 109.65,
     "time_mode": "Repeats",
+    "fit_model": "double_exponential",
     "hv_threshold": 950.0,
     "smoothing_window": 15,
     "smoothing_polyorder": 3,
@@ -238,7 +239,7 @@ def fit_trace(t, y, model_name):
             [0.5 * A0, np.clip(k0 * 2.0, 0.005, 0.3), 0.5 * A0, np.clip(k0 * 0.2, 0.0002, 0.02), C0],
             bounds
         )
-        popt, pcov = curve_fit(double_exp, t, y, p0=p0, bounds=bounds, maxfev=50000)
+        popt, pcov = curve_fit(double_exp, t, y, p0=p0, bounds=bounds, maxfev=80000)
         perr = np.sqrt(np.diag(pcov))
         # Uporządkowanie: k1 = faza szybsza, k2 = faza wolniejsza
         if popt[1] < popt[3]:
@@ -251,10 +252,10 @@ def fit_trace(t, y, model_name):
             "y_fit": y_fit, "R2": calc_r2(y, y_fit),
             "A1": A1, "A1_err": eA1,
             "k1": k1, "k1_err": ek1,
-            "t_half1": np.log(2) / k1, "t_half1_err": (np.log(2) / k1**2) * ek1,
+            "t_half1": np.log(2) / k1, "t_half1_err": (np.log(2) / k1 ** 2) * ek1,
             "A2": A2, "A2_err": eA2,
             "k2": k2, "k2_err": ek2,
-            "t_half2": np.log(2) / k2, "t_half2_err": (np.log(2) / k2**2) * ek2,
+            "t_half2": np.log(2) / k2, "t_half2_err": (np.log(2) / k2 ** 2) * ek2,
             "c": c, "c_err": ec,
             "drift_m": np.nan, "drift_m_err": np.nan,
         }
@@ -303,13 +304,24 @@ def read_dead_times(folder_path, default_dead_time):
     return dead_times
 
 
-def parse_conc_from_folder(folder_path):
-    """Odczytuje stężenie w uM z nazwy folderu (np. '2µM', '5µM')."""
-    folder_name = os.path.basename(os.path.normpath(folder_path))
-    match = re.search(r"(\d+(?:\.\d+)?)\s*[uµμ]M", folder_name, flags=re.IGNORECASE)
-    if match:
-        return float(match.group(1))
-    raise ValueError(f"Nie udało się odczytać stężenia z nazwy folderu: {folder_path}")
+def discover_mm_cd_dirs(base_dir):
+    """Wyszukuje wszystkie podfoldery postaci xµM (np. 1µM, 3µM, 5µM) i sortuje je wg stężenia."""
+    if not os.path.exists(base_dir):
+        print(f"⚠️ Katalog bazowy MM CD nie istnieje: {base_dir}")
+        return []
+
+    discovered = []
+    for entry in os.listdir(base_dir):
+        full_path = os.path.join(base_dir, entry)
+        if not os.path.isdir(full_path):
+            continue
+        match = re.fullmatch(r"(\d+(?:[.,]\d+)?)\s*[uµμ]M", entry, flags=re.IGNORECASE)
+        if match:
+            conc_uM = float(match.group(1).replace(",", "."))
+            discovered.append((conc_uM, full_path))
+
+    discovered.sort(key=lambda item: item[0])
+    return discovered
 
 
 def resolve_cam_max_time(fname):
@@ -336,7 +348,6 @@ def read_fl_mm_data(filename):
     )
 
     if is_waw_format:
-        # Znajdź pierwszy wiersz liczbowy po nagłówku (zwykle wiersz 10 licząc od 0)
         start_idx = None
         for i, line in enumerate(lines[:25]):
             s = line.strip()
@@ -374,15 +385,12 @@ def read_fl_mm_data(filename):
                 t_val = float(parts[0])
                 y_val = float(parts[1])
             except ValueError:
-                # Napotkano kolejny nagłówek (np. 'Labels,...') lub stopkę -> koniec 1. skanu
                 break
 
             if not (np.isfinite(t_val) and np.isfinite(y_val)):
                 continue
-            # Zabezpieczenie przed kolejnym powtórzeniem skanu w tym samym pliku
             if t_val <= prev_t and len(times) > 1:
                 break
-            # Odrzucenie ewentualnych wartości przepełnienia/błędu detektora Horiba
             if y_val <= 0.0 or y_val > 1e10:
                 continue
 
@@ -643,7 +651,7 @@ def update_fits_tables(individual_rows, mean_rows, tables_dir):
 
 
 # ==============================================================================
-# PANEL A: MM FL (cam + waw na dwóch osiach Y, model double_exponential)
+# PANEL A: Simple Kinetics FL (cam + waw na dwóch osiach Y, model double_exponential)
 # ==============================================================================
 def plot_panel_a_mm_fl(ax_left, individual_records, mean_records):
     cam_files = sorted(glob.glob(os.path.join(PATHS["mm_fl_cam_dir"], "*.csv")))
@@ -704,7 +712,6 @@ def plot_panel_a_mm_fl(ax_left, individual_records, mean_records):
 
     ax_right = ax_left.twinx()
     all_fit_results = []
-    max_t_plotted = MM_FL_SETTINGS["waw_fit_end"]
 
     for idx, (label_file, dt, max_t_file, t_m, y_m) in enumerate(cam_series):
         w_len = min(MM_FL_SETTINGS["window_size"], len(y_m) if len(y_m) % 2 == 1 else len(y_m) - 1)
@@ -714,7 +721,6 @@ def plot_panel_a_mm_fl(ax_left, individual_records, mean_records):
             t_m, y_smooth / cam_div,
             color=MM_FL_SETTINGS["color_cam"], lw=1.35, alpha=0.85, label=lbl
         )
-        max_t_plotted = max(max_t_plotted, float(np.max(t_m)))
 
         try:
             res = fit_trace(t_m, y_m, "double_exponential")
@@ -742,7 +748,6 @@ def plot_panel_a_mm_fl(ax_left, individual_records, mean_records):
             t_m, y_smooth / waw_div,
             color=MM_FL_SETTINGS["color_waw"], lw=1.35, alpha=0.85, label=lbl
         )
-        max_t_plotted = max(max_t_plotted, float(np.max(t_m)))
 
         try:
             res = fit_trace(t_m, y_m, "double_exponential")
@@ -762,9 +767,9 @@ def plot_panel_a_mm_fl(ax_left, individual_records, mean_records):
         except Exception as e:
             print(f"❌ Dopasowanie MM FL nie powiodło się dla {label_file}: {e}")
 
-    append_mean_row(mean_records, "MM_FL", "double_exponential", "0-4000 / custom", all_fit_results)
+    append_mean_row(mean_records, "MM_FL", "double_exponential", "0-2000 / custom", all_fit_results)
 
-    ax_left.set_xlim(0.0, max_t_plotted)
+    ax_left.set_xlim(0.0, MM_FL_SETTINGS["plot_xlim"])
     ax_left.set_xlabel("Time (s)")
     ax_left.set_ylabel(f"Fluorescence — Series 1 {cam_unit_label}", color=MM_FL_SETTINGS["color_cam"])
     ax_right.set_ylabel(f"Fluorescence — Series 2 {waw_unit_label}", color=MM_FL_SETTINGS["color_waw"])
@@ -779,7 +784,7 @@ def plot_panel_a_mm_fl(ax_left, individual_records, mean_records):
 
 
 # ==============================================================================
-# PANELE B I C: SK FL (Widma 0-14500 s oraz kinetyka przy 340 nm)
+# PANELE B I C: SK FL (Widma 0-14500 s oraz Spectra-Kinetics przy 340 nm)
 # ==============================================================================
 def plot_panels_bc_fl_sk(fig, ax_spectra, ax_kinetics, individual_records, mean_records):
     fp = PATHS["fl_sk_file"]
@@ -875,33 +880,47 @@ def plot_panels_bc_fl_sk(fig, ax_spectra, ax_kinetics, individual_records, mean_
 
     append_mean_row(mean_records, "SK_FL", FL_SK_CONFIG["fit_model"], f"{int(t_start)}-{int(t_end)}", sk_fl_fits)
 
-    ax_kinetics.set_xlim(0.0, float(t_end))
+    ax_kinetics.set_xlim(-50, float(t_end))
     ax_kinetics.set_xlabel("Time (s)")
     ax_kinetics.set_ylabel(r"Fluorescence Intensity at 340 nm ($\times 10^4$ a.u.)")
     ax_kinetics.grid(True, linestyle=":", alpha=0.5)
-    ax_kinetics.legend(loc="upper right", frameon=True, framealpha=0.92)
+    # ax_kinetics.legend(loc="upper right", frameon=True, framealpha=0.92)
 
 
 # ==============================================================================
-# PANEL D: MM CD (2 uM i 5 uM -> przeliczenie na [theta]_MRW, double_exponential)
+# PANEL D: Simple Kinetics CD (wszystkie foldery xµM -> [theta]_MRW, double_exponential)
 # ==============================================================================
 def plot_panel_d_mm_cd(ax, individual_records, mean_records):
+    conc_dirs = discover_mm_cd_dirs(PATHS["mm_cd_base_dir"])
+    if not conc_dirs:
+        print(f"⚠️ Nie znaleziono podfolderów xµM w katalogu: {PATHS['mm_cd_base_dir']}")
+        return
+
+    found_summary = ", ".join(f"{c:g} uM ({os.path.basename(p)})" for c, p in conc_dirs)
+    print(f"[MM CD] Znalezione foldery stężeń: {found_summary}")
+
+    parent_dt_map = read_dead_times(PATHS["mm_cd_base_dir"], MM_CD_SETTINGS["default_dead_time"])
+    fallback_palette = MM_CD_SETTINGS["fallback_palette"]
+
     all_fit_results = []
     max_t_plotted = 0.0
     min_y_plotted = np.inf
     max_y_plotted = -np.inf
 
-    for folder_path in PATHS["mm_cd_dirs"]:
-        if not os.path.exists(folder_path):
-            print(f"⚠️ Folder nie istnieje: {folder_path}")
+    for conc_idx, (conc_uM, folder_path) in enumerate(conc_dirs):
+        csv_files = sorted(glob.glob(os.path.join(folder_path, "*.csv")))
+        if not csv_files:
+            print(f"⚠️ Brak plików CSV w folderze: {folder_path}")
             continue
 
-        conc_uM = parse_conc_from_folder(folder_path)
-        csv_files = sorted(glob.glob(os.path.join(folder_path, "*.csv")))
-        dt_map = read_dead_times(folder_path, MM_CD_SETTINGS["default_dead_time"])
-        color = MM_CD_SETTINGS["conc_colors"].get(conc_uM, "#17BECF")
+        dt_map = dict(parent_dt_map)
+        dt_map.update(read_dead_times(folder_path, MM_CD_SETTINGS["default_dead_time"]))
+        color = MM_CD_SETTINGS["conc_colors"].get(
+            conc_uM, fallback_palette[conc_idx % len(fallback_palette)]
+        )
 
-        for idx, fp in enumerate(csv_files):
+        valid_traces = []
+        for fp in csv_files:
             fname = os.path.basename(fp)
             fbase = os.path.splitext(fname)[0]
             dt = dt_map.get(fname, dt_map.get(fbase, MM_CD_SETTINGS["default_dead_time"]))
@@ -915,7 +934,10 @@ def plot_panel_d_mm_cd(ax, individual_records, mean_records):
             t_m, y_m = t[mask], y_mrw[mask]
             if len(t_m) < 10:
                 continue
+            valid_traces.append((fname, t_m, y_m, t_end))
 
+        n_conc = len(valid_traces)
+        for idx, (fname, t_m, y_m, t_end) in enumerate(valid_traces):
             max_t_plotted = max(max_t_plotted, float(np.max(t_m)))
             w_len = min(MM_CD_SETTINGS["window_size"], len(y_m) if len(y_m) % 2 == 1 else len(y_m) - 1)
             y_smooth = savgol_filter(y_m, w_len, MM_CD_SETTINGS["poly_order"]) if w_len >= 5 else y_m
@@ -924,7 +946,7 @@ def plot_panel_d_mm_cd(ax, individual_records, mean_records):
             min_y_plotted = min(min_y_plotted, float(np.nanmin(y_plot)))
             max_y_plotted = max(max_y_plotted, float(np.nanmax(y_plot)))
 
-            lbl = rf"${conc_uM:g}\ \mu\mathrm{{M}}$ ($n={len(csv_files)}$)" if idx == 0 else None
+            lbl = rf"${conc_uM:g}\ \mu\mathrm{{M}}$ ($n={n_conc}$)" if idx == 0 else None
             ax.plot(t_m, y_plot, color=color, lw=1.35, alpha=0.85, label=lbl)
 
             try:
@@ -936,7 +958,10 @@ def plot_panel_d_mm_cd(ax, individual_records, mean_records):
                     individual_records, "MM_CD", f"{conc_uM:g}uM/{fname}", conc_uM,
                     "double_exponential", range_str, res
                 )
-                print(f"[MM CD {conc_uM:g} uM] {fname}: t1/2_1 = {res['t_half1']:.1f} s, t1/2_2 = {res['t_half2']:.1f} s")
+                print(
+                    f"[MM CD {conc_uM:g} uM] {fname}: "
+                    f"t1/2_1 = {res['t_half1']:.1f} s, t1/2_2 = {res['t_half2']:.1f} s"
+                )
             except Exception as e:
                 print(f"❌ Dopasowanie MM CD nie powiodło się dla {fname}: {e}")
 
@@ -1057,6 +1082,7 @@ def process_all_cd_sk(fig_main, ax_e_spectra, ax_f_222, individual_records, mean
                         color=plasma_trimmed(norm_e(t_sec)), lw=1.25, alpha=0.88
                     )
 
+            ax_e_spectra.set_xlim(right=250.0)
             ax_e_spectra.set_xlabel("Wavelength (nm)")
             ax_e_spectra.set_ylabel(r"$[\theta]_{\mathrm{MRW}} \times 10^{-3}\ \mathrm{(deg\cdot cm^2\cdot dmol^{-1})}$")
             ax_e_spectra.grid(True, linestyle=":", alpha=0.5)
@@ -1102,6 +1128,8 @@ def process_all_cd_sk(fig_main, ax_e_spectra, ax_f_222, individual_records, mean
                 t_222.append(t_eff)
                 y_222_mrw.append(float(mdeg_to_mrw(val_mdeg, conc_uM)))
 
+        sk_cd_model = CD_SK_SETTINGS["fit_model"]
+
         t_222 = np.array(t_222, dtype=float)
         y_222_mrw = np.array(y_222_mrw, dtype=float)
         if len(t_222) > 0:
@@ -1111,18 +1139,24 @@ def process_all_cd_sk(fig_main, ax_e_spectra, ax_f_222, individual_records, mean
             max_y_222 = max(max_y_222, float(np.nanmax(y_222_scaled)))
 
             ax_f_222.scatter(t_222, y_222_scaled, s=16, color=color, alpha=0.8, label=scan_label)
-            try:
-                res_222 = fit_trace(t_222, y_222_mrw, "mono_exp")
-                ax_f_222.plot(t_222, res_222["y_fit"] / 1e3, color=color, ls="--", lw=1.5)
-                fits_222_list.append(res_222)
-                range_str = f"{int(round(t_222[0]))}-{int(round(t_222[-1]))}"
-                record_fit_row(
-                    individual_records, "SK_CD_222nm", fname, conc_uM,
-                    "mono_exp", range_str, res_222
-                )
-                print(f"[SK CD 222 nm] {fname} ({scan_label}): t1/2 = {res_222['t_half1']:.1f} ± {res_222['t_half1_err']:.1f} s")
-            except Exception as e:
-                print(f"❌ Dopasowanie SK CD (222 nm) nie powiodło się dla {fname}: {e}")
+            if len(t_222) >= 6:
+                try:
+                    res_222 = fit_trace(t_222, y_222_mrw, sk_cd_model)
+                    ax_f_222.plot(t_222, res_222["y_fit"] / 1e3, color=color, ls="--", lw=1.5)
+                    fits_222_list.append(res_222)
+                    range_str = f"{int(round(t_222[0]))}-{int(round(t_222[-1]))}"
+                    record_fit_row(
+                        individual_records, "SK_CD_222nm", fname, conc_uM,
+                        sk_cd_model, range_str, res_222
+                    )
+                    print(
+                        f"[SK CD 222 nm] {fname} ({scan_label}): "
+                        f"t1/2_1 = {res_222['t_half1']:.1f} ± {res_222['t_half1_err']:.1f} s, "
+                        f"t1/2_2 = {res_222['t_half2']:.1f} ± {res_222['t_half2_err']:.1f} s "
+                        f"(R2 = {res_222['R2']:.3f})"
+                    )
+                except Exception as e:
+                    print(f"❌ Dopasowanie SK CD (222 nm) nie powiodło się dla {fname}: {e}")
 
         # 3. Kinetyka z całkowania widm CD (217-250 nm -> tabela i aneks)
         mid_wl = 0.5 * (int_min + int_max)
@@ -1162,16 +1196,21 @@ def process_all_cd_sk(fig_main, ax_e_spectra, ax_f_222, individual_records, mean
         t_int = np.array(t_int, dtype=float)
         y_int_mrw = np.array(y_int_mrw, dtype=float)
         res_int = None
-        if len(t_int) >= 5:
+        if len(t_int) >= 6:
             try:
-                res_int = fit_trace(t_int, y_int_mrw, "mono_exp")
+                res_int = fit_trace(t_int, y_int_mrw, sk_cd_model)
                 fits_int_list.append(res_int)
                 range_str = f"{int(round(t_int[0]))}-{int(round(t_int[-1]))}"
                 record_fit_row(
                     individual_records, "SK_CD_integrated", fname, conc_uM,
-                    "mono_exp", range_str, res_int
+                    sk_cd_model, range_str, res_int
                 )
-                print(f"[SK CD int 217-250 nm] {fname} ({scan_label}): t1/2 = {res_int['t_half1']:.1f} ± {res_int['t_half1_err']:.1f} s")
+                print(
+                    f"[SK CD int 217-250 nm] {fname} ({scan_label}): "
+                    f"t1/2_1 = {res_int['t_half1']:.1f} ± {res_int['t_half1_err']:.1f} s, "
+                    f"t1/2_2 = {res_int['t_half2']:.1f} ± {res_int['t_half2_err']:.1f} s "
+                    f"(R2 = {res_int['R2']:.3f})"
+                )
             except Exception as e:
                 print(f"❌ Dopasowanie SK CD (całkowanie) nie powiodło się dla {fname}: {e}")
 
@@ -1180,8 +1219,8 @@ def process_all_cd_sk(fig_main, ax_e_spectra, ax_f_222, individual_records, mean
     if not main_spectra_plotted:
         print(f"⚠️ Ostrzeżenie: nie znaleziono pliku '{CD_SK_MAIN_SPECTRA_STEM}' do wykreślenia w Panelu E!")
 
-    append_mean_row(mean_records, "SK_CD_222nm", "mono_exp", "custom / full", fits_222_list)
-    append_mean_row(mean_records, "SK_CD_integrated", "mono_exp", "custom / full", fits_int_list)
+    append_mean_row(mean_records, "SK_CD_222nm", sk_cd_model, "custom / full", fits_222_list)
+    append_mean_row(mean_records, "SK_CD_integrated", sk_cd_model, "custom / full", fits_int_list)
 
     ax_f_222.set_xlim(0.0, max_t_222 * 1.02 if max_t_222 > 0 else 12000.0)
     if np.isfinite(min_y_222) and np.isfinite(max_y_222):
@@ -1225,9 +1264,10 @@ def make_appendix_cd_sk_figure(appendix_spectra_datasets, appendix_int_datasets)
             cbar.update_ticks()
             cbar.ax.tick_params(labelsize=8.0)
             cbar.set_label("Time (s)", fontsize=9.0, labelpad=3)
+        ax.set_xlim(right=250.0)
         ax.set_xlabel("Wavelength (nm)")
         ax.set_ylabel(r"$[\theta]_{\mathrm{MRW}} \times 10^{-3}\ \mathrm{(deg\cdot cm^2\cdot dmol^{-1})}$")
-        ax.set_title(rf"$\mathsf{{Cn}}$Tm1570 – CD Spectra ({scan_label})", fontweight="bold", fontsize=11)
+        ax.set_title(rf"$\mathsf{{Cn}}$Tm1570 – Far-UV CD Spectra ({scan_label})", fontweight="bold", fontsize=11)
         ax.grid(True, linestyle=":", alpha=0.5)
 
     ax_int = axes_flat[n_spec_panels]
@@ -1243,7 +1283,7 @@ def make_appendix_cd_sk_figure(appendix_spectra_datasets, appendix_int_datasets)
     ax_int.set_xlim(0.0, max_t * 1.02 if max_t > 0 else 12000.0)
     ax_int.set_xlabel("Time (s)")
     ax_int.set_ylabel(r"Integrated $[\theta]_{\mathrm{MRW}}\ (217\text{--}250\ \mathrm{nm}) \times 10^{-4}$")
-    ax_int.set_title(r"$\mathsf{Cn}$Tm1570 – Integrated CD Kinetics", fontweight="bold", fontsize=11)
+    ax_int.set_title(r"$\mathsf{Cn}$Tm1570 – Integrated Spectra-Kinetics CD", fontweight="bold", fontsize=11)
     ax_int.legend(loc="lower right", frameon=True, framealpha=0.92)
     ax_int.grid(True, linestyle=":", alpha=0.5)
 
@@ -1288,23 +1328,23 @@ def make_figure_tm1570():
     individual_records = []
     mean_records = []
 
-    # Rząd 1: MM FL (A) oraz SK FL Widma (B)
+    # Rząd 1: Simple Kinetics FL (A) oraz Fluorescence Spectra (B)
     plot_panel_a_mm_fl(axA, individual_records, mean_records)
-    axA.set_title(r"$\mathsf{Cn}$Tm1570 – Manual-Mixing Fluorescence", fontweight="bold", pad=8)
+    axA.set_title(r"$\mathsf{Cn}$Tm1570 – Fluorescence Kinetics", fontweight="bold", pad=8)
 
-    # Rząd 1/2: SK FL Widma (B) oraz SK FL Kinetyka przy 340 nm (C)
+    # Rząd 1/2: Fluorescence Spectra (B) oraz Spectra-Kinetics Fluorescence przy 340 nm (C)
     plot_panels_bc_fl_sk(fig, axB, axC, individual_records, mean_records)
     axB.set_title(r"$\mathsf{Cn}$Tm1570 – Fluorescence Spectra", fontweight="bold", pad=8)
-    axC.set_title(r"$\mathsf{Cn}$Tm1570 – Fluorescence Kinetics ($\mathbf{340\ nm}$)", fontweight="bold", pad=8)
+    axC.set_title(r"$\mathsf{Cn}$Tm1570 – Fluorescence Spectra-Kinetics ($\mathbf{340\ nm}$)", fontweight="bold", pad=8)
 
-    # Rząd 2 (prawy): MM CD (D)
+    # Rząd 2 (prawy): Simple Kinetics Far-UV CD (D)
     plot_panel_d_mm_cd(axD, individual_records, mean_records)
-    axD.set_title(r"$\mathsf{Cn}$Tm1570 – Manual-Mixing Far-UV CD ($\mathbf{222\ nm}$)", fontweight="bold", pad=8)
+    axD.set_title(r"$\mathsf{Cn}$Tm1570 – Far-UV CD Kinetics ($\mathbf{222\ nm}$)", fontweight="bold", pad=8)
 
-    # Rząd 3: SK CD Widma (E) oraz SK CD Kinetyka przy 222 nm (F)
+    # Rząd 3: Far-UV CD Spectra (E) oraz Spectra-Kinetics CD przy 222 nm (F)
     process_all_cd_sk(fig, axE, axF, individual_records, mean_records)
     axE.set_title(r"$\mathsf{Cn}$Tm1570 – Far-UV CD Spectra", fontweight="bold", pad=8)
-    axF.set_title(r"$\mathsf{Cn}$Tm1570 – Spectra-Kinetics CD ($\mathbf{222\ nm}$)", fontweight="bold", pad=8)
+    axF.set_title(r"$\mathsf{Cn}$Tm1570 – Far-UV CD Spectra-Kinetics ($\mathbf{222\ nm}$)", fontweight="bold", pad=8)
 
     for ax, label in zip([axA, axB, axC, axD, axE, axF], ["A", "B", "C", "D", "E", "F"]):
         ax.text(-0.13, 1.06, label, transform=ax.transAxes, fontsize=13.5, fontweight="bold", va="top")
