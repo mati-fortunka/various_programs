@@ -3,10 +3,69 @@ import re
 import glob
 import numpy as np
 import pandas as pd
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap, Normalize
 from scipy.signal import savgol_filter
 from scipy.optimize import curve_fit
+
+# ==============================================================================
+# KONFIGURACJA CZCIONEK I PALETY BARW (ZGODNA Z ROZDZIAŁEM 4 I FIGURĄ 5.3)
+# ==============================================================================
+mpl.rcParams["font.family"] = "DejaVu Sans"
+mpl.rcParams["mathtext.fontset"] = "custom"
+mpl.rcParams["mathtext.rm"] = "DejaVu Sans"
+mpl.rcParams["mathtext.it"] = "DejaVu Sans:italic"
+mpl.rcParams["mathtext.bf"] = "DejaVu Sans:bold"
+mpl.rcParams["mathtext.sf"] = "DejaVu Sans:bold:italic"  # POGRUBIONA KURSYWA (\mathsf)
+mpl.rcParams["mathtext.cal"] = "DejaVu Sans"
+mpl.rcParams["mathtext.tt"] = "DejaVu Sans Mono"
+
+# Rozmiary czcionek identyczne jak w Figurze 4.3 oraz Figurze 5.3
+FS_LABEL = 15        # etykiety osi
+FS_TICK = 13         # podziałki osi
+FS_LEGEND = 11.5     # legendy
+FS_TITLE = 13        # tytuły paneli, bold
+FS_PANEL = 14.5      # litery paneli A-D, bold
+FS_CBAR_TICK = 10.5  # podziałki colorbara
+FS_CBAR_LABEL = 11   # opis colorbara
+
+FIG51_RC = {
+    "font.size": FS_TICK,
+    "axes.labelsize": FS_LABEL,
+    "axes.titlesize": FS_TITLE,
+    "xtick.labelsize": FS_TICK,
+    "ytick.labelsize": FS_TICK,
+    "legend.fontsize": FS_LEGEND,
+}
+
+# Szerokość = 12.0 in jak w Fig. 4.3 i Fig. 5.3 (identyczna skala czcionek w LaTeX)
+FIG51_SIZE = (12.0, 9.6)
+
+# True -> tytuły paneli zaczynają się od "CnTrmD – ..."
+SHOW_CONSTRUCT_IN_TITLES = False
+
+
+def darker(color, factor=0.7):
+    """Ciemniejszy odcień koloru (linia dopasowania widoczna na tle punktów)."""
+    r, g, b = mpl.colors.to_rgb(color)
+    return (r * factor, g * factor, b * factor)
+
+
+def style_legend(ax, handles=None, labels=None, loc="upper right", markerscale=1.0):
+    """Legenda w stylu Fig. 4.3 / 5.3: biała ramka bez krawędzi, uchwyt po prawej."""
+    anchor = (1, 0.02) if "lower" in loc else (1, 0.98)
+    kw = dict(
+        loc=loc, bbox_to_anchor=anchor, fontsize=FS_LEGEND,
+        frameon=True, facecolor="white", framealpha=0.9, edgecolor="none",
+        markerfirst=False, handlelength=2.6, handletextpad=0.8,
+        scatterpoints=1, markerscale=markerscale,
+    )
+    leg = ax.legend(handles, labels, **kw) if handles is not None else ax.legend(**kw)
+    for text_obj in leg.get_texts():
+        text_obj.set_ha("right")
+    return leg
+
 
 # ==============================================================================
 # KONFIGURACJA ŚCIEŻEK I PARAMETRÓW
@@ -26,23 +85,25 @@ PARAMS = {
     "c_cd_native_uM": 5.0,
     "c_cd_unfolded_uM": 5.0,
     "pathlength_mm": 1.0,
-    "hv_threshold": 900.0,   # Zaktualizowany próg HV <= 900 V
+    "hv_threshold": 900.0,   # Próg HV <= 900 V
     "dead_time_mm": 30.0,    # Czas martwy ręcznego mieszania (s)
+    "dead_time_mm_fl5uM": 45,
     "fit_end_mm": 2000.0,    # Okno dopasowania Panelu A (s)
+    "point_size_mm": 5,      # Rozmiar punktów surowych danych w Panelu A
+    "point_alpha_mm": 0.55,  # Przezroczystość punktów surowych danych w Panelu A
+    "fit_lw_mm": 1.6,        # Grubość linii dopasowania w Panelu A
     "sk_time_step": 32.0,    # Interwał między skanami w SK FL (s)
     "sk_target_wl": 340.0,   # Długość fali analizowana w Panelu C (nm)
     "sk_baseline_wl": 400.0,
     "sk_fit_end": 20000.0,   # Okno dopasowania Paneli B i C (s)
 }
 
-# Kolory spójne z Rozdziałem 4
-COLOR_5UM = "#1F78B4"  # Jednolity niebieski dla serii 5.0 uM
-COLOR_2UM = "#D95F02"  # Jednolity pomarańczowy dla serii 2.0 uM
+# Kolory spójne z Rozdziałem 4 i Figurą 5.3
+COLOR_5UM = "#1F78B4"  # Niebieski dla serii 5.0 uM
+COLOR_2UM = "#D95F02"  # Pomarańczowy dla serii 2.0 uM
 
-plasma_full = plt.cm.plasma
 plasma_trimmed = LinearSegmentedColormap.from_list(
-    "plasma_trimmed",
-    [plasma_full(x) for x in np.linspace(0.05, 0.85, 256)]
+    "plasma_trimmed", plt.cm.plasma(np.linspace(0.0, 0.88, 256))
 )
 
 
@@ -153,7 +214,7 @@ def load_sk_fl(filename):
 
 def parse_prodata_block(lines, keyword):
     """Znajduje drugie wystąpienie słowa kluczowego w pliku ProData CSV
-    i automatycznie wykrywa pierwszy wiersz z danymi liczbowymi (bez pomijania 250 nm)."""
+    i automatycznie wykrywa pierwszy wiersz z danymi liczbowymi."""
     count = 0
     kw_idx = -1
     for i, line in enumerate(lines):
@@ -225,10 +286,7 @@ def read_prodata_cd(file_path, hv_threshold, c_uM, l_mm, n_res, window=15, poly=
     mrw_ellip = (ellip_mdeg * 1e6) / (c_uM * l_mm * n_res)
 
     # Korekta linii bazowej: przy 400 nm (jeśli skan sięga 400 nm) lub przy 250 nm
-    if wl.max() >= 395.0:
-        bl_wl = 400.0
-    else:
-        bl_wl = 250.0
+    bl_wl = 400.0 if wl.max() >= 395.0 else 250.0
     baseline_val = np.interp(bl_wl, wl, mrw_ellip)
     mrw_ellip = mrw_ellip - baseline_val
 
@@ -268,7 +326,7 @@ def update_fits_tables(individual_rows, mean_rows, tables_dir):
         df_mean_combined = df_mean_new
     df_mean_combined.to_csv(mean_path, index=False)
 
-    print(f"Zaktualizowano tabele:\n  {fits_path}\n  {mean_path}")
+    print(f"\n✅ Zaktualizowano tabele:\n  {fits_path}\n  {mean_path}")
 
 
 # ==============================================================================
@@ -278,18 +336,10 @@ def make_figure_5_1():
     os.makedirs(PATHS["fig_out_dir"], exist_ok=True)
     os.makedirs(PATHS["tables_out_dir"], exist_ok=True)
 
-    plt.rcParams.update({
-        "font.family": "sans-serif",
-        "font.sans-serif": ["DejaVu Sans", "Arial"],
-        "font.size": 10,
-        "axes.labelsize": 11.5,
-        "xtick.labelsize": 10,
-        "ytick.labelsize": 10,
-        "legend.fontsize": 9,
-        "axes.linewidth": 1.0,
-    })
+    plt.rcParams.update(FIG51_RC)
+    TP = r"$\mathsf{Cn}$TrmD – " if SHOW_CONSTRUCT_IN_TITLES else ""
 
-    fig, axes = plt.subplots(2, 2, figsize=(11.8, 9.0), dpi=300)
+    fig, axes = plt.subplots(2, 2, figsize=FIG51_SIZE, dpi=300)
     axA, axB = axes[0, 0], axes[0, 1]
     axC, axD = axes[1, 0], axes[1, 1]
 
@@ -297,7 +347,7 @@ def make_figure_5_1():
     mean_records = []
 
     # --------------------------------------------------------------------------
-    # PANEL A: MM FL (wyłącznie 2 kolory: niebieski dla 5.0 uM, pomarańczowy dla 2.0 uM)
+    # PANEL A: MM FL (surowe punkty + linie dopasowania, dwie osie Y)
     # --------------------------------------------------------------------------
     all_csvs = sorted(glob.glob(os.path.join(PATHS["mm_fl_dir"], "**", "*.csv"), recursive=True))
     files_5uM = [f for f in all_csvs if re.search(r"TrmD[1-4]_4000s", os.path.basename(f))]
@@ -308,17 +358,23 @@ def make_figure_5_1():
 
     for idx, fp in enumerate(files_5uM):
         df = read_mm_fl(fp)
-        t = df["Time"].values + PARAMS["dead_time_mm"]
+        t = df["Time"].values + PARAMS["dead_time_mm_fl5uM"]
         y_raw = df["Intensity"].values
         mask = (t >= 0) & (t <= PARAMS["fit_end_mm"])
         t_m, y_m = t[mask], y_raw[mask]
-        y_smooth = savgol_filter(y_m, 25, 3)
 
-        lbl = r"$5.0~\mu\mathrm{M}$ ($n=4$)" if idx == 0 else None
-        axA.plot(t_m, y_smooth / 1e5, color=COLOR_5UM, lw=1.4, alpha=0.85, label=lbl)
+        lbl = rf"$5.0~\mu\mathrm{{M}}$ ($n={len(files_5uM)}$)" if idx == 0 else None
+        axA.scatter(
+            t_m, y_m / 1e5,
+            s=PARAMS["point_size_mm"], color=COLOR_5UM,
+            alpha=PARAMS["point_alpha_mm"], linewidths=0, rasterized=True, label=lbl
+        )
 
         popt, perr, r2 = fit_double_exp_robust(t_m, y_m)
-        axA.plot(t_m, double_exp(t_m, *popt) / 1e5, color=COLOR_5UM, ls=":", lw=1.15)
+        axA.plot(
+            t_m, double_exp(t_m, *popt) / 1e5,
+            color=darker(COLOR_5UM), ls="--", lw=PARAMS["fit_lw_mm"], zorder=3
+        )
         mm_fl_runs.append((fp, 5.0, popt, perr, r2))
 
     for idx, fp in enumerate(files_2uM):
@@ -327,13 +383,19 @@ def make_figure_5_1():
         y_raw = df["Intensity"].values
         mask = (t >= 0) & (t <= PARAMS["fit_end_mm"])
         t_m, y_m = t[mask], y_raw[mask]
-        y_smooth = savgol_filter(y_m, 25, 3)
 
-        lbl = r"$2.0~\mu\mathrm{M}$ ($n=4$)" if idx == 0 else None
-        axA_right.plot(t_m, y_smooth / 1e4, color=COLOR_2UM, lw=1.4, alpha=0.85, label=lbl)
+        lbl = rf"$2.0~\mu\mathrm{{M}}$ ($n={len(files_2uM)}$)" if idx == 0 else None
+        axA_right.scatter(
+            t_m, y_m / 1e4,
+            s=PARAMS["point_size_mm"], color=COLOR_2UM,
+            alpha=PARAMS["point_alpha_mm"], linewidths=0, rasterized=True, label=lbl
+        )
 
         popt, perr, r2 = fit_double_exp_robust(t_m, y_m)
-        axA_right.plot(t_m, double_exp(t_m, *popt) / 1e4, color=COLOR_2UM, ls=":", lw=1.15)
+        axA_right.plot(
+            t_m, double_exp(t_m, *popt) / 1e4,
+            color=darker(COLOR_2UM), ls="--", lw=PARAMS["fit_lw_mm"], zorder=3
+        )
         mm_fl_runs.append((fp, 2.0, popt, perr, r2))
 
     for fp, conc_uM, popt, perr, r2 in mm_fl_runs:
@@ -389,14 +451,15 @@ def make_figure_5_1():
     axA.tick_params(axis="y", colors=COLOR_5UM)
     axA_right.tick_params(axis="y", colors=COLOR_2UM)
     axA.grid(True, linestyle=":", alpha=0.5)
+    axA.set_title(f"{TP}Fluorescence Kinetics", fontsize=FS_TITLE, fontweight="bold", pad=8)
 
     h1, l1 = axA.get_legend_handles_labels()
     h2, l2 = axA_right.get_legend_handles_labels()
     if h1 or h2:
-        axA.legend(h1 + h2, l1 + l2, loc="upper right", frameon=True, framealpha=0.92)
+        style_legend(axA, h1 + h2, l1 + l2, loc="upper right", markerscale=3.0)
 
     # --------------------------------------------------------------------------
-    # PANEL B: SK FL Widma (colorbar przesunięty bardziej w prawo: x0 = 0.81)
+    # PANEL B: SK FL Widma
     # --------------------------------------------------------------------------
     df_sk = load_sk_fl(PATHS["sk_fl_file"])
     wls = df_sk["Wavelength"].values
@@ -426,20 +489,20 @@ def make_figure_5_1():
     axB.set_xlabel("Wavelength (nm)")
     axB.set_ylabel(r"Fluorescence Intensity ($\times 10^4$ a.u.)")
     axB.grid(True, linestyle=":", alpha=0.5)
+    axB.set_title(f"{TP}Fluorescence Spectra", fontsize=FS_TITLE, fontweight="bold", pad=8)
 
-    # Inset colorbar przesunięty w prawo w prawym górnym rogu
-    cax_b = axB.inset_axes([0.81, 0.50, 0.040, 0.42])
+    cax_b = axB.inset_axes([0.76, 0.50, 0.045, 0.42])
     sm_b = plt.cm.ScalarMappable(cmap=plasma_trimmed, norm=norm_b)
     sm_b.set_array([])
     cbar_b = fig.colorbar(sm_b, cax=cax_b, orientation="vertical")
     cbar_b.solids.set_rasterized(True)
     cbar_b.set_ticks([0, 5000, 10000, 15000, 20000])
     cbar_b.set_ticklabels(["0", "5000", "10000", "15000", "20000"])
-    cbar_b.ax.tick_params(labelsize=8.0)
-    cbar_b.set_label("Time (s)", fontsize=9.0, labelpad=3)
+    cbar_b.ax.tick_params(labelsize=FS_CBAR_TICK)
+    cbar_b.set_label("Time (s)", fontsize=FS_CBAR_LABEL, labelpad=5)
 
     # --------------------------------------------------------------------------
-    # PANEL C: SK FL przy 340 nm z marginesem przed t=0 (-300 s) + double_exp_drift
+    # PANEL C: SK FL przy 340 nm + double_exp_drift
     # --------------------------------------------------------------------------
     mask_sk = times_sk <= PARAMS["sk_fit_end"]
     t_fit_sk = times_sk[mask_sk]
@@ -487,20 +550,20 @@ def make_figure_5_1():
         "drift_m_mean": m_s, "drift_m_sd": em_s,
     })
 
-    axC.plot(t_fit_sk, y_fit_sk / 1e4, "o", color="#2B8CBE", ms=3.2, alpha=0.75, label="Experimental data")
+    axC.scatter(t_fit_sk, y_fit_sk / 1e4, s=12, color="#1F78B4", alpha=0.65, label="Experimental data")
     t_dense = np.linspace(0.0, PARAMS["sk_fit_end"], 600)
-    axC.plot(t_dense, double_exp_drift(t_dense, *popt_sk) / 1e4, color="#E31A1C", lw=1.9, label="Double-exp + drift fit")
+    axC.plot(t_dense, double_exp_drift(t_dense, *popt_sk) / 1e4, color="#E31A1C", ls="--", lw=1.8, label="Double-exp + drift fit")
 
-    # Przestrzeń przed t = 0 s, aby pierwsze punkty były dobrze widoczne
     axC.set_xlim(-350.0, PARAMS["sk_fit_end"] + 300.0)
     axC.set_xticks([0, 5000, 10000, 15000, 20000])
     axC.set_xlabel("Time (s)")
-    axC.set_ylabel(r"Intensity at $340~\mathrm{nm}$ ($\times 10^4$ a.u.)")
+    axC.set_ylabel(r"Intensity at 340 nm ($\times 10^4$ a.u.)")
     axC.grid(True, linestyle=":", alpha=0.5)
-    axC.legend(loc="upper right", frameon=True, framealpha=0.92)
+    axC.set_title(f"{TP}Fluorescence Spectra-Kinetics (340 nm)", fontsize=FS_TITLE, fontweight="bold", pad=8)
+    style_legend(axC, loc="upper right", markerscale=1.8)
 
     # --------------------------------------------------------------------------
-    # PANEL D: Far-UV CD (HV <= 900 V, pełny zakres do 250 nm, baseline zeroing)
+    # PANEL D: Far-UV CD (HV <= 900 V, bez linii na 0)
     # --------------------------------------------------------------------------
     wl_nat, mrw_nat = read_prodata_cd(
         PATHS["cd_native"], PARAMS["hv_threshold"],
@@ -511,29 +574,30 @@ def make_figure_5_1():
         PARAMS["c_cd_unfolded_uM"], PARAMS["pathlength_mm"], PARAMS["n_res"]
     )
 
-    axD.plot(wl_nat, mrw_nat / 1000.0, color="#1B7837", lw=2.0, label="Native ($0~\\mathrm{M}$ GdmCl)")
-    axD.plot(wl_unf, mrw_unf / 1000.0, color="#D95F02", lw=2.0, label="Post-burst (~170 s, $6~\\mathrm{M}$ GdmCl)")
-    axD.axhline(0.0, color="black", lw=0.7, alpha=0.5)
+    axD.plot(wl_nat, mrw_nat / 1000.0, color="#1B7837", lw=2.0, label="Native\n($0~\\mathrm{M}$ GdmCl)")
+    axD.plot(wl_unf, mrw_unf / 1000.0, color="#D95F02", lw=2.0, label="After adding\nGdmCl ($6~\\mathrm{M}$)")
 
     axD.set_xlim(200.0, 250.0)
     axD.set_xlabel("Wavelength (nm)")
     axD.set_ylabel(r"$[\theta]_{\mathrm{MRW}} \times 10^{-3}\ \mathrm{(deg\cdot cm^2\cdot dmol^{-1})}$")
     axD.grid(True, linestyle=":", alpha=0.5)
-    axD.legend(loc="lower right", frameon=True, framealpha=0.92)
+    axD.set_title(f"{TP}Far-UV CD Spectra", fontsize=FS_TITLE, fontweight="bold", pad=8)
+    style_legend(axD, loc="lower right")
 
     # Etykiety paneli A, B, C, D
     for ax, label in zip([axA, axB, axC, axD], ["A", "B", "C", "D"]):
-        ax.text(-0.13, 1.05, label, transform=ax.transAxes, fontsize=13.5, fontweight="bold", va="top")
+        ax.text(-0.13, 1.06, label, transform=ax.transAxes, fontsize=FS_PANEL, fontweight="bold", va="top")
 
-    plt.tight_layout(pad=1.4)
+    plt.tight_layout(pad=1.0, w_pad=2.0, h_pad=2.0)
     out_pdf = os.path.join(PATHS["fig_out_dir"], "Figura_5_1_Kinetyka_CnTrmD.pdf")
     out_png = os.path.join(PATHS["fig_out_dir"], "Figura_5_1_Kinetyka_CnTrmD.png")
-    plt.savefig(out_pdf, bbox_inches="tight")
-    plt.savefig(out_png, dpi=300, bbox_inches="tight")
-    plt.show()
+    # BEZ bbox_inches="tight": PDF ma dokładnie 12.0 in szerokości (jak Fig. 4.3 i Fig. 5.3)
+    plt.savefig(out_pdf)
+    plt.savefig(out_png, dpi=300)
+    # plt.show()
 
     update_fits_tables(individual_records, mean_records, PATHS["tables_out_dir"])
-    print(f"Zapisano figurę:\n  {out_pdf}\n  {out_png}")
+    print(f"\n✅ Zapisano figurę:\n  {out_pdf}\n  {out_png}")
 
 
 if __name__ == "__main__":

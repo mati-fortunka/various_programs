@@ -6,11 +6,10 @@ import numpy as np
 import pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-from scipy.signal import savgol_filter
 from scipy.optimize import curve_fit
 
 # ==============================================================================
-# KONFIGURACJA CZCIONEK (ZGODNA Z ROZDZIAŁEM 4)
+# KONFIGURACJA CZCIONEK (ZGODNA Z ROZDZIAŁEM 4 ORAZ FIG. 5.1-5.3)
 # ==============================================================================
 mpl.rcParams["font.family"] = "DejaVu Sans"
 mpl.rcParams["mathtext.fontset"] = "custom"
@@ -20,6 +19,52 @@ mpl.rcParams["mathtext.bf"] = "DejaVu Sans:bold"
 mpl.rcParams["mathtext.sf"] = "DejaVu Sans:bold:italic"  # POGRUBIONA KURSYWA (\mathsf)
 mpl.rcParams["mathtext.cal"] = "DejaVu Sans"             # Wycisza ostrzeżenie o 'cursive'
 mpl.rcParams["mathtext.tt"] = "DejaVu Sans Mono"
+
+# Rozmiary czcionek identyczne jak w Figurach 4.3, 5.1, 5.2 oraz 5.3
+FS_LABEL = 15        # etykiety osi
+FS_TICK = 13         # podziałki osi
+FS_LEGEND = 11.5     # legendy
+FS_TITLE = 13        # tytuły paneli, bold
+FS_PANEL = 14.5      # litery paneli A-D, bold
+
+FIG54_RC = {
+    "font.size": FS_TICK,
+    "axes.labelsize": FS_LABEL,
+    "axes.titlesize": FS_TITLE,
+    "xtick.labelsize": FS_TICK,
+    "ytick.labelsize": FS_TICK,
+    "legend.fontsize": FS_LEGEND,
+}
+
+# Szerokość = 12.0 in jak w Fig. 4.3, 5.1, 5.2 i 5.3 (identyczna skala czcionek w LaTeX)
+FIG54_SIZE = (12.0, 9.6)
+
+# Parametry wizualizacji punktów surowych danych i linii dopasowania
+POINT_SIZE = 6
+POINT_ALPHA = 0.55
+FIT_LW = 1.6
+
+
+def darker(color, factor=0.7):
+    """Ciemniejszy odcień koloru (linia dopasowania widoczna na tle punktów)."""
+    r, g, b = mpl.colors.to_rgb(color)
+    return (r * factor, g * factor, b * factor)
+
+
+def style_legend(ax, handles=None, labels=None, loc="upper right", markerscale=1.0, ncol=1):
+    """Legenda w stylu Fig. 4.3 / 5.1 / 5.2 / 5.3: biała ramka bez krawędzi, uchwyt po prawej."""
+    anchor = (1, 0.02) if "lower" in loc else (1, 0.98)
+    kw = dict(
+        loc=loc, bbox_to_anchor=anchor, fontsize=FS_LEGEND,
+        frameon=True, facecolor="white", framealpha=0.9, edgecolor="none",
+        markerfirst=False, handlelength=2.6, handletextpad=0.8,
+        scatterpoints=1, markerscale=markerscale, ncol=ncol,
+    )
+    leg = ax.legend(handles, labels, **kw) if handles is not None else ax.legend(**kw)
+    for text_obj in leg.get_texts():
+        text_obj.set_ha("right")
+    return leg
+
 
 # ==============================================================================
 # KONFIGURACJA ŚCIEŻEK I PARAMETRÓW
@@ -38,6 +83,9 @@ PATHS = {
 #   "table"     -> uśrednione stałe k1, k2 z kinetic_fits_mean.csv (lub TABLE_INITIAL_GUESSES)
 INIT_GUESS_SOURCE = "table"
 
+# Wymusza stały czas martwy (30.0 s) dla wszystkich pomiarów w panelach A, B, C i D
+USE_DEAD_TIMES_FILE = False
+
 # Kolory dla dwóch stężeń w Panelu D (identyczne jak w Panelu A Figury 5.1)
 COLOR_5UM = "#1F78B4"  # Niebieski dla 5.0 uM (lewa oś Y)
 COLOR_2UM = "#D95F02"  # Pomarańczowy dla 2.0 uM (prawa oś Y)
@@ -55,7 +103,7 @@ CONFIG = {
         "n_res": 447,                  # Mw = 50189.16, MRW = 112.28
         "pathlength_mm": 1.0,
         "default_conc_uM": 2.0,
-        "cd_default_dead_time": 0.0,
+        "cd_default_dead_time": 30.0,
         "fl_default_dead_time": 30.0,
         "cd_fit_model": "double_exponential",
         "cd_fit_start": 0.0,
@@ -71,7 +119,7 @@ CONFIG = {
         "n_res": 447,                  # Mw = 49761.67, MRW = 111.32
         "pathlength_mm": 1.0,
         "default_conc_uM": 2.0,
-        "cd_default_dead_time": 0.0,
+        "cd_default_dead_time": 30.0,
         "fl_default_dead_time": 30.0,
         "cd_fit_model": "double_exponential",
         "cd_fit_start": 0.0,
@@ -287,9 +335,12 @@ def read_concentrations(folder_path, default_conc=2.0):
     return conc_map
 
 
-def read_dead_times(folder_path, default_dead_time=0.0):
-    """Wczytuje dead_times.txt z danego folderu."""
+def read_dead_times(folder_path, default_dead_time=30.0):
+    """Wczytuje dead_times.txt z danego folderu (gdy USE_DEAD_TIMES_FILE = True)."""
     dead_times = {}
+    if not USE_DEAD_TIMES_FILE:
+        return dead_times
+
     dead_file = os.path.join(folder_path, "dead_times.txt")
     if not os.path.exists(dead_file):
         print(f"ℹ️ Brak pliku '{dead_file}'. Przyjęto domyślny czas martwy {default_dead_time} s.")
@@ -498,33 +549,38 @@ def process_single_axis_modality(ax, folder_path, construct_name, modality, indi
             y = df["Intensity"].values
             print(f"[{construct_name} FL] {fname}: c = {conc_uM} uM, dead_time = {dt} s")
 
+        t0 = fit_start + dt
         t_end_eff = fit_end if fit_end is not None else float(np.max(t))
-        mask = (t >= fit_start) & (t <= t_end_eff)
+        mask = (t >= t0) & (t <= t_end_eff)
         t_m = t[mask]
         y_m = y[mask]
 
         if len(t_m) < 10:
-            print(f"⚠️ Za mało punktów w {fname} dla zakresu {fit_start}-{t_end_eff} s.")
+            print(f"⚠️ Za mało punktów w {fname} dla zakresu {t0}-{t_end_eff} s.")
             continue
 
         max_t_plotted = max(max_t_plotted, float(np.max(t_m)))
 
-        w_len = min(21, len(y_m) if len(y_m) % 2 == 1 else len(y_m) - 1)
-        y_smooth = savgol_filter(y_m, w_len, 3) if w_len >= 5 else y_m
-
         # Dla CD dzielimy przez 10^3 (w osi opisane jako * 10^-3), dla FL zostawiamy surowe wartości
         scale = 1e3 if is_cd else 1.0
         lbl_exp = f"Experimental ($n={len(csv_files)}$)" if idx == 0 else None
-        ax.plot(t_m, y_smooth / scale, color=cfg["color_raw"], lw=1.4, alpha=0.82, label=lbl_exp)
+        ax.scatter(
+            t_m, y_m / scale,
+            s=POINT_SIZE, color=cfg["color_raw"], alpha=POINT_ALPHA,
+            linewidths=0, rasterized=True, label=lbl_exp
+        )
 
         try:
             res = fit_kinetic_trace(t_m, y_m, fit_model, table_guess=t_guess)
             lbl_fit = "Double-exp fit" if (idx == 0 and fit_model == "double_exponential") else (
                 "Single-exp fit" if idx == 0 else None
             )
-            ax.plot(t_m, res["y_fit"] / scale, color=cfg["color_fit"], ls=":", lw=1.25, label=lbl_fit)
+            ax.plot(
+                t_m, res["y_fit"] / scale,
+                color=cfg["color_fit"], ls="--", lw=FIT_LW, zorder=3, label=lbl_fit
+            )
 
-            range_str = f"{int(fit_start)}-{int(round(t_end_eff))}"
+            range_str = f"{int(round(t_m[0]))}-{int(round(t_end_eff))}"
             run_fits.append((fname, conc_uM, range_str, res))
 
             individual_records.append({
@@ -555,10 +611,10 @@ def process_single_axis_modality(ax, folder_path, construct_name, modality, indi
         ax.set_ylabel(r"$[\theta]_{\mathrm{MRW}} \times 10^{-3}\ \mathrm{(deg\cdot cm^2\cdot dmol^{-1})}$")
         if cfg.get("cd_ylim") is not None:
             ax.set_ylim(*cfg["cd_ylim"])
-        ax.legend(loc="lower right", frameon=True, framealpha=0.92)
+        style_legend(ax, loc="lower right", markerscale=2.6)
     else:
         ax.set_ylabel("Fluorescence Intensity (a.u.)")
-        ax.legend(loc="upper right", frameon=True, framealpha=0.92)
+        style_legend(ax, loc="upper right", markerscale=2.6)
 
     if max_t_plotted > 0:
         ax.set_xlim(0.0, max_t_plotted)
@@ -610,35 +666,41 @@ def process_dual_axis_fl_panel(ax_left, folder_path, construct_name, individual_
             conc_uM = cfg["default_conc_uM"]
 
         if np.isclose(conc_uM, 5.0, atol=0.5):
-            files_5uM.append((fp, fname, conc_uM, t, y))
+            files_5uM.append((fp, fname, conc_uM, dt, t, y))
         else:
-            files_2uM.append((fp, fname, conc_uM, t, y))
+            files_2uM.append((fp, fname, conc_uM, dt, t, y))
 
     ax_right = ax_left.twinx()
     run_fits = []
     max_t_plotted = 0.0
 
     # Seria 5.0 uM -> lewa oś Y (niebieska, COLOR_5UM)
-    for idx, (fp, fname, conc_uM, t, y) in enumerate(files_5uM):
+    for idx, (fp, fname, conc_uM, dt, t, y) in enumerate(files_5uM):
+        t0 = fit_start + dt
         t_end_eff = fit_end if fit_end is not None else float(np.max(t))
-        mask = (t >= fit_start) & (t <= t_end_eff)
+        mask = (t >= t0) & (t <= t_end_eff)
         t_m, y_m = t[mask], y[mask]
         if len(t_m) < 10:
             continue
 
         max_t_plotted = max(max_t_plotted, float(np.max(t_m)))
-        w_len = min(21, len(y_m) if len(y_m) % 2 == 1 else len(y_m) - 1)
-        y_smooth = savgol_filter(y_m, w_len, 3) if w_len >= 5 else y_m
 
         lbl = rf"$5.0\ \mu\mathrm{{M}}$ ($n={len(files_5uM)}$)" if idx == 0 else None
-        ax_left.plot(t_m, y_smooth, color=COLOR_5UM, lw=1.4, alpha=0.85, label=lbl)
+        ax_left.scatter(
+            t_m, y_m,
+            s=POINT_SIZE, color=COLOR_5UM, alpha=POINT_ALPHA,
+            linewidths=0, rasterized=True, label=lbl
+        )
 
         try:
             res = fit_kinetic_trace(t_m, y_m, fit_model, table_guess=t_guess)
-            ax_left.plot(t_m, res["y_fit"], color=COLOR_5UM, ls=":", lw=1.15)
-            range_str = f"{int(fit_start)}-{int(round(t_end_eff))}"
+            ax_left.plot(
+                t_m, res["y_fit"],
+                color=darker(COLOR_5UM), ls="--", lw=FIT_LW, zorder=3
+            )
+            range_str = f"{int(round(t_m[0]))}-{int(round(t_end_eff))}"
             run_fits.append((fname, conc_uM, range_str, res))
-            print(f"[{construct_name} FL | 5.0 uM] {fname}: dead_time = {t[0] - (df['Time'].values[0] if len(t) else 0):.0f} s")
+            print(f"[{construct_name} FL | 5.0 uM] {fname}: dead_time = {dt:.0f} s")
 
             individual_records.append({
                 "Construct": construct_name,
@@ -662,26 +724,32 @@ def process_dual_axis_fl_panel(ax_left, folder_path, construct_name, individual_
             print(f"❌ Dopasowanie nie powiodło się dla {fname}: {e}")
 
     # Seria 2.0 uM -> prawa oś Y (pomarańczowa, COLOR_2UM)
-    for idx, (fp, fname, conc_uM, t, y) in enumerate(files_2uM):
+    for idx, (fp, fname, conc_uM, dt, t, y) in enumerate(files_2uM):
+        t0 = fit_start + dt
         t_end_eff = fit_end if fit_end is not None else float(np.max(t))
-        mask = (t >= fit_start) & (t <= t_end_eff)
+        mask = (t >= t0) & (t <= t_end_eff)
         t_m, y_m = t[mask], y[mask]
         if len(t_m) < 10:
             continue
 
         max_t_plotted = max(max_t_plotted, float(np.max(t_m)))
-        w_len = min(21, len(y_m) if len(y_m) % 2 == 1 else len(y_m) - 1)
-        y_smooth = savgol_filter(y_m, w_len, 3) if w_len >= 5 else y_m
 
         lbl = rf"$2.0\ \mu\mathrm{{M}}$ ($n={len(files_2uM)}$)" if idx == 0 else None
-        ax_right.plot(t_m, y_smooth, color=COLOR_2UM, lw=1.4, alpha=0.85, label=lbl)
+        ax_right.scatter(
+            t_m, y_m,
+            s=POINT_SIZE, color=COLOR_2UM, alpha=POINT_ALPHA,
+            linewidths=0, rasterized=True, label=lbl
+        )
 
         try:
             res = fit_kinetic_trace(t_m, y_m, fit_model, table_guess=t_guess)
-            ax_right.plot(t_m, res["y_fit"], color=COLOR_2UM, ls=":", lw=1.15)
-            range_str = f"{int(fit_start)}-{int(round(t_end_eff))}"
+            ax_right.plot(
+                t_m, res["y_fit"],
+                color=darker(COLOR_2UM), ls="--", lw=FIT_LW, zorder=3
+            )
+            range_str = f"{int(round(t_m[0]))}-{int(round(t_end_eff))}"
             run_fits.append((fname, conc_uM, range_str, res))
-            print(f"[{construct_name} FL | {conc_uM} uM] {fname}")
+            print(f"[{construct_name} FL | {conc_uM} uM] {fname}: dead_time = {dt:.0f} s")
 
             individual_records.append({
                 "Construct": construct_name,
@@ -718,11 +786,11 @@ def process_dual_axis_fl_panel(ax_left, folder_path, construct_name, individual_
     h1, l1 = ax_left.get_legend_handles_labels()
     h2, l2 = ax_right.get_legend_handles_labels()
     if h1 or h2:
-        ax_left.legend(h1 + h2, l1 + l2, loc="upper right", frameon=True, framealpha=0.92)
+        style_legend(ax_left, h1 + h2, l1 + l2, loc="upper right", markerscale=2.8)
 
 
 # ==============================================================================
-# GŁÓWNA FUNKCJA RYSUJĄCA FIGURĘ 5.3 (FsTrmD-Tm1570 oraz CdTrmD-Tm1570)
+# GŁÓWNA FUNKCJA RYSUJĄCA FIGURĘ 5.4 (FsTrmD-Tm1570 oraz CdTrmD-Tm1570)
 # ==============================================================================
 def make_figure_fusions_fs_cd():
     os.makedirs(PATHS["fig_out_dir"], exist_ok=True)
@@ -730,17 +798,9 @@ def make_figure_fusions_fs_cd():
 
     table_guesses = load_table_initial_guesses(PATHS["tables_out_dir"]) if INIT_GUESS_SOURCE == "table" else {}
 
-    plt.rcParams.update({
-        "font.size": 10,
-        "axes.labelsize": 11.5,
-        "axes.titlesize": 11.5,
-        "xtick.labelsize": 10,
-        "ytick.labelsize": 10,
-        "legend.fontsize": 9,
-        "axes.linewidth": 1.0,
-    })
+    plt.rcParams.update(FIG54_RC)
 
-    fig, axes = plt.subplots(2, 2, figsize=(11.8, 9.0), dpi=300)
+    fig, axes = plt.subplots(2, 2, figsize=FIG54_SIZE, dpi=300)
     axA, axB = axes[0, 0], axes[0, 1]
     axC, axD = axes[1, 0], axes[1, 1]
 
@@ -749,27 +809,28 @@ def make_figure_fusions_fs_cd():
 
     # Rząd 1: FsTrmD-Tm1570 (Panel A: MM CD, Panel B: MM FL)
     process_single_axis_modality(axA, PATHS["fs_cd_dir"], "FsTrmD-Tm1570", "MM_CD", individual_records, mean_records, table_guesses)
-    axA.set_title(r"$\mathsf{Fs}$TrmD–Tm1570 – Far-UV CD ($\mathbf{222\ nm}$)", fontweight="bold", fontsize=11.5, pad=8)
+    axA.set_title(r"$\mathsf{Fs}$TrmD–Tm1570 – Far-UV CD ($\mathbf{222\ nm}$)", fontweight="bold", fontsize=FS_TITLE, pad=8)
 
     process_single_axis_modality(axB, PATHS["fs_fl_dir"], "FsTrmD-Tm1570", "MM_FL", individual_records, mean_records, table_guesses)
-    axB.set_title(r"$\mathsf{Fs}$TrmD–Tm1570 – Intrinsic Fluorescence", fontweight="bold", fontsize=11.5, pad=8)
+    axB.set_title(r"$\mathsf{Fs}$TrmD–Tm1570 – Intrinsic Fluorescence", fontweight="bold", fontsize=FS_TITLE, pad=8)
 
     # Rząd 2: CdTrmD-Tm1570 (Panel C: MM CD, Panel D: MM FL z dwiema osiami Y dla 5.0 uM i 2.0 uM)
     process_single_axis_modality(axC, PATHS["cd_cd_dir"], "CdTrmD-Tm1570", "MM_CD", individual_records, mean_records, table_guesses)
-    axC.set_title(r"$\mathsf{Cd}$TrmD–Tm1570 – Far-UV CD ($\mathbf{222\ nm}$)", fontweight="bold", fontsize=11.5, pad=8)
+    axC.set_title(r"$\mathsf{Cd}$TrmD–Tm1570 – Far-UV CD ($\mathbf{222\ nm}$)", fontweight="bold", fontsize=FS_TITLE, pad=8)
 
     process_dual_axis_fl_panel(axD, PATHS["cd_fl_dir"], "CdTrmD-Tm1570", individual_records, mean_records, table_guesses)
-    axD.set_title(r"$\mathsf{Cd}$TrmD–Tm1570 – Intrinsic Fluorescence", fontweight="bold", fontsize=11.5, pad=8)
+    axD.set_title(r"$\mathsf{Cd}$TrmD–Tm1570 – Intrinsic Fluorescence", fontweight="bold", fontsize=FS_TITLE, pad=8)
 
     # Etykiety paneli A, B, C, D
     for ax, label in zip([axA, axB, axC, axD], ["A", "B", "C", "D"]):
-        ax.text(-0.13, 1.07, label, transform=ax.transAxes, fontsize=13.5, fontweight="bold", va="top")
+        ax.text(-0.13, 1.06, label, transform=ax.transAxes, fontsize=FS_PANEL, fontweight="bold", va="top")
 
-    plt.tight_layout(pad=1.4)
+    plt.tight_layout(pad=1.0, w_pad=2.0, h_pad=2.0)
     out_pdf = os.path.join(PATHS["fig_out_dir"], "Figura_5_4_Kinetyka_Fs_Cd.pdf")
     out_png = os.path.join(PATHS["fig_out_dir"], "Figura_5_4_Kinetyka_Fs_Cd.png")
-    plt.savefig(out_pdf, bbox_inches="tight")
-    plt.savefig(out_png, dpi=300, bbox_inches="tight")
+    # BEZ bbox_inches="tight": PDF ma dokładnie 12.0 in szerokości (jak Fig. 4.3, 5.1, 5.2 i 5.3)
+    plt.savefig(out_pdf)
+    plt.savefig(out_png, dpi=300)
     # plt.show()
 
     update_fits_tables(individual_records, mean_records, PATHS["tables_out_dir"])

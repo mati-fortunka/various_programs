@@ -13,7 +13,7 @@ from scipy.integrate import trapezoid
 from scipy.optimize import curve_fit
 
 # ==============================================================================
-# KONFIGURACJA CZCIONEK I PALETY BARW (ZGODNA Z ROZDZIAŁEM 4 I 5)
+# KONFIGURACJA CZCIONEK I PALETY BARW (ZGODNA Z ROZDZIAŁEM 4 ORAZ FIG. 5.1 I 5.3)
 # ==============================================================================
 mpl.rcParams["font.family"] = "DejaVu Sans"
 mpl.rcParams["mathtext.fontset"] = "custom"
@@ -24,9 +24,55 @@ mpl.rcParams["mathtext.sf"] = "DejaVu Sans:bold:italic"  # POGRUBIONA KURSYWA (\
 mpl.rcParams["mathtext.cal"] = "DejaVu Sans"
 mpl.rcParams["mathtext.tt"] = "DejaVu Sans Mono"
 
+# Rozmiary czcionek identyczne jak w Figurach 4.3, 5.1 oraz 5.3
+FS_LABEL = 15        # etykiety osi
+FS_TICK = 13         # podziałki osi
+FS_LEGEND = 11.5     # legendy
+FS_TITLE = 13        # tytuły paneli, bold
+FS_PANEL = 14.5      # litery paneli A-F, bold
+FS_CBAR_TICK = 10.5  # podziałki colorbara
+FS_CBAR_LABEL = 11   # opis colorbara
+
+FIG52_RC = {
+    "font.size": FS_TICK,
+    "axes.labelsize": FS_LABEL,
+    "axes.titlesize": FS_TITLE,
+    "xtick.labelsize": FS_TICK,
+    "ytick.labelsize": FS_TICK,
+    "legend.fontsize": FS_LEGEND,
+}
+
+# Szerokość = 12.0 in jak w Fig. 4.3, 5.1 i 5.3 (identyczna skala czcionek w LaTeX)
+FIG52_SIZE = (12.0, 14.2)
+
+# True -> tytuły paneli zaczynają się od "CnTm1570 – ..."
+SHOW_CONSTRUCT_IN_TITLES = True
+
 plasma_trimmed = LinearSegmentedColormap.from_list(
     "plasma_trimmed", plt.cm.plasma(np.linspace(0.0, 0.88, 256))
 )
+
+
+def darker(color, factor=0.7):
+    """Ciemniejszy odcień koloru (linia dopasowania widoczna na tle punktów)."""
+    r, g, b = mpl.colors.to_rgb(color)
+    return (r * factor, g * factor, b * factor)
+
+
+def style_legend(ax, handles=None, labels=None, loc="upper right", markerscale=1.0, ncol=1):
+    """Legenda w stylu Fig. 4.3 / 5.1 / 5.3: biała ramka bez krawędzi, uchwyt po prawej."""
+    anchor = (1, 0.02) if "lower" in loc else (1, 0.98)
+    kw = dict(
+        loc=loc, bbox_to_anchor=anchor, fontsize=FS_LEGEND,
+        frameon=True, facecolor="white", framealpha=0.9, edgecolor="none",
+        markerfirst=False, handlelength=2.6, handletextpad=0.8,
+        scatterpoints=1, markerscale=markerscale, ncol=ncol,
+    )
+    leg = ax.legend(handles, labels, **kw) if handles is not None else ax.legend(**kw)
+    for text_obj in leg.get_texts():
+        text_obj.set_ha("right")
+    return leg
+
 
 # ==============================================================================
 # ŚCIEŻKI I PARAMETRY KONSTRUKTU Tm1570 (CnTm1570)
@@ -66,14 +112,19 @@ MM_FL_CAM_MAX_TIMES = {
 }
 
 MM_FL_SETTINGS = {
-    "cam_default_dead_time": 0.0,
-    "waw_default_dead_time": 30.0,
+    "cam_default_dead_time": 30.0,     # Seria 1 (cam): domyślny czas martwy 30 s
+    "waw_default_dead_time": 45.0,     # Seria 2 (waw): domyślny czas martwy 45 s
+    "cam_boost_threshold": 12.0,       # Seria 1: jeśli y[0] < 12, pomnóż przez 1.5
+    "cam_boost_factor": 1.5,
+    "waw_boost_threshold": 2.0e5,      # Seria 2: jeśli y[0] < 2e5, pomnóż przez 2.0
+    "waw_boost_factor": 2.0,
     "fit_start": 0.0,
     "waw_fit_end": 2000.0,
     "cam_default_fit_end": 4000.0,
     "plot_xlim": 2000.0,               # Zakres osi X na wykresie w Panelu A [s]
-    "window_size": 15,
-    "poly_order": 3,
+    "point_size": 5,                   # Rozmiar punktów surowych danych w Panelu A
+    "point_alpha": 0.55,               # Przezroczystość punktów w Panelu A
+    "fit_lw": 1.6,                     # Grubość linii dopasowania w Panelu A
     "color_cam": "#1F78B4",
     "color_waw": "#D95F02",
 }
@@ -95,11 +146,14 @@ FL_SK_CONFIG = {
 
 # 3. Simple Kinetics Far-UV CD (wszystkie foldery xµM, model double_exponential)
 MM_CD_SETTINGS = {
-    "default_dead_time": 0.0,
+    "default_dead_time": 30.0,         # Czas martwy 30 s dla wszystkich pomiarów w Panelu D
+    "use_dead_times_file": False,      # Wymusza 30 s dla wszystkich plików w Panelu D
+    "exclude_plot_concs": [1.0],       # Stężenia pomijane na wykresie D (zostają w fitach i tabelach)
     "fit_start": 0.0,
-    "fit_end": None,   # Pełny zakres pliku
-    "window_size": 21,
-    "poly_order": 3,
+    "fit_end": None,                   # Pełny zakres pliku
+    "point_size": 6,                   # Rozmiar punktów surowych danych w Panelu D
+    "point_alpha": 0.55,               # Przezroczystość punktów w Panelu D
+    "fit_lw": 1.6,                     # Grubość linii dopasowania w Panelu D
     "conc_colors": {
         1.0: "#1B9E77",
         2.0: "#66A61E",
@@ -205,7 +259,7 @@ def fit_trace(t, y, model_name):
             "y_fit": y_fit, "R2": calc_r2(y, y_fit),
             "A1": A1, "A1_err": eA1,
             "k1": k1, "k1_err": ek1,
-            "t_half1": np.log(2) / k1, "t_half1_err": (np.log(2) / k1**2) * ek1,
+            "t_half1": np.log(2) / k1, "t_half1_err": (np.log(2) / k1 ** 2) * ek1,
             "A2": np.nan, "A2_err": np.nan,
             "k2": np.nan, "k2_err": np.nan,
             "t_half2": np.nan, "t_half2_err": np.nan,
@@ -225,7 +279,7 @@ def fit_trace(t, y, model_name):
             "y_fit": y_fit, "R2": calc_r2(y, y_fit),
             "A1": A1, "A1_err": eA1,
             "k1": k1, "k1_err": ek1,
-            "t_half1": np.log(2) / k1, "t_half1_err": (np.log(2) / k1**2) * ek1,
+            "t_half1": np.log(2) / k1, "t_half1_err": (np.log(2) / k1 ** 2) * ek1,
             "A2": np.nan, "A2_err": np.nan,
             "k2": np.nan, "k2_err": np.nan,
             "t_half2": np.nan, "t_half2_err": np.nan,
@@ -651,7 +705,7 @@ def update_fits_tables(individual_rows, mean_rows, tables_dir):
 
 
 # ==============================================================================
-# PANEL A: Simple Kinetics FL (cam + waw na dwóch osiach Y, model double_exponential)
+# PANEL A: Simple Kinetics FL (surowe punkty + linie dopasowania, dwie osie Y)
 # ==============================================================================
 def plot_panel_a_mm_fl(ax_left, individual_records, mean_records):
     cam_files = sorted(glob.glob(os.path.join(PATHS["mm_fl_cam_dir"], "*.csv")))
@@ -675,10 +729,16 @@ def plot_panel_a_mm_fl(ax_left, individual_records, mean_records):
             y = df["Intensity"].values
             t0 = MM_FL_SETTINGS["fit_start"] + dt
             mask = (t >= t0) & (t <= max_t_file)
-            t_m, y_m = t[mask], y[mask]
+            t_m, y_m = t[mask], y[mask].copy()
             if len(t_m) < 10:
                 continue
-            prepared.append((f"cam/{fname}", dt, max_t_file, t_m, y_m))
+
+            scale_factor = 1.0
+            if y_m[0] < MM_FL_SETTINGS["cam_boost_threshold"]:
+                scale_factor = MM_FL_SETTINGS["cam_boost_factor"]
+                y_m = y_m * scale_factor
+
+            prepared.append((f"cam/{fname}", dt, max_t_file, t_m, y_m, scale_factor))
         return prepared
 
     def prepare_waw_series(files, dt_map, default_dt):
@@ -696,10 +756,16 @@ def plot_panel_a_mm_fl(ax_left, individual_records, mean_records):
             y = df["Intensity"].values
             t0 = MM_FL_SETTINGS["fit_start"] + dt
             mask = (t >= t0) & (t <= max_t_file)
-            t_m, y_m = t[mask], y[mask]
+            t_m, y_m = t[mask], y[mask].copy()
             if len(t_m) < 10:
                 continue
-            prepared.append((f"waw/{fname}", dt, max_t_file, t_m, y_m))
+
+            scale_factor = 1.0
+            if y_m[0] < MM_FL_SETTINGS["waw_boost_threshold"]:
+                scale_factor = MM_FL_SETTINGS["waw_boost_factor"]
+                y_m = y_m * scale_factor
+
+            prepared.append((f"waw/{fname}", dt, max_t_file, t_m, y_m, scale_factor))
         return prepared
 
     cam_series = prepare_cam_series(cam_files, cam_dt_map, MM_FL_SETTINGS["cam_default_dead_time"])
@@ -713,61 +779,61 @@ def plot_panel_a_mm_fl(ax_left, individual_records, mean_records):
     ax_right = ax_left.twinx()
     all_fit_results = []
 
-    for idx, (label_file, dt, max_t_file, t_m, y_m) in enumerate(cam_series):
-        w_len = min(MM_FL_SETTINGS["window_size"], len(y_m) if len(y_m) % 2 == 1 else len(y_m) - 1)
-        y_smooth = savgol_filter(y_m, w_len, MM_FL_SETTINGS["poly_order"]) if w_len >= 5 else y_m
+    for idx, (label_file, dt, max_t_file, t_m, y_m, scale_factor) in enumerate(cam_series):
         lbl = rf"Series 1 ($n={len(cam_series)}$)" if idx == 0 else None
-        ax_left.plot(
-            t_m, y_smooth / cam_div,
-            color=MM_FL_SETTINGS["color_cam"], lw=1.35, alpha=0.85, label=lbl
+        ax_left.scatter(
+            t_m, y_m / cam_div,
+            s=MM_FL_SETTINGS["point_size"], color=MM_FL_SETTINGS["color_cam"],
+            alpha=MM_FL_SETTINGS["point_alpha"], linewidths=0, rasterized=True, label=lbl
         )
 
         try:
             res = fit_trace(t_m, y_m, "double_exponential")
             ax_left.plot(
                 t_m, res["y_fit"] / cam_div,
-                color=MM_FL_SETTINGS["color_cam"], ls=":", lw=1.15
+                color=darker(MM_FL_SETTINGS["color_cam"]), ls="--", lw=MM_FL_SETTINGS["fit_lw"], zorder=3
             )
             all_fit_results.append(res)
             record_fit_row(
                 individual_records, "MM_FL", label_file, np.nan,
-                "double_exponential", f"0-{int(round(max_t_file))}", res
+                "double_exponential", f"{int(round(dt))}-{int(round(max_t_file))}", res
             )
+            scale_info = f", scale={scale_factor:g}x" if scale_factor != 1.0 else ""
             print(
-                f"[MM FL cam] {label_file} (0-{int(round(max_t_file))}s, dt={dt}s, n={len(t_m)}): "
+                f"[MM FL cam] {label_file} ({int(round(dt))}-{int(round(max_t_file))}s, dt={dt}s, n={len(t_m)}{scale_info}): "
                 f"t1/2_1 = {res['t_half1']:.1f} s, t1/2_2 = {res['t_half2']:.1f} s"
             )
         except Exception as e:
             print(f"❌ Dopasowanie MM FL nie powiodło się dla {label_file}: {e}")
 
-    for idx, (label_file, dt, max_t_file, t_m, y_m) in enumerate(waw_series):
-        w_len = min(MM_FL_SETTINGS["window_size"], len(y_m) if len(y_m) % 2 == 1 else len(y_m) - 1)
-        y_smooth = savgol_filter(y_m, w_len, MM_FL_SETTINGS["poly_order"]) if w_len >= 5 else y_m
+    for idx, (label_file, dt, max_t_file, t_m, y_m, scale_factor) in enumerate(waw_series):
         lbl = rf"Series 2 ($n={len(waw_series)}$)" if idx == 0 else None
-        ax_right.plot(
-            t_m, y_smooth / waw_div,
-            color=MM_FL_SETTINGS["color_waw"], lw=1.35, alpha=0.85, label=lbl
+        ax_right.scatter(
+            t_m, y_m / waw_div,
+            s=MM_FL_SETTINGS["point_size"], color=MM_FL_SETTINGS["color_waw"],
+            alpha=MM_FL_SETTINGS["point_alpha"], linewidths=0, rasterized=True, label=lbl
         )
 
         try:
             res = fit_trace(t_m, y_m, "double_exponential")
             ax_right.plot(
                 t_m, res["y_fit"] / waw_div,
-                color=MM_FL_SETTINGS["color_waw"], ls=":", lw=1.15
+                color=darker(MM_FL_SETTINGS["color_waw"]), ls="--", lw=MM_FL_SETTINGS["fit_lw"], zorder=3
             )
             all_fit_results.append(res)
             record_fit_row(
                 individual_records, "MM_FL", label_file, np.nan,
-                "double_exponential", f"0-{int(round(max_t_file))}", res
+                "double_exponential", f"{int(round(dt))}-{int(round(max_t_file))}", res
             )
+            scale_info = f", scale={scale_factor:g}x" if scale_factor != 1.0 else ""
             print(
-                f"[MM FL waw] {label_file} (0-{int(round(max_t_file))}s, dt={dt}s, n={len(t_m)}, "
-                f"y0={y_m[0]:.2e}): t1/2_1 = {res['t_half1']:.1f} s, t1/2_2 = {res['t_half2']:.1f} s"
+                f"[MM FL waw] {label_file} ({int(round(dt))}-{int(round(max_t_file))}s, dt={dt}s, n={len(t_m)}, "
+                f"y0={y_m[0]:.2e}{scale_info}): t1/2_1 = {res['t_half1']:.1f} s, t1/2_2 = {res['t_half2']:.1f} s"
             )
         except Exception as e:
             print(f"❌ Dopasowanie MM FL nie powiodło się dla {label_file}: {e}")
 
-    append_mean_row(mean_records, "MM_FL", "double_exponential", "0-2000 / custom", all_fit_results)
+    append_mean_row(mean_records, "MM_FL", "double_exponential", "dt-2000 / custom", all_fit_results)
 
     ax_left.set_xlim(0.0, MM_FL_SETTINGS["plot_xlim"])
     ax_left.set_xlabel("Time (s)")
@@ -780,7 +846,7 @@ def plot_panel_a_mm_fl(ax_left, individual_records, mean_records):
     h1, l1 = ax_left.get_legend_handles_labels()
     h2, l2 = ax_right.get_legend_handles_labels()
     if h1 or h2:
-        ax_left.legend(h1 + h2, l1 + l2, loc="upper right", frameon=True, framealpha=0.92)
+        style_legend(ax_left, h1 + h2, l1 + l2, loc="upper right", markerscale=3.0)
 
 
 # ==============================================================================
@@ -845,22 +911,22 @@ def plot_panels_bc_fl_sk(fig, ax_spectra, ax_kinetics, individual_records, mean_
     ax_spectra.set_ylabel(r"Fluorescence Intensity ($\times 10^4$ a.u.)")
     ax_spectra.grid(True, linestyle=":", alpha=0.5)
 
-    cax_b = ax_spectra.inset_axes([0.81, 0.50, 0.040, 0.42])
+    cax_b = ax_spectra.inset_axes([0.74, 0.50, 0.045, 0.42])
     sm_b = plt.cm.ScalarMappable(cmap=plasma_trimmed, norm=norm_b)
     sm_b.set_array([])
     cbar_b = fig.colorbar(sm_b, cax=cax_b, orientation="vertical")
     cbar_b.solids.set_rasterized(True)
     cbar_b.set_ticks([0, 3500, 7000, 10500, 14500])
     cbar_b.set_ticklabels(["0", "3500", "7000", "10500", "14500"])
-    cbar_b.ax.tick_params(labelsize=8.0)
-    cbar_b.set_label("Time (s)", fontsize=9.0, labelpad=3)
+    cbar_b.ax.tick_params(labelsize=FS_CBAR_TICK)
+    cbar_b.set_label("Time (s)", fontsize=FS_CBAR_LABEL, labelpad=5)
 
     # Panel C: Kinetyka przy 340 nm (0-14500 s, mono_exp_drift)
     sk_fl_fits = []
     try:
         res = fit_trace(times_s, int_340, FL_SK_CONFIG["fit_model"])
         sk_fl_fits.append(res)
-        range_str = f"{int(t_start)}-{int(t_end)}"
+        range_str = f"{int(round(times_s[0]))}-{int(t_end)}"
         record_fit_row(
             individual_records, "SK_FL", fname, np.nan,
             FL_SK_CONFIG["fit_model"], range_str, res
@@ -873,7 +939,7 @@ def plot_panels_bc_fl_sk(fig, ax_spectra, ax_kinetics, individual_records, mean_
         )
         ax_kinetics.plot(
             times_s, res["y_fit"] / 1e4,
-            color=FL_SK_CONFIG["color"], ls="--", lw=1.6
+            color=darker(FL_SK_CONFIG["color"]), ls="--", lw=1.6
         )
     except Exception as e:
         print(f"❌ Dopasowanie SK FL nie powiodło się dla {fname}: {e}")
@@ -882,13 +948,12 @@ def plot_panels_bc_fl_sk(fig, ax_spectra, ax_kinetics, individual_records, mean_
 
     ax_kinetics.set_xlim(-50, float(t_end))
     ax_kinetics.set_xlabel("Time (s)")
-    ax_kinetics.set_ylabel(r"Fluorescence Intensity at 340 nm ($\times 10^4$ a.u.)")
+    ax_kinetics.set_ylabel(r"Intensity at 340 nm ($\times 10^4$ a.u.)")
     ax_kinetics.grid(True, linestyle=":", alpha=0.5)
-    # ax_kinetics.legend(loc="upper right", frameon=True, framealpha=0.92)
 
 
 # ==============================================================================
-# PANEL D: Simple Kinetics CD (wszystkie foldery xµM -> [theta]_MRW, double_exponential)
+# PANEL D: Simple Kinetics CD (surowe punkty + linie dopasowania, dt = 30 s)
 # ==============================================================================
 def plot_panel_d_mm_cd(ax, individual_records, mean_records):
     conc_dirs = discover_mm_cd_dirs(PATHS["mm_cd_base_dir"])
@@ -899,13 +964,19 @@ def plot_panel_d_mm_cd(ax, individual_records, mean_records):
     found_summary = ", ".join(f"{c:g} uM ({os.path.basename(p)})" for c, p in conc_dirs)
     print(f"[MM CD] Znalezione foldery stężeń: {found_summary}")
 
-    parent_dt_map = read_dead_times(PATHS["mm_cd_base_dir"], MM_CD_SETTINGS["default_dead_time"])
+    use_dt_file = MM_CD_SETTINGS.get("use_dead_times_file", False)
+    exclude_plot_concs = MM_CD_SETTINGS.get("exclude_plot_concs", [])
+    parent_dt_map = (
+        read_dead_times(PATHS["mm_cd_base_dir"], MM_CD_SETTINGS["default_dead_time"])
+        if use_dt_file else {}
+    )
     fallback_palette = MM_CD_SETTINGS["fallback_palette"]
 
     all_fit_results = []
     max_t_plotted = 0.0
     min_y_plotted = np.inf
     max_y_plotted = -np.inf
+    plotted_conc_count = 0
 
     for conc_idx, (conc_uM, folder_path) in enumerate(conc_dirs):
         csv_files = sorted(glob.glob(os.path.join(folder_path, "*.csv")))
@@ -914,10 +985,13 @@ def plot_panel_d_mm_cd(ax, individual_records, mean_records):
             continue
 
         dt_map = dict(parent_dt_map)
-        dt_map.update(read_dead_times(folder_path, MM_CD_SETTINGS["default_dead_time"]))
+        if use_dt_file:
+            dt_map.update(read_dead_times(folder_path, MM_CD_SETTINGS["default_dead_time"]))
+
         color = MM_CD_SETTINGS["conc_colors"].get(
             conc_uM, fallback_palette[conc_idx % len(fallback_palette)]
         )
+        show_on_plot = not any(np.isclose(conc_uM, ex) for ex in exclude_plot_concs)
 
         valid_traces = []
         for fp in csv_files:
@@ -929,43 +1003,54 @@ def plot_panel_d_mm_cd(ax, individual_records, mean_records):
             t = df["Time"].values + dt
             y_mrw = mdeg_to_mrw(df["CircularDichroism"].values, conc_uM)
 
+            t0 = MM_CD_SETTINGS["fit_start"] + dt
             t_end = MM_CD_SETTINGS["fit_end"] if MM_CD_SETTINGS["fit_end"] is not None else float(np.max(t))
-            mask = (t >= MM_CD_SETTINGS["fit_start"]) & (t <= t_end)
+            mask = (t >= t0) & (t <= t_end)
             t_m, y_m = t[mask], y_mrw[mask]
             if len(t_m) < 10:
                 continue
-            valid_traces.append((fname, t_m, y_m, t_end))
+            valid_traces.append((fname, dt, t_m, y_m, t_end))
 
         n_conc = len(valid_traces)
-        for idx, (fname, t_m, y_m, t_end) in enumerate(valid_traces):
-            max_t_plotted = max(max_t_plotted, float(np.max(t_m)))
-            w_len = min(MM_CD_SETTINGS["window_size"], len(y_m) if len(y_m) % 2 == 1 else len(y_m) - 1)
-            y_smooth = savgol_filter(y_m, w_len, MM_CD_SETTINGS["poly_order"]) if w_len >= 5 else y_m
+        if show_on_plot and n_conc > 0:
+            plotted_conc_count += 1
 
-            y_plot = y_smooth / 1e3
-            min_y_plotted = min(min_y_plotted, float(np.nanmin(y_plot)))
-            max_y_plotted = max(max_y_plotted, float(np.nanmax(y_plot)))
+        for idx, (fname, dt, t_m, y_m, t_end) in enumerate(valid_traces):
+            y_plot = y_m / 1e3
+            if show_on_plot:
+                max_t_plotted = max(max_t_plotted, float(np.max(t_m)))
+                min_y_plotted = min(min_y_plotted, float(np.nanmin(y_plot)))
+                max_y_plotted = max(max_y_plotted, float(np.nanmax(y_plot)))
 
-            lbl = rf"${conc_uM:g}\ \mu\mathrm{{M}}$ ($n={n_conc}$)" if idx == 0 else None
-            ax.plot(t_m, y_plot, color=color, lw=1.35, alpha=0.85, label=lbl)
+                lbl = rf"${conc_uM:g}\ \mu\mathrm{{M}}$ ($n={n_conc}$)" if idx == 0 else None
+                ax.scatter(
+                    t_m, y_plot,
+                    s=MM_CD_SETTINGS["point_size"], color=color,
+                    alpha=MM_CD_SETTINGS["point_alpha"], linewidths=0, rasterized=True, label=lbl
+                )
 
             try:
                 res = fit_trace(t_m, y_m, "double_exponential")
-                ax.plot(t_m, res["y_fit"] / 1e3, color=color, ls=":", lw=1.15)
+                if show_on_plot:
+                    ax.plot(
+                        t_m, res["y_fit"] / 1e3,
+                        color=darker(color), ls="--", lw=MM_CD_SETTINGS["fit_lw"], zorder=3
+                    )
                 all_fit_results.append(res)
-                range_str = f"{int(MM_CD_SETTINGS['fit_start'])}-{int(round(t_end))}"
+                range_str = f"{int(round(t_m[0]))}-{int(round(t_end))}"
                 record_fit_row(
                     individual_records, "MM_CD", f"{conc_uM:g}uM/{fname}", conc_uM,
                     "double_exponential", range_str, res
                 )
+                hidden_note = " [ukryto na wykresie]" if not show_on_plot else ""
                 print(
-                    f"[MM CD {conc_uM:g} uM] {fname}: "
+                    f"[MM CD {conc_uM:g} uM] {fname} (dt={dt}s){hidden_note}: "
                     f"t1/2_1 = {res['t_half1']:.1f} s, t1/2_2 = {res['t_half2']:.1f} s"
                 )
             except Exception as e:
                 print(f"❌ Dopasowanie MM CD nie powiodło się dla {fname}: {e}")
 
-    append_mean_row(mean_records, "MM_CD", "double_exponential", "full", all_fit_results)
+    append_mean_row(mean_records, "MM_CD", "double_exponential", "30s-full", all_fit_results)
 
     if max_t_plotted > 0:
         ax.set_xlim(0.0, max_t_plotted)
@@ -975,7 +1060,7 @@ def plot_panel_d_mm_cd(ax, individual_records, mean_records):
 
     ax.set_xlabel("Time (s)")
     ax.set_ylabel(r"$[\theta]_{\mathrm{MRW}} \times 10^{-3}\ \mathrm{(deg\cdot cm^2\cdot dmol^{-1})}$")
-    ax.legend(loc="lower right", frameon=True, framealpha=0.92)
+    style_legend(ax, loc="lower right", markerscale=2.8, ncol=2 if plotted_conc_count > 3 else 1)
     ax.grid(True, linestyle=":", alpha=0.5)
 
 
@@ -1087,15 +1172,15 @@ def process_all_cd_sk(fig_main, ax_e_spectra, ax_f_222, individual_records, mean
             ax_e_spectra.set_ylabel(r"$[\theta]_{\mathrm{MRW}} \times 10^{-3}\ \mathrm{(deg\cdot cm^2\cdot dmol^{-1})}$")
             ax_e_spectra.grid(True, linestyle=":", alpha=0.5)
 
-            cax_e = ax_e_spectra.inset_axes([0.81, 0.10, 0.040, 0.42])
+            cax_e = ax_e_spectra.inset_axes([0.75, 0.10, 0.045, 0.42])
             sm_e = plt.cm.ScalarMappable(cmap=plasma_trimmed, norm=norm_e)
             sm_e.set_array([])
             cbar_e = fig_main.colorbar(sm_e, cax=cax_e, orientation="vertical")
             cbar_e.solids.set_rasterized(True)
             cbar_e.locator = MaxNLocator(nbins=5, integer=True)
             cbar_e.update_ticks()
-            cbar_e.ax.tick_params(labelsize=8.0)
-            cbar_e.set_label("Time (s)", fontsize=9.0, labelpad=3)
+            cbar_e.ax.tick_params(labelsize=FS_CBAR_TICK)
+            cbar_e.set_label("Time (s)", fontsize=FS_CBAR_LABEL, labelpad=5)
         else:
             appendix_spectra_datasets.append((scan_label, fname, spectra_curves))
 
@@ -1142,7 +1227,7 @@ def process_all_cd_sk(fig_main, ax_e_spectra, ax_f_222, individual_records, mean
             if len(t_222) >= 6:
                 try:
                     res_222 = fit_trace(t_222, y_222_mrw, sk_cd_model)
-                    ax_f_222.plot(t_222, res_222["y_fit"] / 1e3, color=color, ls="--", lw=1.5)
+                    ax_f_222.plot(t_222, res_222["y_fit"] / 1e3, color=darker(color), ls="--", lw=1.6)
                     fits_222_list.append(res_222)
                     range_str = f"{int(round(t_222[0]))}-{int(round(t_222[-1]))}"
                     record_fit_row(
@@ -1229,7 +1314,7 @@ def process_all_cd_sk(fig_main, ax_e_spectra, ax_f_222, individual_records, mean
 
     ax_f_222.set_xlabel("Time (s)")
     ax_f_222.set_ylabel(r"$[\theta]_{\mathrm{MRW},222} \times 10^{-3}\ \mathrm{(deg\cdot cm^2\cdot dmol^{-1})}$")
-    ax_f_222.legend(loc="lower right", frameon=True, framealpha=0.92)
+    style_legend(ax_f_222, loc="lower right", markerscale=1.8, ncol=2 if len(sk_files) > 4 else 1)
     ax_f_222.grid(True, linestyle=":", alpha=0.5)
 
     make_appendix_cd_sk_figure(appendix_spectra_datasets, appendix_int_datasets)
@@ -1244,7 +1329,9 @@ def make_appendix_cd_sk_figure(appendix_spectra_datasets, appendix_int_datasets)
     ncols = min(3, total_panels)
     nrows = int(np.ceil(total_panels / ncols))
 
-    fig_app, axes_grid = plt.subplots(nrows, ncols, figsize=(5.2 * ncols, 4.5 * nrows), dpi=300)
+    TP = r"$\mathsf{Cn}$Tm1570 – " if SHOW_CONSTRUCT_IN_TITLES else ""
+
+    fig_app, axes_grid = plt.subplots(nrows, ncols, figsize=(6.0 * ncols, 4.8 * nrows), dpi=300)
     axes_flat = np.atleast_1d(axes_grid).ravel()
 
     for idx_ax, (scan_label, fname, spectra_curves) in enumerate(appendix_spectra_datasets):
@@ -1255,19 +1342,19 @@ def make_appendix_cd_sk_figure(appendix_spectra_datasets, appendix_int_datasets)
             norm = Normalize(vmin=0.0, vmax=max_ts)
             for t_sec, x_wl, y_mrw_s in spectra_curves:
                 ax.plot(x_wl, y_mrw_s, color=plasma_trimmed(norm(t_sec)), lw=1.2, alpha=0.88)
-            cax = ax.inset_axes([0.81, 0.10, 0.040, 0.42])
+            cax = ax.inset_axes([0.75, 0.10, 0.045, 0.42])
             sm = plt.cm.ScalarMappable(cmap=plasma_trimmed, norm=norm)
             sm.set_array([])
             cbar = fig_app.colorbar(sm, cax=cax, orientation="vertical")
             cbar.solids.set_rasterized(True)
             cbar.locator = MaxNLocator(nbins=5, integer=True)
             cbar.update_ticks()
-            cbar.ax.tick_params(labelsize=8.0)
-            cbar.set_label("Time (s)", fontsize=9.0, labelpad=3)
+            cbar.ax.tick_params(labelsize=FS_CBAR_TICK)
+            cbar.set_label("Time (s)", fontsize=FS_CBAR_LABEL, labelpad=5)
         ax.set_xlim(right=250.0)
         ax.set_xlabel("Wavelength (nm)")
         ax.set_ylabel(r"$[\theta]_{\mathrm{MRW}} \times 10^{-3}\ \mathrm{(deg\cdot cm^2\cdot dmol^{-1})}$")
-        ax.set_title(rf"$\mathsf{{Cn}}$Tm1570 – Far-UV CD Spectra ({scan_label})", fontweight="bold", fontsize=11)
+        ax.set_title(f"{TP}Far-UV CD Spectra ({scan_label})", fontweight="bold", fontsize=FS_TITLE, pad=8)
         ax.grid(True, linestyle=":", alpha=0.5)
 
     ax_int = axes_flat[n_spec_panels]
@@ -1278,27 +1365,27 @@ def make_appendix_cd_sk_figure(appendix_spectra_datasets, appendix_int_datasets)
         max_t = max(max_t, float(np.max(t_int)))
         ax_int.scatter(t_int, y_int_mrw / 1e4, s=16, color=color, alpha=0.8, label=scan_label)
         if res_int is not None:
-            ax_int.plot(t_int, res_int["y_fit"] / 1e4, color=color, ls="--", lw=1.5)
+            ax_int.plot(t_int, res_int["y_fit"] / 1e4, color=darker(color), ls="--", lw=1.6)
 
     ax_int.set_xlim(0.0, max_t * 1.02 if max_t > 0 else 12000.0)
     ax_int.set_xlabel("Time (s)")
     ax_int.set_ylabel(r"Integrated $[\theta]_{\mathrm{MRW}}\ (217\text{--}250\ \mathrm{nm}) \times 10^{-4}$")
-    ax_int.set_title(r"$\mathsf{Cn}$Tm1570 – Integrated Spectra-Kinetics CD", fontweight="bold", fontsize=11)
-    ax_int.legend(loc="lower right", frameon=True, framealpha=0.92)
+    ax_int.set_title(f"{TP}Integrated Spectra-Kinetics CD", fontweight="bold", fontsize=FS_TITLE, pad=8)
+    style_legend(ax_int, loc="lower right", markerscale=1.8, ncol=2 if len(appendix_int_datasets) > 4 else 1)
     ax_int.grid(True, linestyle=":", alpha=0.5)
 
     panel_letters = [chr(ord("A") + i) for i in range(total_panels)]
     for ax, lbl in zip(axes_flat[:total_panels], panel_letters):
-        ax.text(-0.14, 1.08, lbl, transform=ax.transAxes, fontsize=13, fontweight="bold", va="top")
+        ax.text(-0.13, 1.06, lbl, transform=ax.transAxes, fontsize=FS_PANEL, fontweight="bold", va="top")
 
     for unused_ax in axes_flat[total_panels:]:
         unused_ax.set_visible(False)
 
-    plt.tight_layout(pad=1.3)
+    plt.tight_layout(pad=1.0, w_pad=2.0, h_pad=2.0)
     out_app_pdf = os.path.join(PATHS["fig_out_dir"], "Figura_A_SK_CD_Tm1570.pdf")
     out_app_png = os.path.join(PATHS["fig_out_dir"], "Figura_A_SK_CD_Tm1570.png")
-    plt.savefig(out_app_pdf, bbox_inches="tight")
-    plt.savefig(out_app_png, dpi=300, bbox_inches="tight")
+    plt.savefig(out_app_pdf)
+    plt.savefig(out_app_png, dpi=300)
     plt.close(fig_app)
     print(f"✅ Zapisano figurę do aneksu:\n  {out_app_pdf}\n  {out_app_png}")
 
@@ -1310,17 +1397,10 @@ def make_figure_tm1570():
     os.makedirs(PATHS["fig_out_dir"], exist_ok=True)
     os.makedirs(PATHS["tables_out_dir"], exist_ok=True)
 
-    plt.rcParams.update({
-        "font.size": 10,
-        "axes.labelsize": 11,
-        "axes.titlesize": 11.5,
-        "xtick.labelsize": 9.5,
-        "ytick.labelsize": 9.5,
-        "legend.fontsize": 8.8,
-        "axes.linewidth": 1.0,
-    })
+    plt.rcParams.update(FIG52_RC)
+    TP = r"$\mathsf{Cn}$Tm1570 – " if SHOW_CONSTRUCT_IN_TITLES else ""
 
-    fig, axes = plt.subplots(3, 2, figsize=(12.2, 13.0), dpi=300)
+    fig, axes = plt.subplots(3, 2, figsize=FIG52_SIZE, dpi=300)
     axA, axB = axes[0, 0], axes[0, 1]
     axC, axD = axes[1, 0], axes[1, 1]
     axE, axF = axes[2, 0], axes[2, 1]
@@ -1330,30 +1410,31 @@ def make_figure_tm1570():
 
     # Rząd 1: Simple Kinetics FL (A) oraz Fluorescence Spectra (B)
     plot_panel_a_mm_fl(axA, individual_records, mean_records)
-    axA.set_title(r"$\mathsf{Cn}$Tm1570 – Fluorescence Kinetics", fontweight="bold", pad=8)
+    axA.set_title(f"{TP}Fluorescence Kinetics", fontsize=FS_TITLE, fontweight="bold", pad=8)
 
     # Rząd 1/2: Fluorescence Spectra (B) oraz Spectra-Kinetics Fluorescence przy 340 nm (C)
     plot_panels_bc_fl_sk(fig, axB, axC, individual_records, mean_records)
-    axB.set_title(r"$\mathsf{Cn}$Tm1570 – Fluorescence Spectra", fontweight="bold", pad=8)
-    axC.set_title(r"$\mathsf{Cn}$Tm1570 – Fluorescence Spectra-Kinetics ($\mathbf{340\ nm}$)", fontweight="bold", pad=8)
+    axB.set_title(f"{TP}Fluorescence Spectra", fontsize=FS_TITLE, fontweight="bold", pad=8)
+    axC.set_title(rf"{TP}Fluorescence Spectra-Kinetics ($\mathbf{{340\ nm}}$)", fontsize=FS_TITLE, fontweight="bold", pad=8)
 
     # Rząd 2 (prawy): Simple Kinetics Far-UV CD (D)
     plot_panel_d_mm_cd(axD, individual_records, mean_records)
-    axD.set_title(r"$\mathsf{Cn}$Tm1570 – Far-UV CD Kinetics ($\mathbf{222\ nm}$)", fontweight="bold", pad=8)
+    axD.set_title(rf"{TP}Far-UV CD Kinetics ($\mathbf{{222\ nm}}$)", fontsize=FS_TITLE, fontweight="bold", pad=8)
 
     # Rząd 3: Far-UV CD Spectra (E) oraz Spectra-Kinetics CD przy 222 nm (F)
     process_all_cd_sk(fig, axE, axF, individual_records, mean_records)
-    axE.set_title(r"$\mathsf{Cn}$Tm1570 – Far-UV CD Spectra", fontweight="bold", pad=8)
-    axF.set_title(r"$\mathsf{Cn}$Tm1570 – Far-UV CD Spectra-Kinetics ($\mathbf{222\ nm}$)", fontweight="bold", pad=8)
+    axE.set_title(f"{TP}Far-UV CD Spectra", fontsize=FS_TITLE, fontweight="bold", pad=8)
+    axF.set_title(rf"{TP}Far-UV CD Spectra-Kinetics ($\mathbf{{222\ nm}}$)", fontsize=FS_TITLE, fontweight="bold", pad=8)
 
     for ax, label in zip([axA, axB, axC, axD, axE, axF], ["A", "B", "C", "D", "E", "F"]):
-        ax.text(-0.13, 1.06, label, transform=ax.transAxes, fontsize=13.5, fontweight="bold", va="top")
+        ax.text(-0.13, 1.06, label, transform=ax.transAxes, fontsize=FS_PANEL, fontweight="bold", va="top")
 
-    plt.tight_layout(pad=1.4)
+    plt.tight_layout(pad=1.0, w_pad=2.0, h_pad=2.0)
     out_pdf = os.path.join(PATHS["fig_out_dir"], "Figura_5_2_Kinetyka_Tm1570.pdf")
     out_png = os.path.join(PATHS["fig_out_dir"], "Figura_5_2_Kinetyka_Tm1570.png")
-    plt.savefig(out_pdf, bbox_inches="tight")
-    plt.savefig(out_png, dpi=300, bbox_inches="tight")
+    # BEZ bbox_inches="tight": PDF ma dokładnie 12.0 in szerokości (jak Fig. 4.3, 5.1 i 5.3)
+    plt.savefig(out_pdf)
+    plt.savefig(out_png, dpi=300)
     # plt.show()
 
     update_fits_tables(individual_records, mean_records, PATHS["tables_out_dir"])
