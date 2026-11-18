@@ -14,9 +14,9 @@ from collections import defaultdict
 def read_data(filename):
     """
     Robust data reader that handles:
-    1. New machine format (starts with "Labels,", time in nanoseconds 1E09)
-    2. Old CSV format (standard comma sep, time in s or min)
-    3. Trailing commas/empty columns
+1. New machine format (starts with "Labels,", time in nanoseconds 1E09)
+2. Old CSV format (standard comma sep, time in s or min)
+3. Trailing commas/empty columns
     """
     # --- 1. PRE-CHECK: Detect file format ---
     with open(filename, 'r') as f:
@@ -120,6 +120,10 @@ def double_exponential(t, A1, k1, A2, k2, c):
     return A1 * np.exp(-k1 * t) + A2 * np.exp(-k2 * t) + c
 
 
+def double_exponential_with_drift(t, A1, k1, A2, k2, c, m):
+    return A1 * np.exp(-k1 * t) + A2 * np.exp(-k2 * t) + c + m * t
+
+
 def sigmoid_after_lag(t, L, k, x0, lag):
     return np.where(t > lag, L / (1 + np.exp(-k * (t - x0))), 0)
 
@@ -160,6 +164,18 @@ def fit_double_exponential(time, intensity):
     initial_guess = [0.7 * A0, 0.01, 0.3 * A0, 0.001, C]
     try:
         popt, pcov = curve_fit(double_exponential, time, intensity, p0=initial_guess, maxfev=20000)
+        perr = np.sqrt(np.diag(pcov))
+        return popt, perr
+    except RuntimeError:
+        return None, None
+
+
+def fit_double_exponential_with_drift(time, intensity):
+    A0 = max(intensity)
+    C = min(intensity)
+    initial_guess = [0.7 * A0, 0.01, 0.3 * A0, 0.001, C, 0.0]
+    try:
+        popt, pcov = curve_fit(double_exponential_with_drift, time, intensity, p0=initial_guess, maxfev=25000)
         perr = np.sqrt(np.diag(pcov))
         return popt, perr
     except RuntimeError:
@@ -287,7 +303,7 @@ def plot_multiple_csvs_with_logging(folder_path,
 
                     t_half = np.log(2) / k if k > 0 else np.nan
                     t_half_values["exp_drift"].append(t_half)
-                    line_log += f"Exp+Drift Fit: A={A:.4f}, k={k:.6f}, c={c:.4f}, m={m:.6f}, t_half={t_half:.2f}"
+                    line_log += f"Exp+Drift Fit: A={A:.4f}±{eA:.4f}, k={k:.6f}±{ek:.6f}, c={c:.4f}±{ec:.4f}, m={m:.6f}±{em:.6f}, t_half={t_half:.2f}"
 
             elif fit_type == 'double_exponential':
                 params, errors = fit_double_exponential(fit_time, fit_intensity)
@@ -305,6 +321,23 @@ def plot_multiple_csvs_with_logging(folder_path,
                     t_half_values["k2"].append(t_half2)
                     frac = A1 / (A1 + A2) if (A1 + A2) != 0 else np.nan
                     line_log += f"Double Exp Fit: A1={A1:.4f}±{eA1:.4f}, k1={k1:.6f}±{ek1:.6f}, A2={A2:.4f}±{eA2:.4f}, k2={k2:.6f}±{ek2:.6f}, c={c:.4f}±{ec:.4f}, t_half1={t_half1:.2f} s, t_half2={t_half2:.2f} s, A1/(A1+A2)={frac:.3f}"
+
+            elif fit_type == 'double_exponential_with_drift':
+                params, errors = fit_double_exponential_with_drift(fit_time, fit_intensity)
+                if params is not None:
+                    A1, k1, A2, k2, c, m = params
+                    eA1, ek1, eA2, ek2, ec, em = errors
+                    fit_vals = double_exponential_with_drift(fit_time, *params)
+                    ax_main.plot(fit_time, fit_vals, linestyle='dotted', color=color_cycle[i])
+                    if plot_residuals:
+                        ax_resid.plot(fit_time, fit_intensity - fit_vals, color=color_cycle[i])
+
+                    t_half1 = np.log(2) / k1 if k1 > 0 else np.nan
+                    t_half2 = np.log(2) / k2 if k2 > 0 else np.nan
+                    t_half_values["k1"].append(t_half1)
+                    t_half_values["k2"].append(t_half2)
+                    frac = A1 / (A1 + A2) if (A1 + A2) != 0 else np.nan
+                    line_log += f"Double Exp+Drift Fit: A1={A1:.4f}±{eA1:.4f}, k1={k1:.6f}±{ek1:.6f}, A2={A2:.4f}±{eA2:.4f}, k2={k2:.6f}±{ek2:.6f}, c={c:.4f}±{ec:.4f}, m={m:.6f}±{em:.6f}, t_half1={t_half1:.2f} s, t_half2={t_half2:.2f} s, A1/(A1+A2)={frac:.3f}"
 
             elif fit_type == 'double_exp_plus_sigmoid':
                 params, errors = fit_double_exp_plus_sigmoid(fit_time, fit_intensity, lag_start=lag_start)
@@ -369,7 +402,7 @@ def plot_multiple_csvs_with_logging(folder_path,
 
 
 if __name__ == "__main__":
-    folder = "/home/matifortunka/Downloads/PhD/rozdział_V/Tm1570/fluo"
+    folder = "/home/matifortunka/Downloads/PhD/rozdział_V/Tm1570/fluo/waw"
 
     plot_multiple_csvs_with_logging(
         folder_path=folder,
@@ -377,11 +410,11 @@ if __name__ == "__main__":
         window_size=25,
         polyorder=3,
         dead_time=30,
-        fit_type='double_exponential',
+        fit_type='double_exponential_with_drift',
         fit_start=0,
         fit_end=4000,
-        output_plot="combined_kinetics_double.png",
-        output_log=f"{folder}/fitted_parameters_double.txt",
+        output_plot="combined_kinetics_double_drift.png",
+        output_log="fitted_parameters_double_drift.txt",
         plot_residuals=True,
         xlim=(0, 4000)
     )

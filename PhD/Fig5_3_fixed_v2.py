@@ -994,6 +994,16 @@ def plot_panel_d_mm_cd(ax, individual_records, mean_records):
 # ==============================================================================
 # PANELE E I F (+ FIGURA DO ANEKSU): SK CD
 # ==============================================================================
+def evaluate_fit_on_grid(res, t_grid):
+    """Oblicza wartość dopasowanej krzywej na gęstej siatce czasu t_grid."""
+    t_grid = np.asarray(t_grid, dtype=float)
+    if np.isfinite(res.get("k2", np.nan)) and np.isfinite(res.get("A2", np.nan)):
+        return double_exp(t_grid, res["A1"], res["k1"], res["A2"], res["k2"], res["c"])
+    if np.isfinite(res.get("drift_m", np.nan)):
+        return mono_exp_drift(t_grid, res["A1"], res["k1"], res["c"], res["drift_m"])
+    return mono_exp(t_grid, res["A1"], res["k1"], res["c"])
+
+
 def process_all_cd_sk(fig_main, ax_e_spectra, ax_f_222, individual_records, mean_records):
     target_wl = CD_SK_SETTINGS["target_wavelength"]
     bl_wl = CD_SK_SETTINGS["baseline_wavelength"]
@@ -1018,7 +1028,8 @@ def process_all_cd_sk(fig_main, ax_e_spectra, ax_f_222, individual_records, mean
         )
         cd_times = sorted(cd_col_map.keys())
         hv_times = sorted(hv_col_map.keys())
-        conc_uM = cfg["conc_uM"]
+        # To samo stężenie [uM] z CD_SK_FILES używane w Panelach E, F oraz w aneksie (A, B, C)
+        conc_uM = float(cfg["conc_uM"])
 
         # 1. Przygotowanie widm do wykresu (czas w sekundach)
         time_shift_spec = base_dt + (bl_wl - target_wl) / nm_per_sec
@@ -1103,7 +1114,9 @@ def process_all_cd_sk(fig_main, ax_e_spectra, ax_f_222, individual_records, mean
             ax_f_222.scatter(t_222, y_222_mrw / 1e3, s=16, color=cfg["color"], alpha=0.8, label=cfg["label"])
             try:
                 res_222 = fit_trace(t_222, y_222_mrw, "mono_exp")
-                ax_f_222.plot(t_222, res_222["y_fit"] / 1e3, color=cfg["color"], ls="--", lw=1.5)
+                t_222_dense = np.linspace(t_222[0], t_222[-1], 1000)
+                y_222_dense = evaluate_fit_on_grid(res_222, t_222_dense)
+                ax_f_222.plot(t_222_dense, y_222_dense / 1e3, color=cfg["color"], ls="--", lw=1.5)
                 fits_222_list.append(res_222)
                 range_str = f"{int(round(t_222[0]))}-{int(round(t_222[-1]))}"
                 record_fit_row(
@@ -1161,7 +1174,7 @@ def process_all_cd_sk(fig_main, ax_e_spectra, ax_f_222, individual_records, mean
             except Exception as e:
                 print(f"❌ Dopasowanie SK CD (całkowanie) nie powiodło się dla {cfg['filename']}: {e}")
 
-        appendix_int_datasets.append((cfg, t_int, y_int_mrw, res_int))
+        appendix_int_datasets.append((cfg, conc_uM, t_int, y_int_mrw, res_int))
 
     append_mean_row(mean_records, "SK_CD_222nm", "mono_exp", "0-12000", fits_222_list)
     append_mean_row(mean_records, "SK_CD_integrated", "mono_exp", "0-12000", fits_int_list)
@@ -1184,8 +1197,9 @@ def make_appendix_cd_sk_figure(appendix_spectra_datasets, appendix_int_datasets)
 
 def _make_appendix_cd_sk_figure_impl(appendix_spectra_datasets, appendix_int_datasets):
     """Tworzy figurę uzupełniającą do aneksu:
-    - Panel A, B: dwa pozostałe zestawy widm CD SK
-    - Panel C: kinetyka z całkowania widma CD (217-250 nm) dla wszystkich 3 powtórzeń."""
+    - Panel A, B: dwa pozostałe zestawy widm CD SK (zakres X: 210-250 nm)
+    - Panel C: kinetyka z całkowania widma CD (217-250 nm) dla wszystkich 3 powtórzeń
+      z użyciem tych samych stężeń co w figurze głównej i gęstej siatki dopasowania."""
     fig_app, axes = plt.subplots(1, 3, figsize=(15.5, 4.6), dpi=300)
 
     for idx_ax, (cfg, spectra_curves) in enumerate(appendix_spectra_datasets[:2]):
@@ -1203,6 +1217,7 @@ def _make_appendix_cd_sk_figure_impl(appendix_spectra_datasets, appendix_int_dat
             cbar.solids.set_rasterized(True)
             cbar.ax.tick_params(labelsize=8.0)
             cbar.set_label("Time (s)", fontsize=9.0, labelpad=3)
+        ax.set_xlim(210.0, 250.0)
         ax.set_xlabel("Wavelength (nm)")
         ax.set_ylabel(r"$[\theta]_{\mathrm{MRW}} \times 10^{-3}\ \mathrm{(deg\cdot cm^2\cdot dmol^{-1})}$")
         ax.set_title(rf"$\mathsf{{Cn}}$TrmD–Tm1570 – CD Spectra ({cfg['label']})", fontweight="bold", fontsize=11)
@@ -1210,13 +1225,19 @@ def _make_appendix_cd_sk_figure_impl(appendix_spectra_datasets, appendix_int_dat
 
     ax_int = axes[2]
     max_t = 0.0
-    for cfg, t_int, y_int_mrw, res_int in appendix_int_datasets:
+    for cfg, conc_uM, t_int, y_int_mrw, res_int in appendix_int_datasets:
         if len(t_int) == 0:
             continue
         max_t = max(max_t, float(np.max(t_int)))
         ax_int.scatter(t_int, y_int_mrw / 1e4, s=16, color=cfg["color"], alpha=0.8, label=cfg["label"])
         if res_int is not None:
-            ax_int.plot(t_int, res_int["y_fit"] / 1e4, color=cfg["color"], ls="--", lw=1.5)
+            t_dense = np.linspace(t_int[0], t_int[-1], 1000)
+            y_dense = evaluate_fit_on_grid(res_int, t_dense)
+            ax_int.plot(t_dense, y_dense / 1e4, color=cfg["color"], ls="--", lw=1.5)
+            print(
+                f"[Appendix SK CD] {cfg['filename']} ({cfg['label']}, conc={conc_uM:g} uM): "
+                f"wykreślono krzywą dopasowania na {len(t_dense)} pkt"
+            )
 
     ax_int.set_xlim(0.0, max_t * 1.02 if max_t > 0 else 12000.0)
     ax_int.set_xlabel("Time (s)")
@@ -1235,7 +1256,6 @@ def _make_appendix_cd_sk_figure_impl(appendix_spectra_datasets, appendix_int_dat
     plt.savefig(out_app_png, dpi=300, bbox_inches="tight")
     plt.close(fig_app)
     print(f"✅ Zapisano figurę do aneksu:\n  {out_app_pdf}\n  {out_app_png}")
-
 
 # ==============================================================================
 # GŁÓWNA FUNKCJA BUDUJĄCA FIGURĘ 5.2 (6 PANELI A-F)
