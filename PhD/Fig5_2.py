@@ -129,13 +129,13 @@ MM_FL_SETTINGS = {
     "color_waw": "#D95F02",
 }
 
-# 2. Spectra-Kinetics Fluorescence (340 nm, model mono_exp_drift, zakres 0-14500 s)
+# 2. Spectra-Kinetics Fluorescence (340 nm, model double_exp_drift, zakres 0-14500 s)
 FL_SK_CONFIG = {
     "label": "Scan #1",
     "time_interval": 32.0,
     "dead_time": 30.0,
     "fit_range": (0.0, 14500.0),
-    "fit_model": "mono_exp_drift",
+    "fit_model": "double_exp_drift",
     "target_wl": 340.0,
     "baseline_wl": 400.0,
     "smoothing": True,
@@ -208,6 +208,10 @@ def mono_exp_drift(t, A, k, c, m):
 
 def double_exp(t, A1, k1, A2, k2, c):
     return A1 * np.exp(-k1 * t) + A2 * np.exp(-k2 * t) + c
+
+
+def double_exp_drift(t, A1, k1, A2, k2, c, m):
+    return A1 * np.exp(-k1 * t) + A2 * np.exp(-k2 * t) + c + m * t
 
 
 def calc_r2(y_true, y_pred):
@@ -295,7 +299,6 @@ def fit_trace(t, y, model_name):
         )
         popt, pcov = curve_fit(double_exp, t, y, p0=p0, bounds=bounds, maxfev=80000)
         perr = np.sqrt(np.diag(pcov))
-        # Uporządkowanie: k1 = faza szybsza, k2 = faza wolniejsza
         if popt[1] < popt[3]:
             popt = np.array([popt[2], popt[3], popt[0], popt[1], popt[4]])
             perr = np.array([perr[2], perr[3], perr[0], perr[1], perr[4]])
@@ -312,6 +315,32 @@ def fit_trace(t, y, model_name):
             "t_half2": np.log(2) / k2, "t_half2_err": (np.log(2) / k2 ** 2) * ek2,
             "c": c, "c_err": ec,
             "drift_m": np.nan, "drift_m_err": np.nan,
+        }
+
+    elif model_name in ("double_exp_drift", "double_exponential_with_drift"):
+        bounds = ([-np.inf, 1e-4, -np.inf, 1e-5, -np.inf, -np.inf], [np.inf, 0.5, np.inf, 0.1, np.inf, np.inf])
+        p0 = clip_p0_to_bounds(
+            [0.5 * A0, np.clip(k0 * 2.0, 0.005, 0.3), 0.5 * A0, np.clip(k0 * 0.2, 0.0002, 0.02), C0, 0.0],
+            bounds
+        )
+        popt, pcov = curve_fit(double_exp_drift, t, y, p0=p0, bounds=bounds, maxfev=90000)
+        perr = np.sqrt(np.diag(pcov))
+        if popt[1] < popt[3]:
+            popt = np.array([popt[2], popt[3], popt[0], popt[1], popt[4], popt[5]])
+            perr = np.array([perr[2], perr[3], perr[0], perr[1], perr[4], perr[5]])
+        y_fit = double_exp_drift(t, *popt)
+        A1, k1, A2, k2, c, m = popt
+        eA1, ek1, eA2, ek2, ec, em = perr
+        return {
+            "y_fit": y_fit, "R2": calc_r2(y, y_fit),
+            "A1": A1, "A1_err": eA1,
+            "k1": k1, "k1_err": ek1,
+            "t_half1": np.log(2) / k1, "t_half1_err": (np.log(2) / k1 ** 2) * ek1,
+            "A2": A2, "A2_err": eA2,
+            "k2": k2, "k2_err": ek2,
+            "t_half2": np.log(2) / k2, "t_half2_err": (np.log(2) / k2 ** 2) * ek2,
+            "c": c, "c_err": ec,
+            "drift_m": m, "drift_m_err": em,
         }
 
     else:
@@ -921,7 +950,7 @@ def plot_panels_bc_fl_sk(fig, ax_spectra, ax_kinetics, individual_records, mean_
     cbar_b.ax.tick_params(labelsize=FS_CBAR_TICK)
     cbar_b.set_label("Time (s)", fontsize=FS_CBAR_LABEL, labelpad=5)
 
-    # Panel C: Kinetyka przy 340 nm (0-14500 s, mono_exp_drift)
+    # Panel C: Kinetyka przy 340 nm (0-14500 s, double_exp_drift)
     sk_fl_fits = []
     try:
         res = fit_trace(times_s, int_340, FL_SK_CONFIG["fit_model"])
@@ -931,7 +960,10 @@ def plot_panels_bc_fl_sk(fig, ax_spectra, ax_kinetics, individual_records, mean_
             individual_records, "SK_FL", fname, np.nan,
             FL_SK_CONFIG["fit_model"], range_str, res
         )
-        print(f"[SK FL 340 nm] {fname} ({range_str}s): t1/2 = {res['t_half1']:.1f} ± {res['t_half1_err']:.1f} s")
+        print(
+            f"[SK FL 340 nm - {FL_SK_CONFIG['fit_model']}] {fname} ({range_str}s): "
+            f"t1/2_1 = {res['t_half1']:.1f} s, t1/2_2 = {res['t_half2']:.1f} s, m = {res['drift_m']:.4e}"
+        )
 
         ax_kinetics.scatter(
             times_s, int_340 / 1e4, s=12, alpha=0.65,
@@ -1071,6 +1103,8 @@ def evaluate_fit_on_grid(res, t_grid):
     """Oblicza wartość dopasowanej krzywej na gęstej siatce czasu t_grid."""
     t_grid = np.asarray(t_grid, dtype=float)
     if np.isfinite(res.get("k2", np.nan)) and np.isfinite(res.get("A2", np.nan)):
+        if np.isfinite(res.get("drift_m", np.nan)):
+            return double_exp_drift(t_grid, res["A1"], res["k1"], res["A2"], res["k2"], res["c"], res["drift_m"])
         return double_exp(t_grid, res["A1"], res["k1"], res["A2"], res["k2"], res["c"])
     if np.isfinite(res.get("drift_m", np.nan)):
         return mono_exp_drift(t_grid, res["A1"], res["k1"], res["c"], res["drift_m"])
@@ -1122,7 +1156,6 @@ def process_all_cd_sk(fig_main, ax_e_spectra, ax_f_222, individual_records, mean
         fcfg = get_cd_sk_file_settings(fname)
         scan_label = f"Scan #{idx_file + 1}"
         color = palette[idx_file % len(palette)]
-        # To samo stężenie [uM] z CD_SK_FILE_OVERRIDES używane w Panelach E, F oraz w aneksie (A, B, C)
         conc_uM = float(fcfg["conc_uM"])
         max_time_s = fcfg["max_time_s"]
 
@@ -1138,7 +1171,6 @@ def process_all_cd_sk(fig_main, ax_e_spectra, ax_f_222, individual_records, mean
             f"wl={wavelengths.min():.1f}-{wavelengths.max():.1f} nm, scans={len(cd_times)}"
         )
 
-        # 1. Przygotowanie widm do wykresu (czas w sekundach)
         time_shift_spec = base_dt + (bl_wl - target_wl) / nm_per_sec
         spectra_curves = []
         for cd_t in cd_times:
@@ -1195,7 +1227,6 @@ def process_all_cd_sk(fig_main, ax_e_spectra, ax_f_222, individual_records, mean
         else:
             appendix_spectra_datasets.append((scan_label, fname, spectra_curves))
 
-        # 2. Kinetyka przy pojedynczej długości fali (222 nm -> Panel F)
         closest_idx = int(np.argmin(np.abs(wavelengths - target_wl)))
         actual_wl = float(wavelengths[closest_idx])
         eff_dt_222 = base_dt + (bl_wl - actual_wl) / nm_per_sec
@@ -1256,7 +1287,6 @@ def process_all_cd_sk(fig_main, ax_e_spectra, ax_f_222, individual_records, mean
                 except Exception as e:
                     print(f"❌ Dopasowanie SK CD (222 nm) nie powiodło się dla {fname}: {e}")
 
-        # 3. Kinetyka z całkowania widm CD (217-250 nm -> tabela i aneks)
         mid_wl = 0.5 * (int_min + int_max)
         eff_dt_int = base_dt + (bl_wl - mid_wl) / nm_per_sec
 
@@ -1303,19 +1333,10 @@ def process_all_cd_sk(fig_main, ax_e_spectra, ax_f_222, individual_records, mean
                     individual_records, "SK_CD_integrated", fname, conc_uM,
                     sk_cd_model, range_str, res_int
                 )
-                print(
-                    f"[SK CD int 217-250 nm] {fname} ({scan_label}): "
-                    f"t1/2_1 = {res_int['t_half1']:.1f} ± {res_int['t_half1_err']:.1f} s, "
-                    f"t1/2_2 = {res_int['t_half2']:.1f} ± {res_int['t_half2_err']:.1f} s "
-                    f"(R2 = {res_int['R2']:.3f})"
-                )
             except Exception as e:
                 print(f"❌ Dopasowanie SK CD (całkowanie) nie powiodło się dla {fname}: {e}")
 
         appendix_int_datasets.append((scan_label, fname, conc_uM, color, t_int, y_int_mrw, res_int))
-
-    if not main_spectra_plotted:
-        print(f"⚠️ Ostrzeżenie: nie znaleziono pliku '{CD_SK_MAIN_SPECTRA_STEM}' do wykreślenia w Panelu E!")
 
     append_mean_row(mean_records, "SK_CD_222nm", sk_cd_model, "custom / full", fits_222_list)
     append_mean_row(mean_records, "SK_CD_integrated", sk_cd_model, "custom / full", fits_int_list)
@@ -1334,10 +1355,6 @@ def process_all_cd_sk(fig_main, ax_e_spectra, ax_f_222, individual_records, mean
 
 
 def make_appendix_cd_sk_figure(appendix_spectra_datasets, appendix_int_datasets):
-    """Tworzy figurę uzupełniającą do aneksu:
-    - Panele widm (A, B) dla pozostałych zestawów SK CD (zakres X: 210-250 nm)
-    - Ostatni panel (C): kinetyka z całkowania widma CD (217-250 nm) dla wszystkich skanów
-      z użyciem tych samych stężeń co w figurze głównej i gęstej siatki dopasowania."""
     n_spec_panels = len(appendix_spectra_datasets)
     total_panels = n_spec_panels + 1
     ncols = min(3, total_panels)
@@ -1390,10 +1407,6 @@ def make_appendix_cd_sk_figure(appendix_spectra_datasets, appendix_int_datasets)
             t_dense = np.linspace(t_int[0], t_int[-1], 1000)
             y_dense = evaluate_fit_on_grid(res_int, t_dense)
             ax_int.plot(t_dense, y_dense / 1e4, color=darker(color), ls="--", lw=1.6)
-            print(
-                f"[Appendix SK CD] {fname} ({scan_label}, conc={conc_uM:g} uM): "
-                f"wykreślono krzywą dopasowania na {len(t_dense)} pkt"
-            )
 
     ax_int.set_xlim(0.0, max_t * 1.02 if max_t > 0 else 12000.0)
     ax_int.set_xlabel("Time (s)")
@@ -1460,10 +1473,8 @@ def make_figure_tm1570():
     plt.tight_layout(pad=1.0, w_pad=2.0, h_pad=2.0)
     out_pdf = os.path.join(PATHS["fig_out_dir"], "Figura_5_2_Kinetyka_Tm1570.pdf")
     out_png = os.path.join(PATHS["fig_out_dir"], "Figura_5_2_Kinetyka_Tm1570.png")
-    # BEZ bbox_inches="tight": PDF ma dokładnie 12.0 in szerokości (jak Fig. 4.3, 5.1 i 5.3)
     plt.savefig(out_pdf)
     plt.savefig(out_png, dpi=300)
-    # plt.show()
 
     update_fits_tables(individual_records, mean_records, PATHS["tables_out_dir"])
 
