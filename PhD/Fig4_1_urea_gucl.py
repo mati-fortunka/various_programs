@@ -330,10 +330,10 @@ def generate_summary_figure():
 
     fig, axes = plt.subplots(4, 3, figsize=(14, 16), constrained_layout=True, dpi=300)
     panel_letters = [
-        ["A1", "A2", "A3"],
-        ["B1", "B2", "B3"],
-        ["C1", "C2", "C3"],
-        ["D1", "D2", "D3"]
+        ["A", "B", "C"],
+        ["D", "E", "F"],
+        ["G", "H", "I"],
+        ["J", "K", "L"]
     ]
 
     fit_report_lines = [

@@ -1,0 +1,479 @@
+import os
+import re
+from io import StringIO
+import numpy as np
+import pandas as pd
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
+from matplotlib.gridspec import GridSpec
+from scipy.signal import savgol_filter
+from scipy.optimize import curve_fit
+
+# Konfiguracja czcionek DejaVu Sans dla spójności typograficznej
+mpl.rcParams["font.family"] = "DejaVu Sans"
+mpl.rcParams["mathtext.fontset"] = "custom"
+mpl.rcParams["mathtext.rm"] = "DejaVu Sans"
+mpl.rcParams["mathtext.it"] = "DejaVu Sans:italic"
+mpl.rcParams["mathtext.bf"] = "DejaVu Sans:bold"
+mpl.rcParams["mathtext.sf"] = "DejaVu Sans:bold:italic"
+mpl.rcParams["mathtext.cal"] = "DejaVu Sans"
+mpl.rcParams["mathtext.tt"] = "DejaVu Sans Mono"
+
+# ==============================================================================
+# 1. Konfiguracja Ścieżek, Parametrów i Palety Projektowej
+# ==============================================================================
+FIGURE_ID = "Fig_4.4"
+CONC_UM = 2.0
+PATH_LENGTH_MM = 1.0
+TARGET_WL = 217.0
+RT = 0.592  # kcal/mol przy 298.15 K
+HV_CUTOFF = 900.0
+
+RESIDUES = {
+    "TrmD": 262,
+    "Tm1570": 224,
+    "Fusion": 455
+}
+
+TIME_SERIES = [
+    {"time_h": 12, "folder_date": "28_07_26", "label": "12 h", "marker": "o", "fill": "full", "ls": "-", "dashes": None},
+    {"time_h": 36, "folder_date": "29_07_26", "label": "36 h", "marker": "s", "fill": "full", "ls": "--", "dashes": (4.0, 2.5)},
+    {"time_h": 84, "folder_date": "31_07_26", "label": "84 h", "marker": "o", "fill": "none", "ls": ":", "dashes": (1.5, 2.0)}
+]
+
+BASE_CD_DIR = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/biofizyka_CD"
+
+# Ścieżki wyjściowe
+OUTPUT_DIR = "/home/matifortunka/PycharmProjects/various_programs/PhD/figures/ch04"
+OUTPUT_FIGURE_PATH = os.path.join(OUTPUT_DIR, "Figura_4_4_Czas_Ekwilibracji_2x2_center.png")
+CSV_OUTPUT_PATH = "/home/matifortunka/PycharmProjects/various_programs/PhD/tables/thermo_fits_summary.csv"
+
+# Master Palette
+COLOR_TRMD = "#1F77B4"    # Marine Blue
+COLOR_TM1570 = "#FF7F0E"  # Deep Terracotta
+COLOR_FUSION = "#7570B3"  # Muted Purple
+
+INITIAL_GUESSES_3STATE = {
+    12: {"m1": 4.83, "d1": 2.19, "m2": 0.77, "d2": 2.78},
+    36: {"m1": 3.54, "d1": 2.10, "m2": 0.86, "d2": 3.28},
+    84: {"m1": 5.09, "d1": 1.94, "m2": 1.25, "d2": 3.23}
+}
+
+
+# ==============================================================================
+# 2. Modele Termodynamiczne i Moduł Eksportu
+# ==============================================================================
+def two_state_model(x, a_n, a_u, m, d):
+    """Model dwustanowy Santoro-Bolen dla monomeru: N <-> U."""
+    exp_term = np.exp(np.clip((m * (x - d)) / RT, -60, 60))
+    return (a_n + a_u * exp_term) / (1.0 + exp_term)
+
+
+def three_state_model(x, a_n, a_i, a_u, m1, d1, m2, d2):
+    """Model trójstanowy dla monomeru: N <-> I <-> U."""
+    sig1 = 1.0 / (1.0 + np.exp(np.clip(-(m1 * (x - d1)) / RT, -60, 60)))
+    sig2 = 1.0 / (1.0 + np.exp(np.clip(-(m2 * (x - d2)) / RT, -60, 60)))
+    return a_n * (1.0 - sig1) + a_i * (sig1 - sig2) + a_u * sig2
+
+
+def two_state_dimer_model(x, a_n, a_d, m, d, conc_uM=CONC_UM):
+    """
+    Model dwustanowy rozwijania z dysocjacją dla homodimeru: N2 <-> 2D.
+    P_t = conc_uM * 1e-6 [M] (całkowite stężenie w przeliczeniu na monomer).
+    K_U(x) = [D]^2 / [N2] = P_t * exp(m * (x - d) / RT), gdzie d = Cm (f_D = 0.5).
+    """
+    P_t = conc_uM * 1e-6
+    K_u = P_t * np.exp(np.clip((m * (x - d)) / RT, -500.0, 500.0))
+    f_d = 2.0 / (1.0 + np.sqrt(1.0 + (8.0 * P_t) / K_u))
+    f_n2 = 1.0 - f_d
+    return a_n * f_n2 + a_d * f_d
+
+
+def three_state_dimer_model(x, a_n, a_i, a_d, m1, d1, m2, d2, conc_uM=CONC_UM):
+    """
+    Model trójstanowy rozwijania dla homodimeru z dimerycznym stanem pośrednim: N2 <-> I2 <-> 2D.
+    Etap 1 (N2 <-> I2): K1(x) = [I2]/[N2] = exp(m1 * (x - d1) / RT)
+    Etap 2 (I2 <-> 2D): K2(x) = [D]^2/[I2] = P_t * exp(m2 * (x - d2) / RT)
+    """
+    P_t = conc_uM * 1e-6
+    K1 = np.exp(np.clip((m1 * (x - d1)) / RT, -250.0, 250.0))
+    K2 = P_t * np.exp(np.clip((m2 * (x - d2)) / RT, -250.0, 250.0))
+    K_eff = (K1 * K2) / (1.0 + K1)
+    f_d = 2.0 / (1.0 + np.sqrt(1.0 + (8.0 * P_t) / K_eff))
+    f_n2 = (1.0 - f_d) / (1.0 + K1)
+    f_i2 = (K1 * (1.0 - f_d)) / (1.0 + K1)
+    return a_n * f_n2 + a_i * f_i2 + a_d * f_d
+
+
+def calc_r_squared(y_true, y_pred):
+    ss_res = np.sum((y_true - y_pred) ** 2)
+    ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
+    return 1.0 - (ss_res / ss_tot) if ss_tot > 0 else 0.0
+
+
+def export_fit_row(fig_id, construct, probe, time_h, conc_uM, model_name,
+                   cm_val, cm_se, m_val, m_se, r2_val, is_dimer_dissociation=False):
+    if m_val is not None and cm_val is not None:
+        if is_dimer_dissociation and conc_uM is not None:
+            P_t = conc_uM * 1e-6
+            dG_val = m_val * cm_val - RT * np.log(P_t)
+        else:
+            dG_val = m_val * cm_val
+    else:
+        dG_val = None
+
+    row = {
+        "Figure": fig_id,
+        "Construct": construct,
+        "Probe": probe,
+        "Condition_Time": f"{time_h}h",
+        "Condition_Conc_uM": conc_uM,
+        "Model": model_name,
+        "Cm_M": round(cm_val, 3) if cm_val is not None else None,
+        "Cm_SE": round(cm_se, 3) if cm_se is not None else None,
+        "m_kcal_mol_M": round(m_val, 3) if m_val is not None else None,
+        "m_SE": round(m_se, 3) if m_se is not None else None,
+        "dG_H2O_kcal_mol": round(dG_val, 2) if dG_val is not None else None,
+        "R_squared": round(r2_val, 4) if r2_val is not None else None
+    }
+    os.makedirs(os.path.dirname(CSV_OUTPUT_PATH), exist_ok=True)
+    df_row = pd.DataFrame([row])
+    if not os.path.exists(CSV_OUTPUT_PATH):
+        df_row.to_csv(CSV_OUTPUT_PATH, index=False)
+    else:
+        df_row.to_csv(CSV_OUTPUT_PATH, mode="a", header=False, index=False)
+
+    print(f"[{fig_id}] {construct} ({time_h}h) | {probe} ({model_name}): Cm={cm_val:.2f} ± {cm_se:.2f} M | m={m_val:.2f} ± {m_se:.2f} | dG={dG_val:.2f} kcal/mol | R²={r2_val:.4f}")
+
+
+# ==============================================================================
+# 3. Wczytywanie Danych ProData i Konwersja do [theta]_MRW
+# ==============================================================================
+def mdeg_to_mre(mdeg, residues, conc_uM=CONC_UM, path_mm=PATH_LENGTH_MM):
+    return (mdeg * 1e6) / (conc_uM * path_mm * residues)
+
+
+def load_concentrations_file(filepath):
+    with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+        text = f.read().replace(',', '.')
+    df = pd.read_csv(StringIO(text), sep=r"\s+", engine='python')
+    df['Sample_number'] = pd.to_numeric(df.iloc[:, 0], errors='coerce')
+    df['den_concentration'] = pd.to_numeric(df.iloc[:, 1], errors='coerce')
+    df.dropna(subset=['Sample_number', 'den_concentration'], inplace=True)
+    return dict(zip(df['Sample_number'].astype(int), df['den_concentration'].astype(float)))
+
+
+def load_single_series(construct_subfolder, date_folder, residues):
+    folder_path = os.path.join(BASE_CD_DIR, construct_subfolder, "3/2uM", date_folder)
+    if not os.path.exists(folder_path):
+        alt_date = date_folder.replace("_", ".")
+        folder_path = os.path.join(BASE_CD_DIR, construct_subfolder, "3/2uM", alt_date)
+
+    conc_file = os.path.join(folder_path, "concentrations.txt")
+    if not os.path.exists(conc_file):
+        print(f"⚠️ Brak pliku concentrations w: {folder_path}")
+        return None, None
+
+    conc_map = load_concentrations_file(conc_file)
+    pattern = re.compile(r"(\d{5})\.csv$")
+
+    concs, mre_vals = [], []
+
+    for fname in sorted(os.listdir(folder_path)):
+        m = pattern.search(fname)
+        if not m:
+            continue
+        sn = int(m.group(1))
+        conc = conc_map.get(sn, None)
+        if conc is None or np.isnan(conc):
+            continue
+
+        fpath = os.path.join(folder_path, fname)
+        try:
+            with open(fpath, 'r', encoding='utf-8', errors='ignore') as f:
+                lines = f.readlines()
+
+            cd_idx = next((i for i in range(len(lines) - 1)
+                           if lines[i].strip().startswith("Wavelength") and lines[i + 1].strip().startswith("CircularDichroism")), None)
+            if cd_idx is None:
+                continue
+
+            cd_lines = []
+            for ln in lines[cd_idx + 2:]:
+                if not ln.strip() or ln.strip().startswith("Wavelength"):
+                    break
+                cd_lines.append(list(map(float, ln.replace(',', ' ').split())))
+            cd_arr = np.array(cd_lines)
+            wls, mdeg = cd_arr[:, 0], cd_arr[:, 1]
+
+            hv_idx = next((i for i in range(len(lines) - 1)
+                           if lines[i].strip().startswith("Wavelength") and lines[i + 1].strip().startswith("HV")), None)
+            if hv_idx is not None:
+                hv_lines = []
+                for ln in lines[hv_idx + 2:]:
+                    if not ln.strip() or ln.strip().startswith("Wavelength"):
+                        break
+                    hv_lines.append(list(map(float, ln.replace(',', ' ').split())))
+                hv_arr = np.array(hv_lines)
+                if len(hv_arr) == len(wls):
+                    mask = hv_arr[:, 1] <= HV_CUTOFF
+                    wls, mdeg = wls[mask], mdeg[mask]
+
+            if len(wls) < 15:
+                continue
+
+            s_idx = np.argsort(wls)
+            wls, mdeg = wls[s_idx], mdeg[s_idx]
+
+            if len(mdeg) >= 11:
+                mdeg = savgol_filter(mdeg, 11, 3)
+
+            mre = mdeg_to_mre(mdeg, residues)
+            concs.append(float(conc))
+            mre_vals.append(np.interp(TARGET_WL, wls, mre))
+        except Exception:
+            continue
+
+    if not concs:
+        return None, None
+
+    sort_idx = np.argsort(concs)
+    return np.array(concs)[sort_idx], np.array(mre_vals)[sort_idx]
+
+
+# ==============================================================================
+# 4. Generator Figury 4.4 (Siatka 2 rzędowa, Panel C wyśrodkowany)
+# ==============================================================================
+def generate_figure_4_4():
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    fig = plt.figure(figsize=(13, 11), constrained_layout=True, dpi=300)
+    gs = GridSpec(2, 4, figure=fig)
+
+    # Układ paneli: A i B w górnym rzędzie, C wyśrodkowany w dolnym rzędzie
+    ax_a = fig.add_subplot(gs[0, 0:2])
+    ax_b = fig.add_subplot(gs[0, 2:4])
+    ax_c = fig.add_subplot(gs[1, 1:3])
+
+    x_dense = np.linspace(0.0, 7.6, 300)
+    x_dense_trmd = np.linspace(0.0, 6.4, 300)
+
+    fit_func_2s_dimer = lambda x, a_n, a_d, m, d: two_state_dimer_model(x, a_n, a_d, m, d, CONC_UM)
+    bounds_2s_dimer = ([-np.inf, -np.inf, 0.0, 0.0], [np.inf, np.inf, np.inf, np.inf])
+
+    fit_func_3s_dimer = lambda x, a_n, a_i, a_d, m1, d1, m2, d2: three_state_dimer_model(
+        x, a_n, a_i, a_d, m1, d1, m2, d2, CONC_UM
+    )
+
+    # --------------------------------------------------------------------------
+    # PANEL A: CnTrmD (12h, 36h, 84h) - Model 2-state dimer
+    # --------------------------------------------------------------------------
+    handles_a, labels_a = [], []
+    for item in TIME_SERIES:
+        t_h = item["time_h"]
+        c, y = load_single_series("trmd", item["folder_date"], RESIDUES["TrmD"])
+        if c is None:
+            continue
+
+        facecolor = COLOR_TRMD if item["fill"] == "full" else "white"
+        ax_a.scatter(c, y / 1000.0, color=COLOR_TRMD, facecolors=facecolor, marker=item["marker"],
+                     s=45, lw=1.2, zorder=3)
+
+        p0 = [y[0], y[-1], 2.0, np.median(c)]
+        try:
+            popt, pcov = curve_fit(fit_func_2s_dimer, c, y, p0=p0, bounds=bounds_2s_dimer, maxfev=15000)
+            perr = np.sqrt(np.diag(pcov))
+            r2 = calc_r_squared(y, fit_func_2s_dimer(c, *popt))
+
+            line_kw = {"color": COLOR_TRMD, "lw": 2.2, "zorder": 2, "ls": item["ls"]}
+            if item["dashes"]:
+                line_kw["dashes"] = item["dashes"]
+            ax_a.plot(x_dense_trmd, fit_func_2s_dimer(x_dense_trmd, *popt) / 1000.0, **line_kw)
+
+            export_fit_row(FIGURE_ID, "CnTrmD", "CD_217nm", t_h, CONC_UM, "2-state-dimer",
+                           popt[3], perr[3], popt[2], perr[2], r2,
+                           is_dimer_dissociation=True)
+        except Exception as e:
+            print(f"2-state dimer fit failed for CnTrmD ({t_h}h): {e}")
+
+        # Wyrównany proxy artist dla legendy
+        h_kw = {
+            "color": COLOR_TRMD, "linestyle": item["ls"], "linewidth": 2.0,
+            "marker": item["marker"], "markersize": 7.0,
+            "markerfacecolor": facecolor, "markeredgecolor": COLOR_TRMD, "markeredgewidth": 1.2
+        }
+        if item["dashes"]:
+            h_kw["dashes"] = item["dashes"]
+        handles_a.append(Line2D([0], [0], **h_kw))
+        labels_a.append(item["label"])
+
+    ax_a.set_xlim(-0.1, 6.2)
+    ax_a.set_ylim(-15, 0.5)
+    ax_a.set_xlabel("[GdmCl] (M)", fontsize=15)
+    ax_a.set_ylabel(r"$[\theta]_{\mathrm{MRW}} \times 10^{-3}\ \mathrm{(deg\cdot cm^2\cdot dmol^{-1})}$", fontsize=15)
+    ax_a.tick_params(labelsize=13)
+    ax_a.grid(True, linestyle=":", alpha=0.5)
+
+    leg_a = ax_a.legend(handles_a, labels_a, loc="lower right", bbox_to_anchor=(0.98, 0.04),
+                        fontsize=11.5, frameon=True, facecolor="white", framealpha=0.9,
+                        edgecolor="none", markerfirst=False, handlelength=2.6, handletextpad=0.8)
+    for text_obj in leg_a.get_texts():
+        text_obj.set_ha("right")
+
+    ax_a.text(0.04, 0.94, "A", transform=ax_a.transAxes, fontsize=15, fontweight="bold", va="top")
+    ax_a.set_title(r"$\boldsymbol{Cn}$" + r"$\bf{TrmD\ (2\ \mu M)}$", fontsize=13, pad=8)
+
+    # --------------------------------------------------------------------------
+    # PANEL B: CnTm1570 (12h, 36h, 84h) - Model 2-state dimer
+    # --------------------------------------------------------------------------
+    handles_b, labels_b = [], []
+    for item in TIME_SERIES:
+        t_h = item["time_h"]
+        c, y = load_single_series("tm1570", item["folder_date"], RESIDUES["Tm1570"])
+        if c is None:
+            continue
+
+        facecolor = COLOR_TM1570 if item["fill"] == "full" else "white"
+        ax_b.scatter(c, y / 1000.0, color=COLOR_TM1570, facecolors=facecolor, marker=item["marker"],
+                     s=45, lw=1.2, zorder=3)
+
+        p0 = [y[0], y[-1], 2.0, np.median(c)]
+        try:
+            popt, pcov = curve_fit(fit_func_2s_dimer, c, y, p0=p0, bounds=bounds_2s_dimer, maxfev=15000)
+            perr = np.sqrt(np.diag(pcov))
+            r2 = calc_r_squared(y, fit_func_2s_dimer(c, *popt))
+
+            line_kw = {"color": COLOR_TM1570, "lw": 2.2, "zorder": 2, "ls": item["ls"]}
+            if item["dashes"]:
+                line_kw["dashes"] = item["dashes"]
+            ax_b.plot(x_dense, fit_func_2s_dimer(x_dense, *popt) / 1000.0, **line_kw)
+
+            export_fit_row(FIGURE_ID, "CnTm1570", "CD_217nm", t_h, CONC_UM, "2-state-dimer",
+                           popt[3], perr[3], popt[2], perr[2], r2,
+                           is_dimer_dissociation=True)
+        except Exception as e:
+            print(f"2-state dimer fit failed for CnTm1570 ({t_h}h): {e}")
+
+        h_kw = {
+            "color": COLOR_TM1570, "linestyle": item["ls"], "linewidth": 2.0,
+            "marker": item["marker"], "markersize": 7.0,
+            "markerfacecolor": facecolor, "markeredgecolor": COLOR_TM1570, "markeredgewidth": 1.2
+        }
+        if item["dashes"]:
+            h_kw["dashes"] = item["dashes"]
+        handles_b.append(Line2D([0], [0], **h_kw))
+        labels_b.append(item["label"])
+
+    ax_b.set_xlim(-0.1, 7.6)
+    ax_b.set_ylim(-15, 0.5)
+    ax_b.set_xlabel("[GdmCl] (M)", fontsize=15)
+    ax_b.set_ylabel(r"$[\theta]_{\mathrm{MRW}} \times 10^{-3}\ \mathrm{(deg\cdot cm^2\cdot dmol^{-1})}$", fontsize=15)
+    ax_b.tick_params(labelsize=13)
+    ax_b.grid(True, linestyle=":", alpha=0.5)
+
+    leg_b = ax_b.legend(handles_b, labels_b, loc="lower right", bbox_to_anchor=(0.98, 0.04),
+                        fontsize=11.5, frameon=True, facecolor="white", framealpha=0.9,
+                        edgecolor="none", markerfirst=False, handlelength=2.6, handletextpad=0.8)
+    for text_obj in leg_b.get_texts():
+        text_obj.set_ha("right")
+
+    ax_b.text(0.04, 0.94, "B", transform=ax_b.transAxes, fontsize=15, fontweight="bold", va="top")
+    ax_b.set_title(r"$\boldsymbol{Cn}$" + r"$\bf{Tm1570\ (2\ \mu M)}$", fontsize=13, pad=8)
+
+    # --------------------------------------------------------------------------
+    # PANEL C: Fuzja CnTrmD-Tm1570 (12h, 36h, 84h) - Model 3-state dimer
+    # --------------------------------------------------------------------------
+    handles_c, labels_c = [], []
+    for item in TIME_SERIES:
+        t_h = item["time_h"]
+        c, y = load_single_series("fuzja", item["folder_date"], RESIDUES["Fusion"])
+        if c is None:
+            continue
+
+        facecolor = COLOR_FUSION if item["fill"] == "full" else "white"
+        ax_c.scatter(c, y / 1000.0, color=COLOR_FUSION, facecolors=facecolor, marker=item["marker"],
+                     s=45, lw=1.2, zorder=3)
+
+        g = INITIAL_GUESSES_3STATE.get(t_h, {"m1": 4.0, "d1": 2.1, "m2": 1.0, "d2": 3.0})
+        p0_3s = [
+            y[0],
+            (y[0] + y[-1]) / 2.0,
+            y[-1],
+            g["m1"],
+            g["d1"],
+            g["m2"],
+            g["d2"]
+        ]
+        bounds_3s = (
+            [-np.inf, -np.inf, -np.inf, 0.5, 1.2, 0.2, 2.2],
+            [np.inf, np.inf, np.inf, 12.0, 2.8, 5.0, 4.5]
+        )
+
+        try:
+            popt, pcov = curve_fit(fit_func_3s_dimer, c, y, p0=p0_3s, bounds=bounds_3s, maxfev=20000)
+            perr = np.sqrt(np.diag(pcov))
+            r2 = calc_r_squared(y, fit_func_3s_dimer(c, *popt))
+
+            line_kw = {"color": COLOR_FUSION, "lw": 2.2, "zorder": 2, "ls": item["ls"]}
+            if item["dashes"]:
+                line_kw["dashes"] = item["dashes"]
+            ax_c.plot(x_dense, fit_func_3s_dimer(x_dense, *popt) / 1000.0, **line_kw)
+
+            export_fit_row(FIGURE_ID, "CnTrmD-Tm1570", "CD_217nm_Step1", t_h, CONC_UM, "3-state-dimer_trans1",
+                           popt[4], perr[4], popt[3], perr[3], r2,
+                           is_dimer_dissociation=False)
+            export_fit_row(FIGURE_ID, "CnTrmD-Tm1570", "CD_217nm_Step2", t_h, CONC_UM, "3-state-dimer_trans2",
+                           popt[6], perr[6], popt[5], perr[5], r2,
+                           is_dimer_dissociation=True)
+        except Exception as e:
+            print(f"3-state dimer fit failed for Fusion ({t_h}h): {e}. Fallback to 2-state dimer.")
+            popt_2s, pcov_2s = curve_fit(fit_func_2s_dimer, c, y, p0=[y[0], y[-1], 2.0, 2.5], bounds=bounds_2s_dimer, maxfev=15000)
+            perr_2s = np.sqrt(np.diag(pcov_2s))
+            r2_2s = calc_r_squared(y, fit_func_2s_dimer(c, *popt_2s))
+
+            line_kw = {"color": COLOR_FUSION, "lw": 2.0, "zorder": 2, "ls": item["ls"]}
+            if item["dashes"]:
+                line_kw["dashes"] = item["dashes"]
+            ax_c.plot(x_dense, fit_func_2s_dimer(x_dense, *popt_2s) / 1000.0, **line_kw)
+
+            export_fit_row(FIGURE_ID, "CnTrmD-Tm1570", "CD_217nm_Fallback", t_h, CONC_UM, "2-state-dimer",
+                           popt_2s[3], perr_2s[3], popt_2s[2], perr_2s[2], r2_2s,
+                           is_dimer_dissociation=True)
+
+        h_kw = {
+            "color": COLOR_FUSION, "linestyle": item["ls"], "linewidth": 2.0,
+            "marker": item["marker"], "markersize": 7.0,
+            "markerfacecolor": facecolor, "markeredgecolor": COLOR_FUSION, "markeredgewidth": 1.2
+        }
+        if item["dashes"]:
+            h_kw["dashes"] = item["dashes"]
+        handles_c.append(Line2D([0], [0], **h_kw))
+        labels_c.append(item["label"])
+
+    ax_c.set_xlim(-0.1, 7.6)
+    ax_c.set_ylim(-15, 0.5)
+    ax_c.set_xlabel("[GdmCl] (M)", fontsize=15)
+    ax_c.set_ylabel(r"$[\theta]_{\mathrm{MRW}} \times 10^{-3}\ \mathrm{(deg\cdot cm^2\cdot dmol^{-1})}$", fontsize=15)
+    ax_c.tick_params(labelsize=13)
+    ax_c.grid(True, linestyle=":", alpha=0.5)
+
+    leg_c = ax_c.legend(handles_c, labels_c, loc="lower right", bbox_to_anchor=(0.98, 0.04),
+                        fontsize=11.5, frameon=True, facecolor="white", framealpha=0.9,
+                        edgecolor="none", markerfirst=False, handlelength=2.6, handletextpad=0.8)
+    for text_obj in leg_c.get_texts():
+        text_obj.set_ha("right")
+
+    ax_c.text(0.04, 0.94, "C", transform=ax_c.transAxes, fontsize=15, fontweight="bold", va="top")
+    ax_c.set_title(r"$\bf{Fusion\ }$" + r"$\boldsymbol{Cn}$" + r"$\bf{TrmD–Tm1570\ (2\ \mu M)}$", fontsize=13, pad=8)
+
+    # Zapis w wysokiej rozdzielczości PNG oraz wektorowym PDF
+    fig.savefig(OUTPUT_FIGURE_PATH, dpi=300)
+    pdf_path = os.path.splitext(OUTPUT_FIGURE_PATH)[0] + ".pdf"
+    fig.savefig(pdf_path, format="pdf")
+
+    print(f"\n[✓] Zaktualizowana Figura 4.4 zapisana do:\n  -> {OUTPUT_FIGURE_PATH}\n  -> {pdf_path}")
+    print(f"[✓] Zbiorcze parametry dopasowań zaktualizowano w: {CSV_OUTPUT_PATH}")
+
+
+if __name__ == "__main__":
+    generate_figure_4_4()
