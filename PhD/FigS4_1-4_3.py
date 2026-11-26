@@ -34,6 +34,9 @@ OUTPUT_DIR = "/home/matifortunka/PycharmProjects/various_programs/PhD/figures/ap
 HV_CUTOFF = 850.0
 PATH_LENGTH_MM = 1.0
 
+PANEL_LABELS_TOP = ["A", "B", "C", "D"]
+PANEL_LABELS_BOTTOM = ["E", "F", "G", "H"]
+
 # ==============================================================================
 # 2. Definicja Białek i Warunków Eksperymentalnych (Siatka 2 x 4)
 # ==============================================================================
@@ -247,6 +250,21 @@ class SupplementaryDataLoader:
 
         return results
 
+
+def add_panel_label(ax, label):
+    """Dodaje symbol panelu (A–H) w lewym górnym rogu osi."""
+    ax.text(
+        0.03,
+        0.96,
+        label,
+        transform=ax.transAxes,
+        fontsize=14,
+        fontweight="bold",
+        ha="left",
+        va="top",
+        zorder=10,
+    )
+
 # ==============================================================================
 # 4. Generator Figur Suplementarnych (2 x 4)
 # ==============================================================================
@@ -257,6 +275,9 @@ def generate_supplementary_figure(protein_cfg, loader):
     for col_idx, cond in enumerate(SUPPLEMENTARY_CONDITIONS):
         ax_cd = axes[0, col_idx]
         ax_fl = axes[1, col_idx]
+
+        add_panel_label(ax_cd, PANEL_LABELS_TOP[col_idx])
+        add_panel_label(ax_fl, PANEL_LABELS_BOTTOM[col_idx])
 
         # ----------------------------------------------------------------------
         # WIERSZ 1: Widma Far-UV CD
