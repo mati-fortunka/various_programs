@@ -45,7 +45,7 @@ DIR_FLUO_TM1570 = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsa
 
 # Zaktualizowane ścieżki wyjściowe
 OUTPUT_DIR = "/home/matifortunka/PycharmProjects/various_programs/PhD/figures/ch04"
-OUTPUT_FIGURE_PATH = os.path.join(OUTPUT_DIR, "Figura_4_2_Izolowane_Domeny.png")
+OUTPUT_FIGURE_PATH = os.path.join(OUTPUT_DIR, "Figura_4_3_Izolowane_Domeny.png")
 CSV_OUTPUT_PATH = "/home/matifortunka/PycharmProjects/various_programs/PhD/tables/thermo_fits_summary.csv"
 
 # Master Palette projektu
