@@ -25,6 +25,7 @@ OUTPUT_DIR = "/home/matifortunka/PycharmProjects/various_programs/PhD/tables"
 ALL_PARAMS_CSV = os.path.join(OUTPUT_DIR, "three_state_dimer_all_parameters.csv")
 DM_COMPARISON_CSV = os.path.join(OUTPUT_DIR, "three_state_dimer_dm_comparison.csv")
 AVG_PARAMS_CSV = os.path.join(OUTPUT_DIR, "three_state_dimer_avg_parameters.csv")
+CN_FUSION_CONC_AVG_CSV = os.path.join(OUTPUT_DIR, "three_state_dimer_cntrmd_tm1570_by_conc_avg.csv")
 
 MODEL_DIM_LABEL = "3-state_dimeric_int (N2<->I2<->2U)"
 MODEL_MON_LABEL = "3-state_monomeric_int (N2<->2I<->2U)"
@@ -182,6 +183,29 @@ THREE_STATE_DATASETS = [
         "hv_cutoff": 900.0,
         "savgol_win": 11,
         "folder_path": os.path.join(BASE_CD_DIR_WARSAW, "fuzja/seria2_1"),
+        "p0_dim_int": [None, None, None, 4.20, 2.25, 1.00, 3.35],
+        "bounds_dim_int": (
+            [-np.inf, -np.inf, -np.inf, 0.5, 1.2, 0.2, 2.2],
+            [np.inf, np.inf, np.inf, 12.0, 3.0, 5.0, 4.5],
+        ),
+        "p0_mon_int": [None, None, None, 3.0, 2.25, 1.0, 3.4],
+        "bounds_mon_int": (
+            [-np.inf, -np.inf, -np.inf, 0.2, 1.0, 0.2, 1.8],
+            [np.inf, np.inf, np.inf, 12.0, 3.5, 5.0, 5.0],
+        ),
+    },
+    # CnTrmD-Tm1570, 5 uM, 108h (fuzja/seria2_2)
+    {
+        "dataset_id": "CnFusion_5uM_108h",
+        "source_script": "supplementary_5uM_108h",
+        "construct": "CnTrmD-Tm1570",
+        "probe": "CD_217nm",
+        "time_h": 108,
+        "conc_uM": 5.0,
+        "residues": 455,
+        "hv_cutoff": 900.0,
+        "savgol_win": 11,
+        "folder_path": os.path.join(BASE_CD_DIR_WARSAW, "fuzja/seria2_2"),
         "p0_dim_int": [None, None, None, 4.20, 2.25, 1.00, 3.35],
         "bounds_dim_int": (
             [-np.inf, -np.inf, -np.inf, 0.5, 1.2, 0.2, 2.2],
@@ -405,15 +429,7 @@ def load_previous_avg_startpoints(avg_csv_path):
     startpoints = {}
     for _, row in df_avg.iterrows():
         m_name = row.get("Model")
-        vals = []
-        for col in ["a_N", "a_I", "a_U", "m1", "d1", "m2", "d2"]:
-            v = row.get(col)
-            if pd.isna(v):
-                for alias in PARAM_COL_ALIASES.get(col, []):
-                    if alias in row and pd.notna(row[alias]):
-                        v = row[alias]
-                        break
-            vals.append(v)
+        vals = [row.get(col) for col in ["a_N", "a_I", "a_U", "m1", "d1", "m2", "d2"]]
         if m_name and all(pd.notna(v) and np.isfinite(float(v)) for v in vals):
             startpoints[m_name] = [float(v) for v in vals]
     if startpoints:
@@ -472,29 +488,32 @@ def fit_single_model(model_func, x, y, p0, bounds, conc_uM):
             "bic": np.nan,
         }
 
-PARAM_COL_ALIASES = {
-    "a_N": ["a_N"],
-    "a_I": ["a_I"],
-    "a_U": ["a_U"],
-    "m1": ["m1_kcal_mol_M", "m1"],
-    "d1": ["d1_M", "d1"],
-    "m2": ["m2_kcal_mol_M", "m2"],
-    "d2": ["d2_M", "d2"],
-}
 
-def _extract_param_series(df, canonical_name):
-    for cand in PARAM_COL_ALIASES.get(canonical_name, [canonical_name]):
-        if cand in df.columns:
-            s = pd.to_numeric(df[cand], errors="coerce").dropna()
-            if len(s) > 0:
-                return s
-    return pd.Series(dtype=float)
+def _summarize_group(grp, base_fields, numeric_specs):
+    row = dict(base_fields)
+    row["N_datasets"] = int(len(grp))
+    for col, decimals in numeric_specs:
+        if col in grp.columns:
+            vals = pd.to_numeric(grp[col], errors="coerce").dropna()
+            row[col] = round(float(vals.mean()), decimals) if len(vals) > 0 else np.nan
+            row[f"{col}_SD"] = round(float(vals.std(ddof=1)), decimals) if len(vals) > 1 else 0.0
+        else:
+            row[col] = np.nan
+            row[f"{col}_SD"] = np.nan
+    return row
+
 
 def compute_and_save_avg_parameters(df_all, avg_csv_path):
     """Oblicza średnie (i odchylenia standardowe) parametrów dla każdego modelu i zapisuje do CSV."""
-    param_cols = ["a_N", "a_I", "a_U", "m1", "d1", "m2", "d2"]
+    numeric_specs = [
+        ("a_N", 2), ("a_I", 2), ("a_U", 2),
+        ("m1_kcal_mol_M", 3), ("d1_M", 3),
+        ("m2_kcal_mol_M", 3), ("d2_M", 3),
+        ("dG1_H2O_kcal_mol", 2), ("dG2_H2O_kcal_mol", 2),
+        ("R_squared", 4), ("RMSE", 2),
+    ]
     out_cols = ["Model", "Pathway", "N_datasets"]
-    for col in param_cols:
+    for col, _ in numeric_specs:
         out_cols.extend([col, f"{col}_SD"])
 
     avg_rows = []
@@ -502,20 +521,70 @@ def compute_and_save_avg_parameters(df_all, avg_csv_path):
         conv_df = df_all[df_all["Converged"] == True]
         if not conv_df.empty and "Model" in conv_df.columns:
             for model_label, grp in conv_df.groupby("Model", sort=False):
-                row = {
+                base = {
                     "Model": model_label,
                     "Pathway": grp["Pathway"].iloc[0] if "Pathway" in grp.columns and len(grp) > 0 else "",
-                    "N_datasets": int(len(grp)),
                 }
-                for col in param_cols:
-                    vals = _extract_param_series(grp, col)
-                    row[col] = round(float(vals.mean()), 4) if len(vals) > 0 else np.nan
-                    row[f"{col}_SD"] = round(float(vals.std(ddof=1)), 4) if len(vals) > 1 else 0.0
-                avg_rows.append(row)
+                avg_rows.append(_summarize_group(grp, base, numeric_specs))
 
     df_avg = pd.DataFrame(avg_rows, columns=out_cols)
     df_avg.to_csv(avg_csv_path, index=False)
     return df_avg
+
+
+def compute_and_save_cntrmd_tm1570_conc_averages(df_all, out_csv_path):
+    """
+    Uśrednia parametry dla CnTrmD-Tm1570 po stężeniach białka (zarówno w podziale
+    na każde stężenie, jak i łącznie po wszystkich stężeniach dla każdego modelu)
+    i zapisuje do osobnego pliku CSV.
+    """
+    numeric_specs = [
+        ("a_N", 2), ("a_I", 2), ("a_U", 2),
+        ("m1_kcal_mol_M", 3), ("d1_M", 3),
+        ("m2_kcal_mol_M", 3), ("d2_M", 3),
+        ("dG1_H2O_kcal_mol", 2), ("dG2_H2O_kcal_mol", 2),
+        ("R_squared", 4), ("RMSE", 2),
+    ]
+    out_cols = ["Construct", "Aggregation_Level", "Conc_uM", "Times_h", "Model", "Pathway", "N_datasets"]
+    for col, _ in numeric_specs:
+        out_cols.extend([col, f"{col}_SD"])
+
+    rows = []
+    if df_all is not None and not df_all.empty:
+        sub = df_all[
+            (df_all["Construct"] == "CnTrmD-Tm1570") & (df_all["Converged"] == True)
+        ].copy()
+
+        if not sub.empty:
+            # 1) Średnie po powtórzeniach/czasach dla każdego stężenia białka
+            for (conc_val, model_label), grp in sub.groupby(["Conc_uM", "Model"], sort=True):
+                times_str = ",".join(str(t) for t in sorted(grp["Time_h"].dropna().unique()))
+                base = {
+                    "Construct": "CnTrmD-Tm1570",
+                    "Aggregation_Level": "per_concentration",
+                    "Conc_uM": conc_val,
+                    "Times_h": times_str,
+                    "Model": model_label,
+                    "Pathway": grp["Pathway"].iloc[0],
+                }
+                rows.append(_summarize_group(grp, base, numeric_specs))
+
+            # 2) Średnie po wszystkich stężeniach łącznie dla CnTrmD-Tm1570
+            for model_label, grp in sub.groupby("Model", sort=False):
+                concs_str = ",".join(f"{c:g}" for c in sorted(grp["Conc_uM"].dropna().unique()))
+                base = {
+                    "Construct": "CnTrmD-Tm1570",
+                    "Aggregation_Level": "across_all_concentrations",
+                    "Conc_uM": concs_str,
+                    "Times_h": "all",
+                    "Model": model_label,
+                    "Pathway": grp["Pathway"].iloc[0],
+                }
+                rows.append(_summarize_group(grp, base, numeric_specs))
+
+    df_conc_avg = pd.DataFrame(rows, columns=out_cols)
+    df_conc_avg.to_csv(out_csv_path, index=False)
+    return df_conc_avg
 
 
 def run_comparison(use_previous_avg_parameters=USE_PREVIOUS_AVG_PARAMETERS):
@@ -670,19 +739,26 @@ def run_comparison(use_previous_avg_parameters=USE_PREVIOUS_AVG_PARAMETERS):
     df_all.to_csv(ALL_PARAMS_CSV, index=False)
     df_comp.to_csv(DM_COMPARISON_CSV, index=False)
     df_avg = compute_and_save_avg_parameters(df_all, AVG_PARAMS_CSV)
+    df_conc_avg = compute_and_save_cntrmd_tm1570_conc_averages(df_all, CN_FUSION_CONC_AVG_CSV)
 
     print(f"\n[✓] Zapisano wszystkie parametry do:\n    {ALL_PARAMS_CSV}")
     print(f"[✓] Zapisano tabelę porównawczą m i d do:\n    {DM_COMPARISON_CSV}")
-    print(f"[✓] Zapisano średnie parametry do:\n    {AVG_PARAMS_CSV}\n")
+    print(f"[✓] Zapisano średnie parametry do:\n    {AVG_PARAMS_CSV}")
+    print(f"[✓] Zapisano średnie po stężeniach dla CnTrmD-Tm1570 do:\n    {CN_FUSION_CONC_AVG_CSV}\n")
 
     if not df_avg.empty:
         print("--- Średnie parametry (do użycia przy use_previous_avg_parameters=True) ---")
         print(df_avg.to_string(index=False))
         print()
 
+    if not df_conc_avg.empty:
+        print("--- Średnie dla CnTrmD-Tm1570 (wg stężeń i łącznie po stężeniach) ---")
+        print(df_conc_avg.to_string(index=False))
+        print()
+
     if not df_comp.empty:
         print("--- Tabela porównawcza d i m ---")
-        print(df_comp.to_string(index=True))
+        print(df_comp.to_string(index=False))
 
 
 if __name__ == "__main__":

@@ -16,8 +16,8 @@ from pymol import cmd
 # 1. Konfiguracja Ścieżek i Typografii
 # ==============================================================================
 OUTPUT_DIR = "figures/ch04"
-OUTPUT_PDF = os.path.join(OUTPUT_DIR, "Figura_4_8_Structural_Basis_Trp_Tyr.pdf")
-OUTPUT_PNG = os.path.join(OUTPUT_DIR, "Figura_4_8_Structural_Basis_Trp_Tyr.png")
+OUTPUT_PDF = os.path.join(OUTPUT_DIR, "Figura_4_10_Structural_Basis_Trp_Tyr.pdf")
+OUTPUT_PNG = os.path.join(OUTPUT_DIR, "Figura_4_10_Structural_Basis_Trp_Tyr.png")
 
 TEMP_IMG_A = "temp_panel_A.png"
 TEMP_IMG_B = "temp_panel_B.png"
@@ -258,7 +258,7 @@ def autocrop_border(img_array, threshold=252, pad=2):
 
 
 def assemble_figure():
-    print("Składanie zacieśnionej Figury 4.8...")
+    print("Składanie zacieśnionej Figury 4.10...")
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     img_a = autocrop_border(mpimg.imread(TEMP_IMG_A), pad=3)
@@ -356,7 +356,7 @@ def assemble_figure():
     fig_pdf.savefig(OUTPUT_PDF, format='pdf', pad_inches=0.0)
     plt.close(fig_pdf)
 
-    print(f"\n[OK] Zapisano idealnie wyrównaną Figurę 4.8:\n  -> {OUTPUT_PDF}\n  -> {OUTPUT_PNG}")
+    print(f"\n[OK] Zapisano idealnie wyrównaną Figurę 4.10:\n  -> {OUTPUT_PDF}\n  -> {OUTPUT_PNG}")
 
     for tmp in [TEMP_IMG_A, TEMP_IMG_B, TEMP_IMG_C, TEMP_IMG_D, TEMP_ASSEMBLED, "temp_AF_Fs.pdb"]:
         if os.path.exists(tmp):

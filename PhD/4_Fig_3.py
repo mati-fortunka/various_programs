@@ -24,7 +24,7 @@ mpl.rcParams["mathtext.tt"] = "DejaVu Sans Mono"
 # ==============================================================================
 # 1. Konfiguracja Ścieżek, Parametrów i Palety Barw
 # ==============================================================================
-FIGURE_ID = "Fig_4.2"
+FIGURE_ID = "Fig_4.3"
 TIME_H = 12
 CONC_UM = 2.0
 PATH_LENGTH_MM = 1.0

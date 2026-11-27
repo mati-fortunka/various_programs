@@ -6,6 +6,7 @@ import pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize, LinearSegmentedColormap
+from matplotlib.lines import Line2D
 from scipy.signal import savgol_filter
 from scipy.optimize import curve_fit
 
@@ -22,7 +23,7 @@ mpl.rcParams["mathtext.tt"] = "DejaVu Sans Mono"
 # ==============================================================================
 # 1. Konfiguracja Ścieżek, Parametrów i Palety Barw
 # ==============================================================================
-FIGURE_ID = "Fig_4.3"
+FIGURE_ID = "Fig_4.5"
 CONSTRUCT = "CnTrmD-Tm1570"
 TIME_H = 12
 CONC_UM = 2.0
@@ -38,7 +39,7 @@ CONC_FILE_CD = os.path.join(BASE_DIR_CD, "concentrations.txt")
 CONC_FILE_FLUO = os.path.join(BASE_DIR_FLUO, "concentrations.txt")
 
 OUTPUT_DIR = "/home/matifortunka/PycharmProjects/various_programs/PhD/figures/ch04"
-OUTPUT_FIGURE_PATH = os.path.join(OUTPUT_DIR, "Figura_4_3_Fuzja_2uM_12h.png")
+OUTPUT_FIGURE_PATH = os.path.join(OUTPUT_DIR, "Figura_4_5_Fuzja_2uM_12h.png")
 CSV_OUTPUT_PATH = "/home/matifortunka/PycharmProjects/various_programs/PhD/tables/thermo_fits_summary.csv"
 
 # Paleta projektowa
@@ -58,20 +59,22 @@ plasma_trimmed = LinearSegmentedColormap.from_list(
 # 2. Modele Termodynamiczne i Moduł Eksportu
 # ==============================================================================
 def two_state_model(x, a_n, a_u, m, d):
-    """Model dwustanowy Santoro-Bolen: N <-> U."""
+    """Model dwustanowy dla monomeru (Santoro-Bolen): N <-> U."""
     exp_term = np.exp(np.clip((m * (x - d)) / RT, -60, 60))
     return (a_n + a_u * exp_term) / (1.0 + exp_term)
 
 
-def two_state_linear_baseline(x, a_n, b_n, a_u, b_u, d, m):
-    """Model dwustanowy z liniowymi liniami bazowymi."""
-    dG = m * (d - x)
-    dG_clamped = np.clip(dG / RT, -50, 50)
-    K = np.exp(-dG_clamped)
-    f_u = K / (1.0 + K)
-    base_n = a_n + b_n * x
-    base_u = a_u + b_u * x
-    return base_n + (base_u - base_n) * f_u
+def two_state_dimer_model(x, a_n, a_d, m, d, conc_uM=CONC_UM):
+    """
+    Model dwustanowy rozwijania z dysocjacją dla homodimeru: N2 <-> 2U (2D).
+    P_t = conc_uM * 1e-6 [M] (całkowite stężenie w przeliczeniu na monomer).
+    K_U(x) = [D]^2 / [N2] = P_t * exp(m * (x - d) / RT), gdzie d = Cm (f_D = 0.5).
+    """
+    P_t = conc_uM * 1e-6
+    K_u = P_t * np.exp(np.clip((m * (x - d)) / RT, -500.0, 500.0))
+    f_d = 2.0 / (1.0 + np.sqrt(1.0 + (8.0 * P_t) / K_u))
+    f_n2 = 1.0 - f_d
+    return a_n * f_n2 + a_d * f_d
 
 
 def three_state_model(x, a_n, a_i, a_u, m1, d1, m2, d2):
@@ -84,8 +87,7 @@ def three_state_model(x, a_n, a_i, a_u, m1, d1, m2, d2):
 def three_state_dimer_model(x, a_n, a_i, a_d, m1, d1, m2, d2, conc_uM=CONC_UM):
     """
     Model trójstanowy rozwijania dla homodimeru z dimerycznym stanem pośrednim: N2 <-> I2 <-> 2D.
-    Etap 1 (N2 <-> I2): K1(x) = [I2]/[N2] = exp(m1 * (x - d1) / RT)
-    Etap 2 (I2 <-> 2D): K2(x) = [D]^2/[I2] = P_t * exp(m2 * (x - d2) / RT)
+    Zachowany pomocniczo; w Panelu A stosowany jest model 3-stanowy monomeryczny.
     """
     P_t = conc_uM * 1e-6
     K1 = np.exp(np.clip((m1 * (x - d1)) / RT, -250.0, 250.0))
@@ -137,7 +139,11 @@ def export_fit_row(fig_id, construct, probe, time_h, conc_uM, model_name,
     else:
         df_row.to_csv(CSV_OUTPUT_PATH, mode="a", header=False, index=False)
 
-    print(f"[{fig_id}] {construct} | {probe} ({model_name}): Cm={cm_val:.3f} ± {cm_se:.3f} M, m={m_val:.3f} ± {m_se:.3f}, dG={dG_val:.2f} kcal/mol, R²={r2_val:.4f}")
+    print(
+        f"[{fig_id}] {construct} | {probe} ({model_name}): "
+        f"Cm={cm_val:.3f} ± {cm_se:.3f} M, m={m_val:.3f} ± {m_se:.3f}, "
+        f"dG={dG_val:.2f} kcal/mol, R²={r2_val:.4f}"
+    )
 
 
 # ==============================================================================
@@ -149,13 +155,13 @@ def mdeg_to_mre(mdeg, conc_uM=CONC_UM, path_mm=PATH_LENGTH_MM, residues=RESIDUE_
 
 
 def load_concentrations_file(filepath):
-    with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
-        text = f.read().replace(',', '.')
-    df = pd.read_csv(StringIO(text), sep=r"\s+", engine='python')
-    df['Sample_number'] = pd.to_numeric(df.iloc[:, 0], errors='coerce')
-    df['den_concentration'] = pd.to_numeric(df.iloc[:, 1], errors='coerce')
-    df.dropna(subset=['Sample_number', 'den_concentration'], inplace=True)
-    return dict(zip(df['Sample_number'].astype(int), df['den_concentration'].astype(float)))
+    with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+        text = f.read().replace(",", ".")
+    df = pd.read_csv(StringIO(text), sep=r"\s+", engine="python")
+    df["Sample_number"] = pd.to_numeric(df.iloc[:, 0], errors="coerce")
+    df["den_concentration"] = pd.to_numeric(df.iloc[:, 1], errors="coerce")
+    df.dropna(subset=["Sample_number", "den_concentration"], inplace=True)
+    return dict(zip(df["Sample_number"].astype(int), df["den_concentration"].astype(float)))
 
 
 def load_prodata_cd(folder_path, conc_file, hv_cutoff=850.0):
@@ -173,11 +179,14 @@ def load_prodata_cd(folder_path, conc_file, hv_cutoff=850.0):
             continue
 
         fpath = os.path.join(folder_path, fname)
-        with open(fpath, 'r', encoding='utf-8', errors='ignore') as f:
+        with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
             lines = f.readlines()
 
-        cd_idx = next((i for i in range(len(lines) - 1)
-                       if lines[i].strip().startswith("Wavelength") and lines[i + 1].strip().startswith("CircularDichroism")), None)
+        cd_idx = next(
+            (i for i in range(len(lines) - 1)
+             if lines[i].strip().startswith("Wavelength") and lines[i + 1].strip().startswith("CircularDichroism")),
+            None,
+        )
         if cd_idx is None:
             continue
 
@@ -185,19 +194,22 @@ def load_prodata_cd(folder_path, conc_file, hv_cutoff=850.0):
         for ln in lines[cd_idx + 2:]:
             if not ln.strip() or ln.strip().startswith("Wavelength"):
                 break
-            cd_lines.append(list(map(float, ln.replace(',', ' ').split())))
+            cd_lines.append(list(map(float, ln.replace(",", " ").split())))
         cd_arr = np.array(cd_lines)
         wls, mdeg = cd_arr[:, 0], cd_arr[:, 1]
 
         # Filtracja HV
-        hv_idx = next((i for i in range(len(lines) - 1)
-                       if lines[i].strip().startswith("Wavelength") and lines[i + 1].strip().startswith("HV")), None)
+        hv_idx = next(
+            (i for i in range(len(lines) - 1)
+             if lines[i].strip().startswith("Wavelength") and lines[i + 1].strip().startswith("HV")),
+            None,
+        )
         if hv_idx is not None:
             hv_lines = []
             for ln in lines[hv_idx + 2:]:
                 if not ln.strip() or ln.strip().startswith("Wavelength"):
                     break
-                hv_lines.append(list(map(float, ln.replace(',', ' ').split())))
+                hv_lines.append(list(map(float, ln.replace(",", " ").split())))
             hv_arr = np.array(hv_lines)
             if len(hv_arr) == len(wls):
                 mask = hv_arr[:, 1] <= hv_cutoff
@@ -225,9 +237,9 @@ def load_fluo_spectra(folder_path, conc_file):
     spectra_by_conc = {}
 
     for fname in sorted(os.listdir(folder_path)):
-        if not fname.endswith('.csv'):
+        if not fname.endswith(".csv"):
             continue
-        matches = re.findall(r'(\d+)', fname)
+        matches = re.findall(r"(\d+)", fname)
         if not matches:
             continue
         sn = int(matches[-1])
@@ -238,25 +250,25 @@ def load_fluo_spectra(folder_path, conc_file):
         fpath = os.path.join(folder_path, fname)
         try:
             df = pd.read_csv(fpath, header=1, usecols=[0, 1])
-            df.columns = ['Wavelength', 'Intensity']
-            df['Wavelength'] = pd.to_numeric(df['Wavelength'], errors='coerce')
-            df['Intensity'] = pd.to_numeric(df['Intensity'], errors='coerce')
+            df.columns = ["Wavelength", "Intensity"]
+            df["Wavelength"] = pd.to_numeric(df["Wavelength"], errors="coerce")
+            df["Intensity"] = pd.to_numeric(df["Intensity"], errors="coerce")
             df.dropna(inplace=True)
             if df.empty:
                 continue
 
-            step = df['Wavelength'].diff().median()
+            step = df["Wavelength"].diff().median()
             w_pts = max(3, int(np.ceil(15.0 / step))) if step > 0 else 11
             w_pts = w_pts + 1 if w_pts % 2 == 0 else w_pts
 
             if len(df) >= w_pts:
-                df['Intensity'] = savgol_filter(df['Intensity'], w_pts, 3)
+                df["Intensity"] = savgol_filter(df["Intensity"], w_pts, 3)
 
             # Korekta baseline na 400 nm
-            b_idx = (df['Wavelength'] - 400.0).abs().idxmin()
-            df['Intensity'] -= df.loc[b_idx, 'Intensity']
+            b_idx = (df["Wavelength"] - 400.0).abs().idxmin()
+            df["Intensity"] -= df.loc[b_idx, "Intensity"]
 
-            spectra_by_conc[float(conc)] = (df['Wavelength'].values, df['Intensity'].values)
+            spectra_by_conc[float(conc)] = (df["Wavelength"].values, df["Intensity"].values)
         except Exception:
             continue
 
@@ -264,9 +276,9 @@ def load_fluo_spectra(folder_path, conc_file):
 
 
 # ==============================================================================
-# 5. Główny Generator Figury 4.3 (2x2)
+# 5. Główny Generator Figury 4.5 (2x2)
 # ==============================================================================
-def generate_figure_4_3():
+def generate_figure_4_5():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     fig, axes = plt.subplots(2, 2, figsize=(12, 10), constrained_layout=True, dpi=300)
 
@@ -277,6 +289,8 @@ def generate_figure_4_3():
 
     # --------------------------------------------------------------------------
     # PANEL A: Krzywa rozwijania CD fuzji (217 nm)
+    #   1) Odniesienie (linia przerywana): 2-stanowy model dimeryczny (N2 <-> 2U)
+    #   2) Dopasowanie główne (linia ciągła): 3-stanowy model monomeryczny (N <-> I <-> U)
     # --------------------------------------------------------------------------
     cd_data = load_prodata_cd(BASE_DIR_CD, CONC_FILE_CD)
     concs_cd = np.array(sorted(cd_data.keys()))
@@ -284,49 +298,59 @@ def generate_figure_4_3():
 
     # Punkty doświadczalne (przeskalowane / 1000.0)
     ax_a.scatter(
-        concs_cd, y_217 / 1000.0, color=COLOR_FUSION, marker='^', s=60,
-        edgecolors='none', zorder=4, label=r"$\mathit{Cn}$TrmD–Tm1570 (217 nm)"
+        concs_cd, y_217 / 1000.0, color=COLOR_FUSION, marker="^", s=60,
+        edgecolors="none", zorder=4, label=r"$\mathit{Cn}$TrmD–Tm1570 (217 nm)"
     )
 
     x_dense = np.linspace(concs_cd.min(), concs_cd.max(), 300)
 
-    # Dopasowanie 1: Model 2-stanowy (odniesienie)
+    # Dopasowanie 1: Model 2-stanowy dimeryczny (N2 <-> 2U) jako odniesienie
+    fit_func_2s_dimer = lambda x, a_n, a_d, m, d: two_state_dimer_model(
+        x, a_n, a_d, m, d, CONC_UM
+    )
     p0_2s = [y_217[0], y_217[-1], 2.0, np.median(concs_cd)]
-    popt_2s, pcov_2s = curve_fit(two_state_model, concs_cd, y_217, p0=p0_2s, maxfev=10000)
+    bounds_2s = ([-np.inf, -np.inf, 0.0, 0.0], [np.inf, np.inf, np.inf, np.inf])
+    popt_2s, pcov_2s = curve_fit(fit_func_2s_dimer, concs_cd, y_217, p0=p0_2s, bounds=bounds_2s, maxfev=15000)
     perr_2s = np.sqrt(np.diag(pcov_2s))
-    y_fit_2s = two_state_model(x_dense, *popt_2s)
-    r2_2s = calc_r_squared(y_217, two_state_model(concs_cd, *popt_2s))
+    y_fit_2s = fit_func_2s_dimer(x_dense, *popt_2s)
+    r2_2s = calc_r_squared(y_217, fit_func_2s_dimer(concs_cd, *popt_2s))
 
     # dashes=(4.0, 2.5) gwarantuje domknięcie linii przerywanej pełną kreską w legendzie
-    line_2s, = ax_a.plot(
+    ax_a.plot(
         x_dense, y_fit_2s / 1000.0, color=COLOR_FUSION, ls="--", dashes=(4.0, 2.5), lw=2.0,
-        label=f"2-state fit ($R^2 = {r2_2s:.3f}$)", zorder=2
+        label=f"Two-state fit", zorder=2
     )
-    export_fit_row(FIGURE_ID, CONSTRUCT, "CD_217nm", TIME_H, CONC_UM, "2-state",
-                   popt_2s[3], perr_2s[3], popt_2s[2], perr_2s[2], r2_2s,
-                   is_dimer_dissociation=False)
+    export_fit_row(
+        FIGURE_ID, CONSTRUCT, "CD_217nm", TIME_H, CONC_UM, "2-state-dimer",
+        popt_2s[3], perr_2s[3], popt_2s[2], perr_2s[2], r2_2s,
+        is_dimer_dissociation=True,
+    )
 
-    # Dopasowanie 2: Model 3-stanowy dla homodimeru (N2 <-> I2 <-> 2D)
-    fit_func_3s_dimer = lambda x, a_n, a_i, a_d, m1, d1, m2, d2: three_state_dimer_model(
-        x, a_n, a_i, a_d, m1, d1, m2, d2, CONC_UM
+    # Dopasowanie 2: Model 3-stanowy monomeryczny (N <-> I <-> U)
+    p0_3s = [y_217[0], (y_217[0] + y_217[-1]) / 2.0, y_217[-1], 5.0, 2.2, 1.0, 2.8]
+    bounds_3s = (
+        [-np.inf, -np.inf, -np.inf, 0.0, 0.0, 0.0, 0.0],
+        [np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf],
     )
-    p0_3s = [y_217[0], (y_217[0] + y_217[-1]) / 2.0, y_217[-1], 5, 2.2, 1, 2.8]
-    bounds_3s = ([-np.inf, -np.inf, -np.inf, 0.0, 0.0, 0.0, 0.0], [np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf])
-    popt_3s, pcov_3s = curve_fit(fit_func_3s_dimer, concs_cd, y_217, p0=p0_3s, bounds=bounds_3s, maxfev=15000)
+    popt_3s, pcov_3s = curve_fit(three_state_model, concs_cd, y_217, p0=p0_3s, bounds=bounds_3s, maxfev=15000)
     perr_3s = np.sqrt(np.diag(pcov_3s))
-    y_fit_3s = fit_func_3s_dimer(x_dense, *popt_3s)
-    r2_3s = calc_r_squared(y_217, fit_func_3s_dimer(concs_cd, *popt_3s))
+    y_fit_3s = three_state_model(x_dense, *popt_3s)
+    r2_3s = calc_r_squared(y_217, three_state_model(concs_cd, *popt_3s))
 
-    line_3s, = ax_a.plot(
+    ax_a.plot(
         x_dense, y_fit_3s / 1000.0, color=COLOR_FUSION, ls="-", lw=2.4,
-        label=f"3-state dimer fit ($R^2 = {r2_3s:.3f}$)", zorder=3
+        label=f"Three-state fit", zorder=3
     )
-    export_fit_row(FIGURE_ID, CONSTRUCT, "CD_217nm_Step1", TIME_H, CONC_UM, "3-state-dimer_trans1",
-                   popt_3s[4], perr_3s[4], popt_3s[3], perr_3s[3], r2_3s,
-                   is_dimer_dissociation=False)
-    export_fit_row(FIGURE_ID, CONSTRUCT, "CD_217nm_Step2", TIME_H, CONC_UM, "3-state-dimer_trans2",
-                   popt_3s[6], perr_3s[6], popt_3s[5], perr_3s[5], r2_3s,
-                   is_dimer_dissociation=True)
+    export_fit_row(
+        FIGURE_ID, CONSTRUCT, "CD_217nm_Step1", TIME_H, CONC_UM, "3-state_trans1",
+        popt_3s[4], perr_3s[4], popt_3s[3], perr_3s[3], r2_3s,
+        is_dimer_dissociation=False,
+    )
+    export_fit_row(
+        FIGURE_ID, CONSTRUCT, "CD_217nm_Step2", TIME_H, CONC_UM, "3-state_trans2",
+        popt_3s[6], perr_3s[6], popt_3s[5], perr_3s[5], r2_3s,
+        is_dimer_dissociation=False,
+    )
 
     ax_a.set_xlim(-0.2, 7.8)
     ax_a.set_ylim(-15.5, 0.5)
@@ -366,7 +390,7 @@ def generate_figure_4_3():
     ax_b.text(0.04, 0.95, "B", transform=ax_b.transAxes, fontsize=14.5, fontweight="bold", va="top")
     ax_b.set_title("Far-UV CD Spectra Series", fontsize=13, fontweight="bold", pad=8)
 
-    # Powiększony colorbar w prawym dolnym rogu (tics: 0, 2, 4, 6)
+    # Powiększony colorbar w prawym dolnym rogu (ticks: 0, 2, 4, 6)
     cax_b = ax_b.inset_axes([0.82, 0.08, 0.048, 0.44])
     sm_b = plt.cm.ScalarMappable(cmap=plasma_trimmed, norm=norm_cd)
     sm_b.set_array([])
@@ -379,6 +403,8 @@ def generate_figure_4_3():
 
     # --------------------------------------------------------------------------
     # PANEL C: Dual-ratio Fluorescencji (Dwa etapy na podwójnej osi Y)
+    #   Oba zakresy dopasowane 2-stanowym modelem monomerycznym (two_state_model),
+    #   co odpowiada 3-stanowemu modelowi monomerycznemu N <-> I <-> U z Panelu A.
     # --------------------------------------------------------------------------
     fluo_data = load_fluo_spectra(BASE_DIR_FLUO, CONC_FILE_FLUO)
     concs_fluo = np.array(sorted(fluo_data.keys()))
@@ -411,43 +437,46 @@ def generate_figure_4_3():
     ax_c1 = ax_c
     ax_c2 = ax_c1.twinx()
 
-    # Lewa oś: Etap 1
-    ax_c1.scatter(concs_r1, r1_vals, color=COLOR_TRMD, marker='o', s=55,
-                  edgecolors='none', zorder=4)
+    # Lewa oś: Etap 1 (2-state monomeryczny: N <-> I)
+    ax_c1.scatter(concs_r1, r1_vals, color=COLOR_TRMD, marker="o", s=55,
+                  edgecolors="none", zorder=4)
     popt_r1, pcov_r1 = curve_fit(two_state_model, concs_r1, r1_vals,
                                  p0=[r1_vals[0], r1_vals[-1], 2.0, 2.2], maxfev=10000)
     perr_r1 = np.sqrt(np.diag(pcov_r1))
     x_dense_r1 = np.linspace(concs_r1.min(), concs_r1.max(), 200)
     ax_c1.plot(x_dense_r1, two_state_model(x_dense_r1, *popt_r1),
-               color=COLOR_TRMD, lw=2.2, ls='-', zorder=3)
+               color=COLOR_TRMD, lw=2.2, ls="-", zorder=3)
     r2_r1 = calc_r_squared(r1_vals, two_state_model(concs_r1, *popt_r1))
-    export_fit_row(FIGURE_ID, CONSTRUCT, "Fluo_DualRatio_Step1_TrmD", TIME_H, CONC_UM, "2-state",
-                   popt_r1[3], perr_r1[3], popt_r1[2], perr_r1[2], r2_r1,
-                   is_dimer_dissociation=False)
+    export_fit_row(
+        FIGURE_ID, CONSTRUCT, "Fluo_DualRatio_Step1_TrmD", TIME_H, CONC_UM, "2-state",
+        popt_r1[3], perr_r1[3], popt_r1[2], perr_r1[2], r2_r1,
+        is_dimer_dissociation=False,
+    )
 
-    # Prawa oś: Etap 2
-    ax_c2.scatter(concs_r2, r2_vals, color=COLOR_TM1570, marker='^', s=55,
-                  edgecolors='none', zorder=4)
+    # Prawa oś: Etap 2 (2-state monomeryczny: I <-> U)
+    ax_c2.scatter(concs_r2, r2_vals, color=COLOR_TM1570, marker="^", s=55,
+                  edgecolors="none", zorder=4)
     popt_r2, pcov_r2 = curve_fit(two_state_model, concs_r2, r2_vals,
                                  p0=[r2_vals[0], r2_vals[-1], 2.0, 3.8], maxfev=10000)
     perr_r2 = np.sqrt(np.diag(pcov_r2))
     x_dense_r2 = np.linspace(concs_r2.min(), concs_r2.max(), 200)
     ax_c2.plot(x_dense_r2, two_state_model(x_dense_r2, *popt_r2),
-               color=COLOR_TM1570, lw=2.2, ls='--', zorder=3)
+               color=COLOR_TM1570, lw=2.2, ls="--", zorder=3)
     r2_r2 = calc_r_squared(r2_vals, two_state_model(concs_r2, *popt_r2))
-    export_fit_row(FIGURE_ID, CONSTRUCT, "Fluo_DualRatio_Step2_Tm1570", TIME_H, CONC_UM, "2-state",
-                   popt_r2[3], perr_r2[3], popt_r2[2], perr_r2[2], r2_r2,
-                   is_dimer_dissociation=False)
+    export_fit_row(
+        FIGURE_ID, CONSTRUCT, "Fluo_DualRatio_Step2_Tm1570", TIME_H, CONC_UM, "2-state",
+        popt_r2[3], perr_r2[3], popt_r2[2], perr_r2[2], r2_r2,
+        is_dimer_dissociation=False,
+    )
 
     # Zintegrowane proxy artists eliminujące rozbieżność wysokości punkt vs linia
     # oraz wyrównujące geometryczną długość linii ciągłej i przerywanej
-    from matplotlib.lines import Line2D
-    h1 = Line2D([0], [0], color=COLOR_TRMD, marker='o', markersize=7.5,
-                markeredgecolor='none', linestyle='-', linewidth=1.8)
+    h1 = Line2D([0], [0], color=COLOR_TRMD, marker="o", markersize=7.5,
+                markeredgecolor="none", linestyle="-", linewidth=1.8)
 
     # dashes=(4.0, 2.5) gwarantuje domknięcie linii przerywanej pełną kreską na obu końcach
-    h2 = Line2D([0], [0], color=COLOR_TM1570, marker='^', markersize=7.5,
-                markeredgecolor='none', linestyle='--', dashes=(4.0, 2.5), linewidth=1.8)
+    h2 = Line2D([0], [0], color=COLOR_TM1570, marker="^", markersize=7.5,
+                markeredgecolor="none", linestyle="--", dashes=(4.0, 2.5), linewidth=1.8)
 
     handles_c = [h1, h2]
     labels_c = [r"Step 1: $I_{310}/I_{332}$", r"Step 2: $I_{342}/I_{330}$"]
@@ -457,22 +486,24 @@ def generate_figure_4_3():
     ax_c1.set_ylabel(r"Emission Ratio $I_{310} / I_{332}$", fontsize=15, color=COLOR_TRMD)
     ax_c2.set_ylabel(r"Emission Ratio $I_{342} / I_{330}$", fontsize=15, color=COLOR_TM1570)
 
-    ax_c1.tick_params(axis='y', colors=COLOR_TRMD, labelsize=13)
-    ax_c2.tick_params(axis='y', colors=COLOR_TM1570, labelsize=13)
-    ax_c1.tick_params(axis='x', labelsize=13)
+    ax_c1.tick_params(axis="y", colors=COLOR_TRMD, labelsize=13)
+    ax_c2.tick_params(axis="y", colors=COLOR_TM1570, labelsize=13)
+    ax_c1.tick_params(axis="x", labelsize=13)
     ax_c1.grid(True, linestyle=":", alpha=0.5)
 
-    ax_c1.spines['left'].set_color(COLOR_TRMD)
-    ax_c1.spines['left'].set_linewidth(1.4)
-    ax_c2.spines['right'].set_color(COLOR_TM1570)
-    ax_c2.spines['right'].set_linewidth(1.4)
-    ax_c1.spines['top'].set_visible(False)
-    ax_c2.spines['top'].set_visible(False)
+    ax_c1.spines["left"].set_color(COLOR_TRMD)
+    ax_c1.spines["left"].set_linewidth(1.4)
+    ax_c2.spines["right"].set_color(COLOR_TM1570)
+    ax_c2.spines["right"].set_linewidth(1.4)
+    ax_c1.spines["top"].set_visible(False)
+    ax_c2.spines["top"].set_visible(False)
 
     # handlelength=2.6 oraz handletextpad=0.8 stabilizują identyczną szerokość wizualną obu próbek
-    leg_c = ax_c1.legend(handles_c, labels_c, loc="lower right", bbox_to_anchor=(1, 0.02),
-                         fontsize=11.5, frameon=True, facecolor="white", framealpha=0.9,
-                         edgecolor="none", markerfirst=False, handlelength=2.6, handletextpad=0.8)
+    leg_c = ax_c1.legend(
+        handles_c, labels_c, loc="lower right", bbox_to_anchor=(1, 0.02),
+        fontsize=11.5, frameon=True, facecolor="white", framealpha=0.9,
+        edgecolor="none", markerfirst=False, handlelength=2.6, handletextpad=0.8
+    )
     for text_obj in leg_c.get_texts():
         text_obj.set_ha("right")
 
@@ -498,7 +529,7 @@ def generate_figure_4_3():
     ax_d.text(0.04, 0.95, "D", transform=ax_d.transAxes, fontsize=14.5, fontweight="bold", va="top")
     ax_d.set_title("Fluorescence Emission Spectra", fontsize=13, fontweight="bold", pad=8)
 
-    # Powiększony colorbar w prawym górnym rogu (tics: 0, 2, 4, 6)
+    # Powiększony colorbar w prawym górnym rogu (ticks: 0, 2, 4, 6)
     cax_d = ax_d.inset_axes([0.82, 0.50, 0.048, 0.44])
     sm_d = plt.cm.ScalarMappable(cmap=plasma_trimmed, norm=norm_fluo)
     sm_d.set_array([])
@@ -513,9 +544,9 @@ def generate_figure_4_3():
     fig.savefig(OUTPUT_FIGURE_PATH, dpi=300)
     pdf_path = os.path.splitext(OUTPUT_FIGURE_PATH)[0] + ".pdf"
     fig.savefig(pdf_path, format="pdf")
-    print(f"\n[✓] Gotowa Figura 4.3 została zapisana do:\n  -> {OUTPUT_FIGURE_PATH}\n  -> {pdf_path}")
+    print(f"\n[✓] Gotowa Figura 4.5 została zapisana do:\n  -> {OUTPUT_FIGURE_PATH}\n  -> {pdf_path}")
     print(f"[✓] Zbiorcze parametry dopasowań zaktualizowano w: {CSV_OUTPUT_PATH}")
 
 
 if __name__ == "__main__":
-    generate_figure_4_3()
+    generate_figure_4_5()

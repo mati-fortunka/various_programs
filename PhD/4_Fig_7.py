@@ -20,7 +20,7 @@ from scipy.interpolate import make_interp_spline
 # ==============================================================================
 # 1. Konfiguracja Ścieżek, Danych i Typografii
 # ==============================================================================
-FIGURE_ID = "Fig_4.5"
+FIGURE_ID = "Fig_4.7"
 
 BASE_DATA_DIR = (
     "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/"
@@ -28,8 +28,8 @@ BASE_DATA_DIR = (
 )
 
 OUTPUT_DIR_FIG = "/home/matifortunka/PycharmProjects/various_programs/PhD/figures/ch04"
-OUTPUT_PDF = os.path.join(OUTPUT_DIR_FIG, "Figura_4_5_Refolding_CD_2x2_center.pdf")
-OUTPUT_PNG = os.path.join(OUTPUT_DIR_FIG, "Figura_4_5_Refolding_CD_2x2_center.png")
+OUTPUT_PDF = os.path.join(OUTPUT_DIR_FIG, "Figura_4_7_Refolding_CD_2x2_center.pdf")
+OUTPUT_PNG = os.path.join(OUTPUT_DIR_FIG, "Figura_4_7_Refolding_CD_2x2_center.png")
 CSV_OUTPUT_PATH = "/home/matifortunka/PycharmProjects/various_programs/PhD/tables/thermo_fits_summary.csv"
 DETAILED_CSV_PATH = "/home/matifortunka/PycharmProjects/various_programs/PhD/tables/refolding_yield_summary.csv"
 
@@ -259,7 +259,7 @@ def calculate_recovery_yield(wl_ctrl, sig_ctrl, wl_ref, sig_ref, target_wl=217.0
 
 
 # ==============================================================================
-# 3. Główna Procedura Generowania Figury 4.5
+# 3. Główna Procedura Generowania Figury 4.7
 # ==============================================================================
 def main():
     os.makedirs(OUTPUT_DIR_FIG, exist_ok=True)
@@ -396,7 +396,7 @@ def main():
     fig.savefig(OUTPUT_PNG, dpi=300)
     plt.close(fig)
 
-    print(f"\n[✓] Gotowa Figura 4.5 zapisana do:\n  -> {OUTPUT_PDF}\n  -> {OUTPUT_PNG}")
+    print(f"\n[✓] Gotowa Figura 4.7 zapisana do:\n  -> {OUTPUT_PDF}\n  -> {OUTPUT_PNG}")
     print(f"[✓] Parametry dopasowań zaktualizowano w: {CSV_OUTPUT_PATH}")
 
     # 8. Zapis szczegółowej tabeli

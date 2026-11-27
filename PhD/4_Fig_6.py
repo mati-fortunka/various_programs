@@ -23,7 +23,10 @@ mpl.rcParams["mathtext.tt"] = "DejaVu Sans Mono"
 # ==============================================================================
 # 1. Konfiguracja Ścieżek, Parametrów i Palety Projektowej
 # ==============================================================================
-FIGURE_ID = "Fig_4.4"
+# Zasada doboru modeli:
+#   - Izolowane domeny (CnTrmD, CnTm1570): 2-stanowy model dimeryczny (N2 <-> 2U)
+#   - Fuzja CnTrmD-Tm1570: 3-stanowy model monomeryczny (N <-> I <-> U)
+FIGURE_ID = "Fig_4.6"
 CONC_UM = 2.0
 PATH_LENGTH_MM = 1.0
 TARGET_WL = 217.0
@@ -46,7 +49,7 @@ BASE_CD_DIR = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/eq
 
 # Ścieżki wyjściowe
 OUTPUT_DIR = "/home/matifortunka/PycharmProjects/various_programs/PhD/figures/ch04"
-OUTPUT_FIGURE_PATH = os.path.join(OUTPUT_DIR, "Figura_4_4_Czas_Ekwilibracji_2x2_center.png")
+OUTPUT_FIGURE_PATH = os.path.join(OUTPUT_DIR, "Figura_4_6_Czas_Ekwilibracji_2x2_center.png")
 CSV_OUTPUT_PATH = "/home/matifortunka/PycharmProjects/various_programs/PhD/tables/thermo_fits_summary.csv"
 
 # Master Palette
@@ -66,20 +69,20 @@ INITIAL_GUESSES_3STATE = {
 # ==============================================================================
 def two_state_model(x, a_n, a_u, m, d):
     """Model dwustanowy Santoro-Bolen dla monomeru: N <-> U."""
-    exp_term = np.exp(np.clip((m * (x - d)) / RT, -60, 60))
+    exp_term = np.exp(np.clip((m * (x - d)) / RT, -100.0, 100.0))
     return (a_n + a_u * exp_term) / (1.0 + exp_term)
 
 
 def three_state_model(x, a_n, a_i, a_u, m1, d1, m2, d2):
     """Model trójstanowy dla monomeru: N <-> I <-> U."""
-    sig1 = 1.0 / (1.0 + np.exp(np.clip(-(m1 * (x - d1)) / RT, -60, 60)))
-    sig2 = 1.0 / (1.0 + np.exp(np.clip(-(m2 * (x - d2)) / RT, -60, 60)))
+    sig1 = 1.0 / (1.0 + np.exp(np.clip(-(m1 * (x - d1)) / RT, -100.0, 100.0)))
+    sig2 = 1.0 / (1.0 + np.exp(np.clip(-(m2 * (x - d2)) / RT, -100.0, 100.0)))
     return a_n * (1.0 - sig1) + a_i * (sig1 - sig2) + a_u * sig2
 
 
 def two_state_dimer_model(x, a_n, a_d, m, d, conc_uM=CONC_UM):
     """
-    Model dwustanowy rozwijania z dysocjacją dla homodimeru: N2 <-> 2D.
+    Model dwustanowy rozwijania z dysocjacją dla homodimeru: N2 <-> 2U (2D).
     P_t = conc_uM * 1e-6 [M] (całkowite stężenie w przeliczeniu na monomer).
     K_U(x) = [D]^2 / [N2] = P_t * exp(m * (x - d) / RT), gdzie d = Cm (f_D = 0.5).
     """
@@ -93,8 +96,7 @@ def two_state_dimer_model(x, a_n, a_d, m, d, conc_uM=CONC_UM):
 def three_state_dimer_model(x, a_n, a_i, a_d, m1, d1, m2, d2, conc_uM=CONC_UM):
     """
     Model trójstanowy rozwijania dla homodimeru z dimerycznym stanem pośrednim: N2 <-> I2 <-> 2D.
-    Etap 1 (N2 <-> I2): K1(x) = [I2]/[N2] = exp(m1 * (x - d1) / RT)
-    Etap 2 (I2 <-> 2D): K2(x) = [D]^2/[I2] = P_t * exp(m2 * (x - d2) / RT)
+    Zachowany pomocniczo; w Panelu C stosowany jest model 3-stanowy monomeryczny (three_state_model).
     """
     P_t = conc_uM * 1e-6
     K1 = np.exp(np.clip((m1 * (x - d1)) / RT, -250.0, 250.0))
@@ -144,7 +146,11 @@ def export_fit_row(fig_id, construct, probe, time_h, conc_uM, model_name,
     else:
         df_row.to_csv(CSV_OUTPUT_PATH, mode="a", header=False, index=False)
 
-    print(f"[{fig_id}] {construct} ({time_h}h) | {probe} ({model_name}): Cm={cm_val:.2f} ± {cm_se:.2f} M | m={m_val:.2f} ± {m_se:.2f} | dG={dG_val:.2f} kcal/mol | R²={r2_val:.4f}")
+    print(
+        f"[{fig_id}] {construct} ({time_h}h) | {probe} ({model_name}): "
+        f"Cm={cm_val:.2f} ± {cm_se:.2f} M | m={m_val:.2f} ± {m_se:.2f} | "
+        f"dG={dG_val:.2f} kcal/mol | R²={r2_val:.4f}"
+    )
 
 
 # ==============================================================================
@@ -155,13 +161,13 @@ def mdeg_to_mre(mdeg, residues, conc_uM=CONC_UM, path_mm=PATH_LENGTH_MM):
 
 
 def load_concentrations_file(filepath):
-    with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
-        text = f.read().replace(',', '.')
-    df = pd.read_csv(StringIO(text), sep=r"\s+", engine='python')
-    df['Sample_number'] = pd.to_numeric(df.iloc[:, 0], errors='coerce')
-    df['den_concentration'] = pd.to_numeric(df.iloc[:, 1], errors='coerce')
-    df.dropna(subset=['Sample_number', 'den_concentration'], inplace=True)
-    return dict(zip(df['Sample_number'].astype(int), df['den_concentration'].astype(float)))
+    with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+        text = f.read().replace(",", ".")
+    df = pd.read_csv(StringIO(text), sep=r"\s+", engine="python")
+    df["Sample_number"] = pd.to_numeric(df.iloc[:, 0], errors="coerce")
+    df["den_concentration"] = pd.to_numeric(df.iloc[:, 1], errors="coerce")
+    df.dropna(subset=["Sample_number", "den_concentration"], inplace=True)
+    return dict(zip(df["Sample_number"].astype(int), df["den_concentration"].astype(float)))
 
 
 def load_single_series(construct_subfolder, date_folder, residues):
@@ -191,7 +197,7 @@ def load_single_series(construct_subfolder, date_folder, residues):
 
         fpath = os.path.join(folder_path, fname)
         try:
-            with open(fpath, 'r', encoding='utf-8', errors='ignore') as f:
+            with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
                 lines = f.readlines()
 
             cd_idx = next((i for i in range(len(lines) - 1)
@@ -203,7 +209,7 @@ def load_single_series(construct_subfolder, date_folder, residues):
             for ln in lines[cd_idx + 2:]:
                 if not ln.strip() or ln.strip().startswith("Wavelength"):
                     break
-                cd_lines.append(list(map(float, ln.replace(',', ' ').split())))
+                cd_lines.append(list(map(float, ln.replace(",", " ").split())))
             cd_arr = np.array(cd_lines)
             wls, mdeg = cd_arr[:, 0], cd_arr[:, 1]
 
@@ -214,7 +220,7 @@ def load_single_series(construct_subfolder, date_folder, residues):
                 for ln in lines[hv_idx + 2:]:
                     if not ln.strip() or ln.strip().startswith("Wavelength"):
                         break
-                    hv_lines.append(list(map(float, ln.replace(',', ' ').split())))
+                    hv_lines.append(list(map(float, ln.replace(",", " ").split())))
                 hv_arr = np.array(hv_lines)
                 if len(hv_arr) == len(wls):
                     mask = hv_arr[:, 1] <= HV_CUTOFF
@@ -243,9 +249,9 @@ def load_single_series(construct_subfolder, date_folder, residues):
 
 
 # ==============================================================================
-# 4. Generator Figury 4.4 (Siatka 2 rzędowa, Panel C wyśrodkowany)
+# 4. Generator Figury 4.6 (Siatka 2 rzędowa, Panel C wyśrodkowany)
 # ==============================================================================
-def generate_figure_4_4():
+def generate_figure_4_6():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     fig = plt.figure(figsize=(13, 11), constrained_layout=True, dpi=300)
     gs = GridSpec(2, 4, figure=fig)
@@ -258,15 +264,12 @@ def generate_figure_4_4():
     x_dense = np.linspace(0.0, 7.6, 300)
     x_dense_trmd = np.linspace(0.0, 6.4, 300)
 
+    # Funkcja i ograniczenia dla modelu 2-stanowego dimerycznego (N2 <-> 2U)
     fit_func_2s_dimer = lambda x, a_n, a_d, m, d: two_state_dimer_model(x, a_n, a_d, m, d, CONC_UM)
     bounds_2s_dimer = ([-np.inf, -np.inf, 0.0, 0.0], [np.inf, np.inf, np.inf, np.inf])
 
-    fit_func_3s_dimer = lambda x, a_n, a_i, a_d, m1, d1, m2, d2: three_state_dimer_model(
-        x, a_n, a_i, a_d, m1, d1, m2, d2, CONC_UM
-    )
-
     # --------------------------------------------------------------------------
-    # PANEL A: CnTrmD (12h, 36h, 84h) - Model 2-state dimer
+    # PANEL A: CnTrmD (12h, 36h, 84h) - Model 2-state dimer (N2 <-> 2U)
     # --------------------------------------------------------------------------
     handles_a, labels_a = [], []
     for item in TIME_SERIES:
@@ -324,7 +327,7 @@ def generate_figure_4_4():
     ax_a.set_title(r"$\boldsymbol{Cn}$" + r"$\bf{TrmD\ (2\ \mu M)}$", fontsize=13, pad=8)
 
     # --------------------------------------------------------------------------
-    # PANEL B: CnTm1570 (12h, 36h, 84h) - Model 2-state dimer
+    # PANEL B: CnTm1570 (12h, 36h, 84h) - Model 2-state dimer (N2 <-> 2U)
     # --------------------------------------------------------------------------
     handles_b, labels_b = [], []
     for item in TIME_SERIES:
@@ -381,7 +384,7 @@ def generate_figure_4_4():
     ax_b.set_title(r"$\boldsymbol{Cn}$" + r"$\bf{Tm1570\ (2\ \mu M)}$", fontsize=13, pad=8)
 
     # --------------------------------------------------------------------------
-    # PANEL C: Fuzja CnTrmD-Tm1570 (12h, 36h, 84h) - Model 3-state dimer
+    # PANEL C: Fuzja CnTrmD-Tm1570 (12h, 36h, 84h) - Model 3-state monomer (N <-> I <-> U)
     # --------------------------------------------------------------------------
     handles_c, labels_c = [], []
     for item in TIME_SERIES:
@@ -410,35 +413,36 @@ def generate_figure_4_4():
         )
 
         try:
-            popt, pcov = curve_fit(fit_func_3s_dimer, c, y, p0=p0_3s, bounds=bounds_3s, maxfev=20000)
+            popt, pcov = curve_fit(three_state_model, c, y, p0=p0_3s, bounds=bounds_3s, maxfev=20000)
             perr = np.sqrt(np.diag(pcov))
-            r2 = calc_r_squared(y, fit_func_3s_dimer(c, *popt))
+            r2 = calc_r_squared(y, three_state_model(c, *popt))
 
             line_kw = {"color": COLOR_FUSION, "lw": 2.2, "zorder": 2, "ls": item["ls"]}
             if item["dashes"]:
                 line_kw["dashes"] = item["dashes"]
-            ax_c.plot(x_dense, fit_func_3s_dimer(x_dense, *popt) / 1000.0, **line_kw)
+            ax_c.plot(x_dense, three_state_model(x_dense, *popt) / 1000.0, **line_kw)
 
-            export_fit_row(FIGURE_ID, "CnTrmD-Tm1570", "CD_217nm_Step1", t_h, CONC_UM, "3-state-dimer_trans1",
+            export_fit_row(FIGURE_ID, "CnTrmD-Tm1570", "CD_217nm_Step1", t_h, CONC_UM, "3-state_trans1",
                            popt[4], perr[4], popt[3], perr[3], r2,
                            is_dimer_dissociation=False)
-            export_fit_row(FIGURE_ID, "CnTrmD-Tm1570", "CD_217nm_Step2", t_h, CONC_UM, "3-state-dimer_trans2",
+            export_fit_row(FIGURE_ID, "CnTrmD-Tm1570", "CD_217nm_Step2", t_h, CONC_UM, "3-state_trans2",
                            popt[6], perr[6], popt[5], perr[5], r2,
-                           is_dimer_dissociation=True)
+                           is_dimer_dissociation=False)
         except Exception as e:
-            print(f"3-state dimer fit failed for Fusion ({t_h}h): {e}. Fallback to 2-state dimer.")
-            popt_2s, pcov_2s = curve_fit(fit_func_2s_dimer, c, y, p0=[y[0], y[-1], 2.0, 2.5], bounds=bounds_2s_dimer, maxfev=15000)
+            print(f"3-state monomer fit failed for Fusion ({t_h}h): {e}. Fallback to 2-state monomer.")
+            bounds_2s_mono = ([-np.inf, -np.inf, 0.0, 0.0], [np.inf, np.inf, np.inf, np.inf])
+            popt_2s, pcov_2s = curve_fit(two_state_model, c, y, p0=[y[0], y[-1], 2.0, 2.5], bounds=bounds_2s_mono, maxfev=15000)
             perr_2s = np.sqrt(np.diag(pcov_2s))
-            r2_2s = calc_r_squared(y, fit_func_2s_dimer(c, *popt_2s))
+            r2_2s = calc_r_squared(y, two_state_model(c, *popt_2s))
 
             line_kw = {"color": COLOR_FUSION, "lw": 2.0, "zorder": 2, "ls": item["ls"]}
             if item["dashes"]:
                 line_kw["dashes"] = item["dashes"]
-            ax_c.plot(x_dense, fit_func_2s_dimer(x_dense, *popt_2s) / 1000.0, **line_kw)
+            ax_c.plot(x_dense, two_state_model(x_dense, *popt_2s) / 1000.0, **line_kw)
 
-            export_fit_row(FIGURE_ID, "CnTrmD-Tm1570", "CD_217nm_Fallback", t_h, CONC_UM, "2-state-dimer",
+            export_fit_row(FIGURE_ID, "CnTrmD-Tm1570", "CD_217nm_Fallback", t_h, CONC_UM, "2-state",
                            popt_2s[3], perr_2s[3], popt_2s[2], perr_2s[2], r2_2s,
-                           is_dimer_dissociation=True)
+                           is_dimer_dissociation=False)
 
         h_kw = {
             "color": COLOR_FUSION, "linestyle": item["ls"], "linewidth": 2.0,
@@ -471,9 +475,9 @@ def generate_figure_4_4():
     pdf_path = os.path.splitext(OUTPUT_FIGURE_PATH)[0] + ".pdf"
     fig.savefig(pdf_path, format="pdf")
 
-    print(f"\n[✓] Zaktualizowana Figura 4.4 zapisana do:\n  -> {OUTPUT_FIGURE_PATH}\n  -> {pdf_path}")
+    print(f"\n[✓] Zaktualizowana Figura 4.6 zapisana do:\n  -> {OUTPUT_FIGURE_PATH}\n  -> {pdf_path}")
     print(f"[✓] Zbiorcze parametry dopasowań zaktualizowano w: {CSV_OUTPUT_PATH}")
 
 
 if __name__ == "__main__":
-    generate_figure_4_4()
+    generate_figure_4_6()

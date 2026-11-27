@@ -116,7 +116,7 @@ EXPERIMENTS_FUSION = [
         "path_mm": 0.1,
         "residues": 455,
         "hv_cutoff": 850,
-        "model": "2-state",
+        "model": "2-state-dimer",
         "target_wl": 217.0,
         "color": "#9E9AC8",
         "marker": "^",
