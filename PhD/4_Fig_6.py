@@ -25,7 +25,7 @@ mpl.rcParams["mathtext.tt"] = "DejaVu Sans Mono"
 # ==============================================================================
 # Zasada doboru modeli:
 #   - Izolowane domeny (CnTrmD, CnTm1570): 2-stanowy model dimeryczny (N2 <-> 2U)
-#   - Fuzja CnTrmD-Tm1570: 3-stanowy model monomeryczny (N <-> I <-> U)
+#   - Fuzja CnTrmD-Tm1570: 3-stanowy model monomeryczny (N <-> I <-> U) + dodatkowo 2-stanowy dimeryczny w CSV
 FIGURE_ID = "Fig_4.6"
 CONC_UM = 2.0
 PATH_LENGTH_MM = 1.0
@@ -385,6 +385,7 @@ def generate_figure_4_6():
 
     # --------------------------------------------------------------------------
     # PANEL C: Fuzja CnTrmD-Tm1570 (12h, 36h, 84h) - Model 3-state monomer (N <-> I <-> U)
+    #          oraz dodatkowe dopasowanie 2-state dimer (N2 <-> 2U) do pliku CSV
     # --------------------------------------------------------------------------
     handles_c, labels_c = [], []
     for item in TIME_SERIES:
@@ -443,6 +444,19 @@ def generate_figure_4_6():
             export_fit_row(FIGURE_ID, "CnTrmD-Tm1570", "CD_217nm_Fallback", t_h, CONC_UM, "2-state",
                            popt_2s[3], perr_2s[3], popt_2s[2], perr_2s[2], r2_2s,
                            is_dimer_dissociation=False)
+
+        # Dodatkowe dopasowanie modelu 2-stanowego dimerycznego (N2 <-> 2U) do pliku CSV
+        p0_2s_dimer = [y[0], y[-1], 2.0, np.median(c)]
+        try:
+            popt_dim, pcov_dim = curve_fit(fit_func_2s_dimer, c, y, p0=p0_2s_dimer, bounds=bounds_2s_dimer, maxfev=15000)
+            perr_dim = np.sqrt(np.diag(pcov_dim))
+            r2_dim = calc_r_squared(y, fit_func_2s_dimer(c, *popt_dim))
+
+            export_fit_row(FIGURE_ID, "CnTrmD-Tm1570", "CD_217nm", t_h, CONC_UM, "2-state-dimer",
+                           popt_dim[3], perr_dim[3], popt_dim[2], perr_dim[2], r2_dim,
+                           is_dimer_dissociation=True)
+        except Exception as e:
+            print(f"2-state dimer fit failed for CnTrmD-Tm1570 ({t_h}h): {e}")
 
         h_kw = {
             "color": COLOR_FUSION, "linestyle": item["ls"], "linewidth": 2.0,

@@ -742,7 +742,7 @@ def generate_figure_4_1(fit_report_lines):
             zorder=10,
         )
 
-    ax_a.set_title(r"$\bf{Transition\ Curve\ (217\ nm)}$", fontsize=13, pad=10)
+    ax_a.set_title("Far-UV CD Unfolding Curve (217 nm)", fontsize=13, fontweight="bold", pad=10)
     ax_b.set_title(r"$\bf{K2D\ Secondary\ Structure}$", fontsize=13, pad=10)
 
     save_figure(fig, OUT_FIG_4_1)
@@ -825,22 +825,15 @@ def generate_two_row_comparison_figure(experiments, fig_id, out_png_path,
                 zorder=10,
             )
 
-        if row_idx > 0:
-            ax_col2.set_title(
-                f"{cfg['label']} Equilibrium Unfolding",
-                fontsize=13.5,
-                fontweight="bold",
-                pad=10,
-            )
+        ax_col2.set_title(
+            f"Equilibrium Spectra in {cfg['denaturant']}",
+            fontsize=13,
+            fontweight="bold",
+            pad=14 if row_idx == 0 else 10,
+        )
 
-    # Nagłówki kolumn (w tym łączony nagłówek w panelu B, jak w oryginalnym Fig4_1)
-    row0_title_tex = experiments[0]["label"].replace(" ", r"\ ")
-    axes[0, 0].set_title(r"$\bf{Transition\ Curve\ (217\ nm)}$", fontsize=13, pad=14)
-    axes[0, 1].set_title(
-        r"$\bf{Equilibrium\ CD\ Spectra}$" + "\n" + rf"$\bf{{{row0_title_tex}\ Equilibrium\ Unfolding}}$",
-        fontsize=13,
-        pad=10,
-    )
+    # Nagłówki kolumn
+    axes[0, 0].set_title("Far-UV CD Unfolding Curve (217 nm)", fontsize=13, fontweight="bold", pad=14)
     axes[0, 2].set_title(r"$\bf{K2D\ Secondary\ Structure}$", fontsize=13, pad=14)
 
     save_figure(fig, out_png_path)

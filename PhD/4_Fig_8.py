@@ -23,7 +23,7 @@ mpl.rcParams["mathtext.tt"] = "DejaVu Sans Mono"
 # ==============================================================================
 # 1. Konfiguracja Ścieżek, Parametrów i Palety Projektowej
 # ==============================================================================
-FIGURE_ID = "Fig_4.6"
+FIGURE_ID = "Fig_4.8"
 PATH_LENGTH_MM = 1.0
 TARGET_WL = 217.0
 RT = 0.592  # kcal/mol przy 298.15 K
@@ -78,7 +78,7 @@ CONC_SERIES = [
 BASE_CD_DIR = "/home/matifortunka/Documents/JS/kinetics_stability/data_Warsaw/equilibrium/biofizyka_CD"
 
 OUTPUT_DIR = "/home/matifortunka/PycharmProjects/various_programs/PhD/figures/ch04"
-OUTPUT_FIGURE_PATH = os.path.join(OUTPUT_DIR, "Figura_4_6_Wplyw_Stezenia_Bialka_2x2_center.png")
+OUTPUT_FIGURE_PATH = os.path.join(OUTPUT_DIR, "Figura_4_8_Wplyw_Stezenia_Bialka_2x2_center.png")
 CSV_OUTPUT_PATH = "/home/matifortunka/PycharmProjects/various_programs/PhD/tables/thermo_fits_summary.csv"
 
 # Wstępne parametry 3-stanowe dla fuzji (m1, d1, m2, d2)
@@ -280,9 +280,9 @@ def load_single_series(construct_subfolder, folder_token, residues, conc_uM):
 
 
 # ==============================================================================
-# 4. Generator Figury 4.6 (Siatka 2 rzędy, Panel C wyśrodkowany)
+# 4. Generator Figury 4.8 (Siatka 2 rzędy, Panel C wyśrodkowany)
 # ==============================================================================
-def generate_figure_4_6():
+def generate_figure_4_8():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     os.makedirs(os.path.dirname(CSV_OUTPUT_PATH), exist_ok=True)
 
@@ -434,6 +434,7 @@ def generate_figure_4_6():
 
     # --------------------------------------------------------------------------
     # PANEL C: Fuzja CnTrmD-Tm1570 (2, 3, 5 uM) - Frakcja f_U (Model 3-state dimer)
+    #          oraz dodatkowe dopasowanie 2-state dimer (N2 <-> 2D) do pliku CSV
     # --------------------------------------------------------------------------
     handles_c, labels_c = [], []
     for item in CONC_SERIES:
@@ -511,6 +512,19 @@ def generate_figure_4_6():
                            popt_2s[3], perr_2s[3], popt_2s[2], perr_2s[2], r2_2s,
                            is_dimer_dissociation=True)
 
+        # Dodatkowe dopasowanie modelu 2-stanowego dimerycznego (N2 <-> 2D) do pliku CSV
+        p0_2s_dimer = [y[0], y[-1], 2.0, np.median(c)]
+        try:
+            popt_dim, pcov_dim = curve_fit(fit_func_2s_dimer, c, y, p0=p0_2s_dimer, bounds=bounds_2s_dimer, maxfev=15000)
+            perr_dim = np.sqrt(np.diag(pcov_dim))
+            r2_dim = calc_r_squared(y, fit_func_2s_dimer(c, *popt_dim))
+
+            export_fit_row(FIGURE_ID, "CnTrmD-Tm1570", "CD_217nm", 84, c_uM, "2-state-dimer",
+                           popt_dim[3], perr_dim[3], popt_dim[2], perr_dim[2], r2_dim,
+                           is_dimer_dissociation=True)
+        except Exception as e:
+            print(f"2-state dimer fit failed for CnTrmD-Tm1570 ({c_uM} uM): {e}")
+
         h_kw = {
             "color": col, "linestyle": item["ls"], "linewidth": 2.0,
             "marker": item["marker"], "markersize": 7.0,
@@ -544,9 +558,9 @@ def generate_figure_4_6():
     pdf_path = os.path.splitext(OUTPUT_FIGURE_PATH)[0] + ".pdf"
     fig.savefig(pdf_path, format="pdf")
 
-    print(f"\n[✓] Gotowa Figura 4.6 zapisana do:\n  -> {OUTPUT_FIGURE_PATH}\n  -> {pdf_path}")
+    print(f"\n[✓] Gotowa Figura 4.8 zapisana do:\n  -> {OUTPUT_FIGURE_PATH}\n  -> {pdf_path}")
     print(f"[✓] Zbiorcze parametry dopasowań zaktualizowano w: {CSV_OUTPUT_PATH}")
 
 
 if __name__ == "__main__":
-    generate_figure_4_6()
+    generate_figure_4_8()
